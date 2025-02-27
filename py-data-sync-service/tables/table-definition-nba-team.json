@@ -1,0 +1,24 @@
+{
+    "TableName": "NBA_Teams",
+    "AttributeDefinitions": [
+        {
+            "AttributeName": "abbreviation",
+            "AttributeType": "S"
+        },
+        {
+            "AttributeName": "id",
+            "AttributeType": "N"
+        }
+    ],
+    "KeySchema": [
+        {
+            "AttributeName": "id",
+            "KeyType": "HASH"
+        },
+        {
+            "AttributeName": "abbreviation",
+            "KeyType": "RANGE"
+        }
+    ],
+    "BillingMode": "PAY_PER_REQUEST"
+}

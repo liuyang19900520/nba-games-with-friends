@@ -1,0 +1,12 @@
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+
+# IDE 相关文件
+.idea/
+.vscode/
+*.iml
+
+# 通用环境文件
+.env
+
