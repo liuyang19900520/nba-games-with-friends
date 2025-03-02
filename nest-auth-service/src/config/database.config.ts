@@ -11,7 +11,6 @@ export default registerAs(
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-    synchronize: process.env.NODE_ENV !== 'production', // 生产环境务必关闭！
     logging: true,
     ssl: true,
     extra: {
