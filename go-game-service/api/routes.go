@@ -1,23 +1,25 @@
 package api
 
 import (
-	"go-game-service/internal/game/handlers"
-	"go-game-service/internal/info/handlers"
-
 	"github.com/gin-gonic/gin"
+	gameHandlers "github.com/liuyang19900520/nba-games-with-friends/go-game-service/internal/game/handlers"
+	infoHandlers "github.com/liuyang19900520/nba-games-with-friends/go-game-service/internal/info/handlers"
+	"github.com/liuyang19900520/nba-games-with-friends/go-game-service/internal/info/repository"
 )
 
-func SetupRoutes(r *gin.Engine) {
+// SetupRoutes 设置路由
+func SetupRoutes(r *gin.Engine, nbaTeamRepo repository.NBATeamRepository) {
 	api := r.Group("/api")
 	{
 		info := api.Group("/info")
 		{
-			info.GET("/", handlers.GetInfo)
+			// 使用 GetNBATeamsHandler 函数创建 handler
+			info.GET("/", infoHandlers.GetNBATeamsHandler(nbaTeamRepo))
 		}
 
 		game := api.Group("/game")
 		{
-			game.GET("/", handlers.GetGameData)
+			game.GET("/", gameHandlers.GetGameData)
 		}
 	}
 }
