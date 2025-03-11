@@ -1,4 +1,4 @@
-package info
+package model
 
 type NBATeam struct {
 	Conference   string  `json:"Conference"`

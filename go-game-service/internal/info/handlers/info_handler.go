@@ -1,33 +1,30 @@
 package handlers
 
 import (
-	"context"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liuyang19900520/nba-games-with-friends/go-game-service/internal/info/repository"
+	"github.com/liuyang19900520/nba-games-with-friends/go-game-service/internal/info/service"
 )
 
-// GetInfo 获取基本信息
-func GetInfo(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Information retrieved successfully",
-	})
+// NbaTeamHandler 用于处理 NBA_Teams 相关的 HTTP 请求
+type NbaTeamHandler struct {
+	svc service.NbaTeamService
 }
 
-// GetNBATeamsHandler 获取 NBA 球队数据
-func GetNBATeamsHandler(repo repository.NBATeamRepository) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx := context.Background()
-		teams, err := repo.ScanAll(ctx)
-		if err != nil {
-			log.Printf("扫描 NBA_Teams 表失败: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve NBA teams"})
-			return
-		}
+// NewNbaTeamHandler 构造函数
+func NewNbaTeamHandler(svc service.NbaTeamService) *NbaTeamHandler {
+	return &NbaTeamHandler{svc: svc}
+}
 
-		// 可以进行其他业务逻辑处理，例如过滤、排序等
-		c.JSON(http.StatusOK, teams)
+// GetNBATeams 处理获取 NBA 球队的请求
+func (h *NbaTeamHandler) GetNBATeams(c *gin.Context) {
+	ctx := c.Request.Context()
+	teams, err := h.svc.ListTeams(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve NBA teams"})
+		return
 	}
+
+	c.JSON(http.StatusOK, teams)
 }
