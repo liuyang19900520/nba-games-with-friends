@@ -21,13 +21,13 @@ type ClientWrapper struct {
 }
 
 // NewClient 创建一个新的 DynamoDB 客户端，接收 AWSConfig 作为参数
-func NewClient(ctx context.Context, awsCfg *config.AWSConfig) (*Client, error) {
+func NewClient(ctx context.Context, awsCfg *config.AWSConfig) *Client {
 	cfg, err := config.NewAWSSessionWithConfig(ctx, awsCfg)
 	if err != nil {
-		return nil, fmt.Errorf("创建 AWS session 失败: %w", err)
+		return nil
 	}
 
-	return &Client{client: dynamodb.NewFromConfig(cfg)}, nil
+	return &Client{client: dynamodb.NewFromConfig(cfg)}
 }
 
 // ListTables 列出所有 DynamoDB 表
@@ -193,4 +193,9 @@ func (c *Client) DeleteTable(ctx context.Context, tableName string) error {
 		return fmt.Errorf("删除表失败: %w", err)
 	}
 	return nil
+}
+
+// 在 pkg/dynamodb/dynamodb.go 中添加
+func (c *Client) GetAWSClient() *dynamodb.Client {
+	return c.client
 }
