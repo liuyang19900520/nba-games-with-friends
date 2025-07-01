@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NBA梦之队 - 每日挑战</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: linear-gradient(135deg, #0d1421 0%, #1a2332 50%, #0d1421 100%);
+        min-height: 100vh;
+        color: white;
+        overflow-x: hidden;
+      }
+
+      .container {
+        max-width: 414px;
+        margin: 0 auto;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0d1421 0%, #1a2332 50%, #0d1421 100%);
+        position: relative;
+      }
+
+      /* Header - All-Star Style */
+      .header {
+        background: linear-gradient(135deg, #c41e3a 0%, #ff6b35 100%);
+        color: white;
+        padding: 20px;
+        text-align: center;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 4px 20px rgba(196, 30, 58, 0.4);
+      }
+
+      .header h1 {
+        font-size: 24px;
+        font-weight: 800;
+        margin-bottom: 6px;
+        letter-spacing: -0.5px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      }
+
+      .header p {
+        font-size: 14px;
+        opacity: 0.9;
+        font-weight: 500;
+      }
+
+      /* Navigation - All-Star Tabs */
+      .nav-tabs {
+        display: flex;
+        background: rgba(13, 20, 33, 0.95);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid #2a3441;
+        position: relative;
+      }
+
+      .nav-tab {
+        flex: 1;
+        text-align: center;
+        padding: 16px 8px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 600;
+        color: rgba(255,255,255,0.7);
+        transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .nav-tab::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(196, 30, 58, 0.1), rgba(255, 107, 53, 0.1));
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+
+      .nav-tab:hover::before {
+        opacity: 1;
+      }
+
+      .nav-tab.active {
+        color: #ff6b35;
+      }
+
+      .nav-tab.active::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #c41e3a, #ff6b35);
+        animation: slideIn 0.3s ease-out;
+      }
+
+      @keyframes slideIn {
+        from { transform: scaleX(0); }
+        to { transform: scaleX(1); }
+      }
+
+      /* Page Content */
+      .page {
+        display: none;
+        padding: 20px 16px;
+        min-height: calc(100vh - 140px);
+      }
+
+      .page.active {
+        display: block;
+      }
+
+      /* All-Star Card Styles */
+      .allstar-card {
+        background: linear-gradient(135deg, rgba(26, 35, 50, 0.8), rgba(13, 20, 33, 0.9));
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+      }
+
+      .allstar-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(196, 30, 58, 0.2);
+        border-color: rgba(255, 107, 53, 0.3);
+      }
+
+      .card-content {
+        padding: 20px;
+      }
+
+      /* Team Status - Voting Style */
+      .voting-status {
+        background: linear-gradient(135deg, rgba(196, 30, 58, 0.1), rgba(255, 107, 53, 0.1));
+        border: 1px solid rgba(196, 30, 58, 0.3);
+        border-radius: 16px;
+        padding: 24px;
+        text-align: center;
+        margin-bottom: 24px;
+        backdrop-filter: blur(10px);
+      }
+
+      .voting-status h2 {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        background: linear-gradient(90deg, #ff6b35, #c41e3a);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .selected-count {
+        font-size: 32px;
+        font-weight: 800;
+        color: #ff6b35;
+        margin: 10px 0;
+        text-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+      }
+
+      .vote-deadline {
+        font-size: 12px;
+        color: rgba(255,255,255,0.7);
+        margin-top: 8px;
+      }
+
+      /* Conference Sections */
+      .conference-section {
+        margin-bottom: 32px;
+      }
+
+      .conference-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, rgba(26, 35, 50, 0.6), rgba(13, 20, 33, 0.8));
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .conference-logo {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #c41e3a, #ff6b35);
+        border-radius: 50%;
+        margin-right: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 18px;
+        box-shadow: 0 4px 16px rgba(196, 30, 58, 0.3);
+      }
+
+      .conference-info h3 {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .conference-subtitle {
+        font-size: 12px;
+        color: rgba(255,255,255,0.6);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      /* Position Groups - All-Star Style */
+      .position-groups {
+        display: grid;
+        gap: 16px;
+      }
+
+      .position-group {
+        background: linear-gradient(135deg, rgba(26, 35, 50, 0.4), rgba(13, 20, 33, 0.6));
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        backdrop-filter: blur(10px);
+      }
+
+      .position-title {
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: #ff6b35;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+      }
+
+      .position-title::before {
+        content: '';
+        width: 4px;
+        height: 16px;
+        background: linear-gradient(135deg, #c41e3a, #ff6b35);
+        border-radius: 2px;
+        margin-right: 8px;
+      }
+
+      .player-slot {
+        background: rgba(26, 35, 50, 0.5);
+        border: 2px dashed rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        color: rgba(255,255,255,0.6);
+        font-size: 14px;
+        min-height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .player-slot:hover {
+        border-color: #ff6b35;
+        background: rgba(255, 107, 53, 0.1);
+        color: #ff6b35;
+      }
+
+      .player-slot.filled {
+        background: linear-gradient(135deg, #c41e3a, #ff6b35);
+        color: white;
+        border-color: transparent;
+        box-shadow: 0 4px 16px rgba(196, 30, 58, 0.4);
+      }
+
+      /* Player Cards - All-Star Voting Style */
+      .players-section {
+        margin-top: 32px;
+      }
+
+      .section-title {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 20px;
+        text-align: center;
+        background: linear-gradient(90deg, #ff6b35, #c41e3a);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .players-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+      }
+
+      .player-card {
+        background: linear-gradient(135deg, rgba(26, 35, 50, 0.6), rgba(13, 20, 33, 0.8));
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        backdrop-filter: blur(10px);
+      }
+
+      .player-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(196, 30, 58, 0.1), rgba(255, 107, 53, 0.1));
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+
+      .player-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(196, 30, 58, 0.2);
+        border-color: rgba(255, 107, 53, 0.5);
+      }
+
+      .player-card:hover::before {
+        opacity: 1;
+      }
+
+      .player-card.selected {
+        border: 2px solid #ff6b35;
+        box-shadow: 0 8px 32px rgba(255, 107, 53, 0.3);
+        background: linear-gradient(135deg, rgba(255, 107, 53, 0.2), rgba(196, 30, 58, 0.2));
+      }
+
+      .player-avatar {
+        width: 72px;
+        height: 72px;
+        background: linear-gradient(135deg, #c41e3a, #ff6b35);
+        border-radius: 50%;
+        margin: 0 auto 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 20px;
+        box-shadow: 0 6px 20px rgba(196, 30, 58, 0.4);
+        position: relative;
+        z-index: 1;
+      }
+
+      .player-name {
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: white;
+        font-size: 14px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .player-team {
+        color: rgba(255,255,255,0.7);
+        font-size: 12px;
+        font-weight: 500;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Stats Page - All-Star Results Style */
+      .stats-summary {
+        background: linear-gradient(135deg, rgba(26, 35, 50, 0.8), rgba(13, 20, 33, 0.9));
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 32px 24px;
+        margin-bottom: 24px;
+        text-align: center;
+        backdrop-filter: blur(10px);
+      }
+
+      .today-score {
+        margin-bottom: 20px;
+      }
+
+      .score-big {
+        font-size: 56px;
+        font-weight: 800;
+        background: linear-gradient(90deg, #ff6b35, #c41e3a);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1;
+        text-shadow: 0 4px 16px rgba(255, 107, 53, 0.3);
+      }
+
+      .score-label {
+        color: rgba(255,255,255,0.7);
+        margin-top: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .player-stats {
+        margin-top: 24px;
+      }
+
+      .stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        background: linear-gradient(135deg, rgba(26, 35, 50, 0.6), rgba(13, 20, 33, 0.8));
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        backdrop-filter: blur(10px);
+        transition: all 0.3s;
+      }
+
+      .stat-row:hover {
+        border-color: rgba(255, 107, 53, 0.3);
+        transform: translateX(4px);
+      }
+
+      .stat-player {
+        display: flex;
+        align-items: center;
+      }
+
+      .stat-avatar {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #c41e3a, #ff6b35);
+        border-radius: 50%;
+        margin-right: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 16px;
+      }
+
+      .stat-details {
+        font-size: 12px;
+        color: rgba(255,255,255,0.7);
+        margin-top: 4px;
+      }
+
+      .stat-score {
+        font-weight: 700;
+        color: #ff6b35;
+        font-size: 18px;
+      }
+
+      /* Profile Page - All-Star Achievements */
+      .profile-header {
+        text-align: center;
+        padding: 32px 24px;
+        background: linear-gradient(135deg, rgba(26, 35, 50, 0.8), rgba(13, 20, 33, 0.9));
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        margin-bottom: 24px;
+        backdrop-filter: blur(10px);
+      }
+
+      .rank-badge {
+        display: inline-flex;
+        align-items: center;
+        background: linear-gradient(135deg, #ffd700, #ffb347);
+        color: #1a2332;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 16px rgba(255, 215, 0, 0.3);
+      }
+
+      .total-score {
+        font-size: 48px;
+        font-weight: 800;
+        background: linear-gradient(90deg, #ff6b35, #c41e3a);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 8px;
+        line-height: 1;
+      }
+
+      .games-played {
+        color: rgba(255,255,255,0.7);
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .score-history {
+        background: linear-gradient(135deg, rgba(26, 35, 50, 0.8), rgba(13, 20, 33, 0.9));
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 24px;
+        backdrop-filter: blur(10px);
+      }
+
+      .history-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.3s;
+      }
+
+      .history-item:last-child {
+        border-bottom: none;
+      }
+
+      .history-item:hover {
+        background-color: rgba(255, 107, 53, 0.05);
+        transform: translateX(4px);
+      }
+
+      .history-date {
+        font-weight: 600;
+        color: white;
+        font-size: 14px;
+      }
+
+      .history-score {
+        color: #ff6b35;
+        font-weight: 700;
+        font-size: 16px;
+      }
+
+      /* All-Star Vote Button */
+      .vote-btn {
+        background: linear-gradient(135deg, #c41e3a, #ff6b35);
+        color: white;
+        border: none;
+        padding: 16px 32px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        width: 100%;
+        margin-top: 24px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 6px 24px rgba(196, 30, 58, 0.4);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .vote-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+      }
+
+      .vote-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 32px rgba(196, 30, 58, 0.6);
+      }
+
+      .vote-btn:hover::before {
+        left: 100%;
+      }
+
+      .vote-btn:active {
+        transform: translateY(0);
+      }
+
+      .vote-btn:disabled {
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255,255,255,0.4);
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      .vote-btn:disabled:hover {
+        transform: none;
+        box-shadow: none;
+      }
+
+      /* Remove Button - All-Star Style */
+      .remove-btn {
+        background: rgba(244, 67, 54, 0.8);
+        border: none;
+        color: white;
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        backdrop-filter: blur(10px);
+      }
+
+      .remove-btn:hover {
+        background: #f44336;
+        transform: scale(1.1);
+        box-shadow: 0 4px 16px rgba(244, 67, 54, 0.4);
+      }
+
+      /* Responsive */
+      @media (max-width: 480px) {
+        .container {
+          max-width: 100%;
+        }
+        
+        .players-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+        }
+
+        .nav-tab {
+          font-size: 10px;
+          padding: 14px 6px;
+        }
+
+        .player-card {
+          padding: 16px;
+        }
+
+        .player-avatar {
+          width: 60px;
+          height: 60px;
+          font-size: 16px;
+        }
+      }
+
+      /* Glow Effects */
+      @keyframes glow {
+        0%, 100% { box-shadow: 0 0 20px rgba(255, 107, 53, 0.3); }
+        50% { box-shadow: 0 0 30px rgba(196, 30, 58, 0.5); }
+      }
+
+      .selected .player-avatar {
+        animation: glow 2s infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <div class="header">
+        <h1>🏀 NBA梦之队</h1>
+        <p>每日投票 • 选择你的全明星阵容</p>
+      </div>
+
+      <!-- Navigation -->
+      <div class="nav-tabs">
+        <button class="nav-tab active" onclick="showPage('select')">投票选择</button>
+        <button class="nav-tab" onclick="showPage('stats')">今日战况</button>
+        <button class="nav-tab" onclick="showPage('players')">球员信息</button>
+        <button class="nav-tab" onclick="showPage('profile')">我的成绩</button>
+      </div>
+
+      <!-- Player Selection Page -->
+      <div id="select" class="page active">
+        <div class="voting-status allstar-card">
+          <h2>每日阵容投票</h2>
+          <div class="selected-count"><span id="selectedCount">0</span>/5</div>
+          <div>名球员已选择</div>
+          <div class="vote-deadline">投票截止：今日 23:59</div>
+        </div>
+
+        <!-- Eastern Conference -->
+        <div class="conference-section">
+          <div class="conference-header">
+            <div class="conference-logo">E</div>
+            <div class="conference-info">
+              <h3>东部联盟</h3>
+              <div class="conference-subtitle">Eastern Conference</div>
+            </div>
+          </div>
+          
+          <div class="position-groups">
+            <div class="position-group">
+              <div class="position-title">后卫 (Guards)</div>
+              <div class="player-slot" data-position="PG">
+                <div>选择控球后卫</div>
+              </div>
+              <div class="player-slot" data-position="SG" style="margin-top: 12px;">
+                <div>选择得分后卫</div>
+              </div>
+            </div>
+            <div class="position-group">
+              <div class="position-title">前场 (Frontcourt)</div>
+              <div class="player-slot" data-position="SF">
+                <div>选择小前锋</div>
+              </div>
+              <div class="player-slot" data-position="PF" style="margin-top: 12px;">
+                <div>选择大前锋</div>
+              </div>
+              <div class="player-slot" data-position="C" style="margin-top: 12px;">
+                <div>选择中锋</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="players-section">
+          <h2 class="section-title">可选球员</h2>
+          <div class="players-grid" id="playersGrid">
+            <!-- Players will be populated by JavaScript -->
+          </div>
+        </div>
+
+        <button class="vote-btn" id="submitTeam" onclick="submitTeam()" disabled>
+          确认投票阵容
+        </button>
+      </div>
+
+      <!-- Stats Page -->
+      <div id="stats" class="page">
+        <div class="stats-summary allstar-card">
+          <div class="today-score">
+            <div class="score-big" id="todayScore">0</div>
+            <div class="score-label">今日总分</div>
+          </div>
+        </div>
+
+        <div class="player-stats">
+          <h3 class="section-title">球员表现</h3>
+          <div id="playerStatsContainer">
+            <!-- Player stats will be populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Players Info Page -->
+      <div id="players" class="page">
+        <h2 class="section-title">球员资料库</h2>
+        <div class="players-grid" id="allPlayersGrid">
+          <!-- All players info will be populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Profile Page -->
+      <div id="profile" class="page">
+        <div class="profile-header allstar-card">
+          <div class="rank-badge">🏆 排名 #12</div>
+          <div class="total-score">2,847</div>
+          <div class="games-played">已参与 15 场比赛</div>
+        </div>
+
+        <div class="score-history allstar-card">
+          <h3 class="section-title">历史成绩</h3>
+          <div class="history-item">
+            <div>
+              <div class="history-date">2024年1月15日</div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px;">vs 湖人、勇士、凯尔特人</div>
+            </div>
+            <div class="history-score">245分</div>
+          </div>
+          <div class="history-item">
+            <div>
+              <div class="history-date">2024年1月14日</div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px;">vs 热火、雄鹿、76人</div>
+            </div>
+            <div class="history-score">198分</div>
+          </div>
+          <div class="history-item">
+            <div>
+              <div class="history-date">2024年1月13日</div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px;">vs 篮网、快船、独行侠</div>
+            </div>
+            <div class="history-score">312分</div>
+          </div>
+          <div class="history-item">
+            <div>
+              <div class="history-date">2024年1月12日</div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px;">vs 掘金、太阳、国王</div>
+            </div>
+            <div class="history-score">267分</div>
+          </div>
+          <div class="history-item">
+            <div>
+              <div class="history-date">2024年1月11日</div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px;">vs 雷霆、森林狼、鹈鹕</div>
+            </div>
+            <div class="history-score">189分</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Sample player data
+      const players = [
+        { id: 1, name: 'LeBron James', team: 'LAL', position: 'SF', avatar: 'LJ', conference: 'West' },
+        { id: 2, name: 'Stephen Curry', team: 'GSW', position: 'PG', avatar: 'SC', conference: 'West' },
+        { id: 3, name: 'Kevin Durant', team: 'PHX', position: 'SF', avatar: 'KD', conference: 'West' },
+        { id: 4, name: 'Giannis Antetokounmpo', team: 'MIL', position: 'PF', avatar: 'GA', conference: 'East' },
+        { id: 5, name: 'Nikola Jokic', team: 'DEN', position: 'C', avatar: 'NJ', conference: 'West' },
+        { id: 6, name: 'Luka Dončić', team: 'DAL', position: 'PG', avatar: 'LD', conference: 'West' },
+        { id: 7, name: 'Jayson Tatum', team: 'BOS', position: 'SF', avatar: 'JT', conference: 'East' },
+        { id: 8, name: 'Joel Embiid', team: 'PHI', position: 'C', avatar: 'JE', conference: 'East' },
+        { id: 9, name: 'Kawhi Leonard', team: 'LAC', position: 'SF', avatar: 'KL', conference: 'West' },
+        { id: 10, name: 'Anthony Davis', team: 'LAL', position: 'PF', avatar: 'AD', conference: 'West' },
+        { id: 11, name: 'James Harden', team: 'LAC', position: 'SG', avatar: 'JH', conference: 'West' },
+        { id: 12, name: 'Damian Lillard', team: 'MIL', position: 'PG', avatar: 'DL', conference: 'East' },
+        { id: 13, name: 'Paul George', team: 'LAC', position: 'SF', avatar: 'PG', conference: 'West' },
+        { id: 14, name: 'Jimmy Butler', team: 'MIA', position: 'SF', avatar: 'JB', conference: 'East' },
+        { id: 15, name: 'Devin Booker', team: 'PHX', position: 'SG', avatar: 'DB', conference: 'West' }
+      ];
+
+      let selectedTeam = {};
+      let currentPage = 'select';
+
+      // Initialize the app
+      function init() {
+        populatePlayersGrid();
+        populateAllPlayersGrid();
+        updateSelectedCount();
+      }
+
+      // Show different pages
+      function showPage(pageId) {
+        // Hide all pages
+        document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+        
+        // Show selected page
+        document.getElementById(pageId).classList.add('active');
+        event.target.classList.add('active');
+        
+        currentPage = pageId;
+        
+        if (pageId === 'stats') {
+          updateStatsPage();
+        }
+      }
+
+      // Populate players grid for selection
+      function populatePlayersGrid() {
+        const grid = document.getElementById('playersGrid');
+        grid.innerHTML = '';
+        
+        players.forEach(player => {
+          const playerCard = document.createElement('div');
+          playerCard.className = 'player-card';
+          playerCard.innerHTML = `
+            <div class="player-avatar">${player.avatar}</div>
+            <div class="player-name">${player.name}</div>
+            <div class="player-team">${player.team} - ${player.position}</div>
+          `;
+          playerCard.onclick = () => selectPlayer(player);
+          grid.appendChild(playerCard);
+        });
+      }
+
+      // Populate all players grid for info page
+      function populateAllPlayersGrid() {
+        const grid = document.getElementById('allPlayersGrid');
+        grid.innerHTML = '';
+        
+        players.forEach(player => {
+          const playerCard = document.createElement('div');
+          playerCard.className = 'player-card';
+          playerCard.innerHTML = `
+            <div class="player-avatar">${player.avatar}</div>
+            <div class="player-name">${player.name}</div>
+            <div class="player-team">${player.team} - ${player.position}</div>
+            <div style="margin-top: 12px; font-size: 12px; color: rgba(255,255,255,0.6);">
+              <div>场均: 25.3分 8.1篮板 6.4助攻</div>
+              <div>命中率: 48.2% • ${player.conference}部</div>
+            </div>
+          `;
+          grid.appendChild(playerCard);
+        });
+      }
+
+      // Select a player
+      function selectPlayer(player) {
+        if (selectedTeam[player.position]) {
+          alert('该位置已有球员，请先移除现有球员');
+          return;
+        }
+        
+        if (Object.keys(selectedTeam).length >= 5) {
+          alert('阵容已满，请先移除一名球员');
+          return;
+        }
+
+        selectedTeam[player.position] = player;
+        updatePlayerSlot(player.position, player);
+        updateSelectedCount();
+        updatePlayerCards();
+      }
+
+      // Update player slot with All-Star styling
+      function updatePlayerSlot(position, player) {
+        const slot = document.querySelector(`[data-position="${position}"]`);
+        if (player) {
+          slot.classList.add('filled');
+          slot.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center;">
+                <div style="width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 50%; margin-right: 12px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 14px; backdrop-filter: blur(10px);">
+                  ${player.avatar}
+                </div>
+                <div>
+                  <div style="font-weight: 600; font-size: 14px;">${player.name}</div>
+                  <div style="font-size: 12px; opacity: 0.9;">${player.team} • ${player.conference}部</div>
+                </div>
+              </div>
+              <button onclick="removePlayer('${position}')" class="remove-btn">×</button>
+            </div>
+          `;
+        } else {
+          slot.classList.remove('filled');
+          const positionNames = {
+            'PG': '选择控球后卫',
+            'SG': '选择得分后卫', 
+            'SF': '选择小前锋',
+            'PF': '选择大前锋',
+            'C': '选择中锋'
+          };
+          slot.innerHTML = `<div>${positionNames[position]}</div>`;
+        }
+      }
+
+      // Remove player
+      function removePlayer(position) {
+        delete selectedTeam[position];
+        updatePlayerSlot(position, null);
+        updateSelectedCount();
+        updatePlayerCards();
+      }
+
+      // Update selected count
+      function updateSelectedCount() {
+        document.getElementById('selectedCount').textContent = Object.keys(selectedTeam).length;
+        document.getElementById('submitTeam').disabled = Object.keys(selectedTeam).length < 5;
+      }
+
+      // Update player cards appearance
+      function updatePlayerCards() {
+        document.querySelectorAll('.player-card').forEach(card => {
+          card.classList.remove('selected');
+        });
+        
+        Object.values(selectedTeam).forEach(player => {
+          const cards = document.querySelectorAll('.player-card');
+          cards.forEach(card => {
+            if (card.querySelector('.player-name').textContent === player.name) {
+              card.classList.add('selected');
+            }
+          });
+        });
+      }
+
+      // Submit team
+      function submitTeam() {
+        if (Object.keys(selectedTeam).length < 5) {
+          alert('请选择完整的5人阵容');
+          return;
+        }
+        
+        alert('投票提交成功！等待比赛结果...');
+        generateMockStats();
+        showPage('stats');
+        document.querySelector('[onclick="showPage(\'stats\')"]').classList.add('active');
+      }
+
+      // Generate mock stats for demo
+      function generateMockStats() {
+        const stats = {};
+        Object.values(selectedTeam).forEach(player => {
+          stats[player.id] = {
+            points: Math.floor(Math.random() * 30) + 10,
+            rebounds: Math.floor(Math.random() * 12) + 3,
+            assists: Math.floor(Math.random() * 10) + 2,
+            score: Math.floor(Math.random() * 50) + 30
+          };
+        });
+        localStorage.setItem('gameStats', JSON.stringify(stats));
+      }
+
+      // Update stats page
+      function updateStatsPage() {
+        const stats = JSON.parse(localStorage.getItem('gameStats') || '{}');
+        let totalScore = 0;
+        
+        const container = document.getElementById('playerStatsContainer');
+        container.innerHTML = '';
+        
+        Object.values(selectedTeam).forEach(player => {
+          const playerStats = stats[player.id] || { points: 0, rebounds: 0, assists: 0, score: 0 };
+          totalScore += playerStats.score;
+          
+          const statRow = document.createElement('div');
+          statRow.className = 'stat-row';
+          statRow.innerHTML = `
+            <div class="stat-player">
+              <div class="stat-avatar">${player.avatar}</div>
+              <div>
+                <div style="font-weight: 600; color: white;">${player.name}</div>
+                <div class="stat-details">${playerStats.points}分 ${playerStats.rebounds}篮板 ${playerStats.assists}助攻</div>
+              </div>
+            </div>
+            <div class="stat-score">${playerStats.score}分</div>
+          `;
+          container.appendChild(statRow);
+        });
+        
+        document.getElementById('todayScore').textContent = totalScore;
+      }
+
+      // Initialize app when page loads
+      window.onload = init;
+    </script>
+  </body>
+</html>
