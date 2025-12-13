@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react';
-import type { Player } from '../../types';
+import { useNavigate } from 'react-router-dom';
+import type { Player } from '@/types';
 
 interface PlayerCardProps {
   player: Player;
@@ -8,13 +9,24 @@ interface PlayerCardProps {
 }
 
 export function PlayerCard({ player, isActive = false, onSelect }: PlayerCardProps) {
+  const navigate = useNavigate();
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking the plus button
+    if ((e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    navigate(`/player/${player.id}`);
+  };
+
   return (
     <div
-      className={`relative bg-brand-card p-3 rounded-xl border ${
+      className={`relative bg-brand-card p-3 rounded-xl border cursor-pointer transition-all ${
         isActive
           ? 'border-brand-card-border-active shadow-glow-blue'
-          : 'border-brand-card-border'
+          : 'border-brand-card-border hover:border-brand-card-border-active'
       }`}
+      onClick={handleCardClick}
     >
       <div className="flex items-start justify-between">
         <img
@@ -43,7 +55,10 @@ export function PlayerCard({ player, isActive = false, onSelect }: PlayerCardPro
           <p className="font-bold text-sm text-white">{player.rpg}</p>
         </div>
         <button
-          onClick={() => onSelect(player)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(player);
+          }}
           className="w-7 h-7 bg-brand-blue/20 text-brand-blue rounded-full flex items-center justify-center text-xl font-light hover:bg-brand-blue/30 transition-colors"
           aria-label={`Select ${player.name}`}
         >

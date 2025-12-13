@@ -45,3 +45,6 @@ build
 # Lock files (keep package-lock.json, ignore yarn.lock)
 yarn.lock
 pnpm-lock.yaml
+
+# Documentation (optional - uncomment to ignore)
+# PROJECT_STRUCTURE.md

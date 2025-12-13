@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Header } from '../components/layout/Header';
-import { BasketballCourt } from '../components/lineup/BasketballCourt';
-import { PlayerCard } from '../components/lineup/PlayerCard';
-import type { Player } from '../types';
+import { Header } from '@/components/layout/Header';
+import { BasketballCourt } from '@/components/lineup/BasketballCourt';
+import { PlayerCard } from '@/components/lineup/PlayerCard';
+import type { Player } from '@/types';
 
 // Mock data - replace with actual API call later
 const mockPlayers: Player[] = [

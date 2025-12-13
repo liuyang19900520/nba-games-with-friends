@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { BottomNav } from './components/layout/BottomNav';
-import { HomePage } from './pages/HomePage';
-import { LeaguesPage } from './pages/LeaguesPage';
-import { LineupPage } from './pages/LineupPage';
-import { MatchupsPage } from './pages/MatchupsPage';
-import { ProfilePage } from './pages/ProfilePage';
+import { BottomNav } from '@/components/layout/BottomNav';
+import { HomePage } from '@/pages/HomePage';
+import { LeaguesPage } from '@/pages/LeaguesPage';
+import { LineupPage } from '@/pages/LineupPage';
+import { MatchupsPage } from '@/pages/MatchupsPage';
+import { ProfilePage } from '@/pages/ProfilePage';
+import { TeamDetailPage } from '@/pages/TeamDetailPage';
+import { PlayerDetailPage } from '@/pages/PlayerDetailPage';
 
 function App() {
   return (
@@ -14,6 +16,8 @@ function App() {
           <Route path="/" element={<Navigate to="/lineup" replace />} />
           <Route path="/home" element={<HomePage />} />
           <Route path="/leagues" element={<LeaguesPage />} />
+          <Route path="/team/:teamId" element={<TeamDetailPage />} />
+          <Route path="/player/:playerId" element={<PlayerDetailPage />} />
           <Route path="/lineup" element={<LineupPage />} />
           <Route path="/matchups" element={<MatchupsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
