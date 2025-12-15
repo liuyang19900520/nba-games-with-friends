@@ -4,41 +4,50 @@ on:
   push:
     branches:
       - dev
+    # 仅当 py-data-sync-service 下有改动时才触发
     paths:
-      - "py-data-sync-service/**"
-      - ".github/workflows/deploy-dev-py-data-sync.yml"
+      - 'py-data-sync-service/**'
 
 jobs:
-  deploy:
+  deploy-dev-lambda:
+    name: Deploy py-data-sync-service to nba-sync-dev (Lambda)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: py-data-sync-service
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          # 与 AWS Lambda 上的 Python 3.14 对齐
+          python-version: '3.14'
 
-      - name: Install dependencies into build directory
+      - name: Install dependencies
+        working-directory: ./py-data-sync-service
         run: |
           python -m pip install --upgrade pip
-          mkdir -p build
-          pip install -r requirements.txt -t build
+          if [ -f requirements.txt ]; then
+            mkdir -p build
+            # 把依赖安装到 build/，一起打进 zip
+            pip install -r requirements.txt -t build
+          else
+            echo "No requirements.txt found, skipping dependency installation."
+          fi
 
-      - name: Copy source files into build directory
+      - name: Copy source code into build directory
+        working-directory: ./py-data-sync-service
         run: |
-          cp *.py build/ || true
-          cp -r services build/services
+          mkdir -p build
+          # 拷贝所有 Python 源码和 services 包到 build/
+          cp -r *.py services build/
 
-      - name: Create deployment package
+      - name: Create deployment package (zip)
+        working-directory: ./py-data-sync-service
         run: |
           cd build
           zip -r ../package.zip .
+          ls -lh ../package.zip
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -47,10 +56,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy to nba-sync-dev Lambda
+      - name: Upload package.zip to S3
+        working-directory: ./py-data-sync-service
+        run: |
+          aws s3 cp package.zip s3://nba-lambda-artifacts-dev/py-data-sync/package.zip
+
+      - name: Deploy to Lambda (nba-sync-dev) using S3 artifact
         run: |
           aws lambda update-function-code \
             --function-name nba-sync-dev \
-            --zip-file fileb://package.zip
+            --s3-bucket nba-lambda-artifacts-dev \
+            --s3-key py-data-sync/package.zip
 
+          echo "Deployment to nba-sync-dev completed. You can now test the function in AWS Lambda console."
 
+      # 说明：
+      # - 此 workflow 仅用于 py-data-sync-service -> nba-sync-dev (DEV 环境) 部署。
+      # - 将来做 PROD 时，可以复制本文件，修改分支、函数名和 S3 key。
