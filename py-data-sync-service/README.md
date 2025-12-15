@@ -148,6 +148,5 @@ If you later want a PROD pipeline, you can copy
 - The function name (e.g., `nba-sync-prod`),
 - And the environment variables in the target Lambda (PROD Supabase config).
 
-Test deploy 
 
 
