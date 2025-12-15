@@ -16,18 +16,25 @@ elif ENV == "development" or ENV == "dev":
 else:
     env_file = ".env"
 
-# Try to load environment-specific file, fallback to .env
+# Try to load environment-specific file, fallback to .env (optional)
+#
+# In local/dev environments, we typically have .env.development / .env.production
+# files. On AWS Lambda, we usually rely on environment variables configured
+# in the Lambda console instead of shipping .env files with the code.
+#
+# Therefore: if no .env* file exists, we DO NOT raise, and simply rely on
+# os.environ (Lambda env vars). This fixes the FileNotFoundError you saw.
 if os.path.exists(env_file):
     load_dotenv(env_file)
+elif os.path.exists(".env"):
+    load_dotenv(".env")
 else:
-    # Fallback to .env if environment-specific file doesn't exist
-    if os.path.exists(".env"):
-        load_dotenv(".env")
-    else:
-        raise FileNotFoundError(
-            f"Environment file not found: {env_file}. "
-            f"Please create .env.development or .env.production file."
-        )
+    # No env file present – this is fine on Lambda where env vars are set
+    # via the console. We just log a warning to help local debugging.
+    print(
+        f"[config] Warning: No environment file found for ENV={ENV}. "
+        "Relying on existing environment variables only."
+    )
 
 
 class Config:
