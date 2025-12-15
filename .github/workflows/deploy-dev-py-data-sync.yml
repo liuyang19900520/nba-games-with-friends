@@ -1,0 +1,56 @@
+name: Deploy py-data-sync-service to dev Lambda
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - "py-data-sync-service/**"
+      - ".github/workflows/deploy-dev-py-data-sync.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: py-data-sync-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies into build directory
+        run: |
+          python -m pip install --upgrade pip
+          mkdir -p build
+          pip install -r requirements.txt -t build
+
+      - name: Copy source files into build directory
+        run: |
+          cp *.py build/ || true
+          cp -r services build/services
+
+      - name: Create deployment package
+        run: |
+          cd build
+          zip -r ../package.zip .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to nba-sync-dev Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name nba-sync-dev \
+            --zip-file fileb://package.zip
+
+
