@@ -6,7 +6,7 @@ import pandas as pd
 import time
 from nba_api.stats.endpoints import commonteamroster
 from db import get_db
-from utils import get_current_nba_season
+from utils import get_current_nba_season, safe_call_nba_api
 
 
 def sync_active_players():
@@ -46,13 +46,27 @@ def sync_active_players():
             print(f"\n[{idx}/{len(team_ids)}] Syncing roster for Team {team_id}...")
             
             try:
-                # Fetch roster from NBA API
-                roster = commonteamroster.CommonTeamRoster(team_id=team_id, season=season)
+                # Fetch roster from NBA API with retries and throttling
+                roster = safe_call_nba_api(
+                    name=f"CommonTeamRoster(team_id={team_id}, season={season})",
+                    call_fn=lambda team_id=team_id: commonteamroster.CommonTeamRoster(
+                        team_id=team_id, season=season
+                    ),
+                    max_retries=3,
+                    base_delay=3.0,
+                    post_success_sleep=0.6,  # retain existing rate limiting behaviour
+                )
+                if roster is None:
+                    print(
+                        f"  ❌ Failed to fetch roster for team {team_id} after retries. "
+                        "Skipping this team."
+                    )
+                    continue
+
                 df = roster.get_data_frames()[0]
                 
                 if df.empty:
                     print(f"  ⚠️ No players found for team {team_id}")
-                    time.sleep(0.6)  # Rate limiting
                     continue
                 
                 print(f"  Fetched {len(df)} players from NBA API")
@@ -138,14 +152,9 @@ def sync_active_players():
                         if synced_count > 0:
                             print(f"  ✅ Upserted {synced_count}/{len(players_data)} players for team {team_id}")
                 
-                # Rate limiting: wait 0.6 seconds after each API call
-                time.sleep(0.6)
-                
             except Exception as team_error:
                 print(f"  ❌ Error syncing team {team_id}: {team_error}")
                 total_players_failed += 1
-                # Still wait to maintain rate limiting
-                time.sleep(0.6)
                 continue
         
         # Summary

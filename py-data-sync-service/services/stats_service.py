@@ -5,7 +5,7 @@ Fetches player season averages from NBA API and syncs to Supabase player_season_
 import pandas as pd
 from nba_api.stats.endpoints import leaguedashplayerstats
 from db import get_db
-from utils import get_current_nba_season
+from utils import get_current_nba_season, safe_call_nba_api
 
 
 def sync_player_season_stats(season=None):
@@ -29,11 +29,23 @@ def sync_player_season_stats(season=None):
         print(f"Season: {season}")
         
         # Step 1: Fetch data from NBA API
-        print("Fetching league-wide stats...")
-        stats = leaguedashplayerstats.LeagueDashPlayerStats(
-            season=season,
-            per_mode_detailed='PerGame'  # Important: We want averages, not totals
+        print("Fetching league-wide stats (LeagueDashPlayerStats)...")
+        stats = safe_call_nba_api(
+            name=f"LeagueDashPlayerStats(season={season}, PerGame)",
+            call_fn=lambda: leaguedashplayerstats.LeagueDashPlayerStats(
+                season=season,
+                per_mode_detailed='PerGame',  # Important: We want averages, not totals
+            ),
+            max_retries=3,
+            base_delay=3.0,
         )
+        if stats is None:
+            print(
+                "[stats_service] Failed to fetch LeagueDashPlayerStats after retries. "
+                "Skipping player season stats sync for this run."
+            )
+            return
+
         df = stats.get_data_frames()[0]
         
         if df.empty:

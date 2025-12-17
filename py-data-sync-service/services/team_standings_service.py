@@ -5,7 +5,7 @@ Fetches team standings data from NBA API and syncs to Supabase team_standings ta
 import pandas as pd
 from nba_api.stats.endpoints import leaguestandings
 from db import get_db
-from utils import get_current_nba_season
+from utils import get_current_nba_season, safe_call_nba_api
 
 
 def sync_team_standings(season=None):
@@ -29,8 +29,17 @@ def sync_team_standings(season=None):
         print(f"Season: {season}")
         
         # Fetch data from NBA API
-        print("Fetching data from NBA API...")
-        standings = leaguestandings.LeagueStandings(season=season)
+        print("Fetching data from NBA API (LeagueStandings)...")
+        standings = safe_call_nba_api(
+            name=f"LeagueStandings(season={season})",
+            call_fn=lambda: leaguestandings.LeagueStandings(season=season),
+            max_retries=3,
+            base_delay=3.0,
+        )
+        if standings is None:
+            print("[team_standings_service] Failed to fetch LeagueStandings after retries. "
+                  "Skipping team standings sync for this run.")
+            return
         df = standings.get_data_frames()[0]
         
         if df.empty:
