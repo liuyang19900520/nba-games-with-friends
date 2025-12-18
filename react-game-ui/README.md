@@ -1,39 +1,47 @@
-# Fantasy NBA PWA
+# NBA Fantasy Manager
 
-A Progressive Web App for Fantasy NBA gaming, built with React, TypeScript, and Tailwind CSS.
+A modern Progressive Web App for managing your NBA fantasy team, built with React, TypeScript, and Tailwind CSS.
 
 ## Tech Stack
 
 - **Framework**: React 18 (Vite)
 - **Language**: TypeScript (Strict mode)
-- **Styling**: Tailwind CSS + Shadcn/ui
+- **Styling**: Tailwind CSS
 - **Icons**: Lucide React
 - **Routing**: React Router DOM v6
 - **State Management**: Zustand
-- **PWA**: Vite PWA Plugin
+- **Backend**: Supabase
 
-## Project Structure
+## Features
 
-```
-src/
-├── components/
-│   ├── ui/          # Shadcn/ui components
-│   ├── layout/      # Layout components (Header, Footer, etc.)
-│   └── features/    # Feature-specific components
-├── pages/           # Page components
-├── hooks/           # Custom React hooks
-├── stores/          # Zustand stores
-├── lib/             # Utility functions
-├── types/           # TypeScript type definitions
-└── styles/          # Global styles
-```
+- **Team Standings**: View conference standings with win/loss records and rankings
+- **Roster View**: Detailed team roster with player statistics and fantasy scores
+- **Infinite Scroll Leaderboard**: Browse player statistics with efficient infinite scrolling
+- **Player Details**: Comprehensive player profiles with advanced analytics
+- **Lineup Management**: Interactive court view for managing your fantasy lineup
 
-## Development
+## Setup
 
-```bash
-npm install
-npm run dev
-```
+1. **Install dependencies:**
+
+   ```bash
+   npm install
+   ```
+
+1. **Configure environment variables:**
+
+   Create a `.env` file in the root directory:
+
+   ```env
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+1. **Start development server:**
+
+   ```bash
+   npm run dev
+   ```
 
 ## Build
 
@@ -41,10 +49,6 @@ npm run dev
 npm run build
 ```
 
-## Design Philosophy
+## Development
 
-- **Mobile-First**: Native app-like UI, no browser scrollbars
-- **Dark Mode**: Dark sports-analytics theme by default
-- **Clean Code**: Functional components, custom hooks, strict typing
-
-
+The app will be available at `http://localhost:5173` (or the next available port).

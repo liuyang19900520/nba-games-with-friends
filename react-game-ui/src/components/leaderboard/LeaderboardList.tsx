@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import type { LeaderboardEntry, LeaderboardFilter } from '@/types';
+import { TeamRankItem } from './TeamRankItem';
 
 interface LeaderboardListProps {
   entries: LeaderboardEntry[];
@@ -54,21 +55,37 @@ export function LeaderboardList({ entries, filter }: LeaderboardListProps) {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {filteredEntries.length === 0 ? (
           <div className="flex items-center justify-center h-full text-brand-text-dim">
             <p>No data available</p>
           </div>
         ) : (
-          <div className="divide-y divide-brand-card-border">
-            {filteredEntries.map((entry) => (
-              <LeaderboardItem
-                key={entry.id}
-                entry={entry}
-                filter={filter}
-                onClick={() => handleEntryClick(entry)}
-              />
-            ))}
+          <div className="divide-y divide-brand-card-border min-w-0">
+            {filteredEntries.map((entry) => {
+              // Use TeamRankItem for team entries (when conference exists and wins/losses are available)
+              const isTeamEntry = entry.conference && (entry.wins !== undefined || entry.logo || entry.logoUrl);
+              
+              if (isTeamEntry) {
+                return (
+                  <TeamRankItem
+                    key={entry.id}
+                    team={entry}
+                    onClick={() => handleEntryClick(entry)}
+                  />
+                );
+              }
+              
+              // Use LeaderboardItem for player entries
+              return (
+                <LeaderboardItem
+                  key={entry.id}
+                  entry={entry}
+                  filter={filter}
+                  onClick={() => handleEntryClick(entry)}
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -87,7 +104,7 @@ function LeaderboardItem({ entry, filter, onClick }: LeaderboardItemProps) {
   const isPlayerClickable = !!onClick && entry.team && entry.avatar;
   const isClickable = isTeamClickable || isPlayerClickable;
   const formatValue = (value: number, filter: LeaderboardFilter): string => {
-    if (filter === 'WINS' || filter === 'LOSSES') {
+    if (filter === 'WINS' || filter === 'LOSSES' || filter === 'East' || filter === 'West') {
       return value.toString();
     }
     return value.toFixed(1);
@@ -157,7 +174,7 @@ function LeaderboardItem({ entry, filter, onClick }: LeaderboardItemProps) {
               <p className="text-brand-blue font-bold text-lg">
                 {formatValue(entry.value, filter)}
               </p>
-              {filter === 'WINS' && 'wins' in entry && (
+              {(filter === 'WINS' || filter === 'East' || filter === 'West') && 'wins' in entry && entry.losses !== undefined && (
                 <p className="text-xs text-brand-text-dim">
                   {entry.losses} L
                 </p>
