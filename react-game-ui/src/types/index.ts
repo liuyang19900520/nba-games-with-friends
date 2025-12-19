@@ -68,6 +68,10 @@ export interface PlayerDetail {
   ppg: number;
   rpg: number;
   apg: number;
+  stl?: number; // Steals
+  blk?: number; // Blocks
+  tov?: number; // Turnovers
+  fantasyScore?: number; // Fantasy average score
   clutchTimeStats: {
     points: { player: number; league: number; percentile: number };
     assists: { player: number; league: number; percentile: number };
@@ -92,6 +96,7 @@ export interface PlayerDetail {
       efficiency: number;
     };
   };
+  recentGames?: RecentGame[]; // Recent 10 games data
   isFollowed?: boolean;
 }
 
@@ -130,3 +135,16 @@ export type LeaderboardFilter =
   | "AST"
   | "WINS"
   | "LOSSES";
+
+export interface RecentGame {
+  date: string; // Format: YYYY/MM/DD
+  opponent: string; // Format: "@TEAM" or "vs TEAM"
+  min: number; // Minutes played
+  pts: number; // Points
+  reb: number; // Rebounds
+  ast: number; // Assists
+  stl: number; // Steals
+  blk: number; // Blocks
+  tov: number; // Turnovers
+  fantasy: number; // Fantasy score
+}
