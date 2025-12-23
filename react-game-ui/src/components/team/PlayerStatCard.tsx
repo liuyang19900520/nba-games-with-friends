@@ -1,5 +1,6 @@
-import { useNavigate } from 'react-router-dom';
+'use client';
 
+import { useRouter } from 'next/navigation';
 import type { PlayerStats } from '@/types';
 
 interface PlayerStatCardProps {
@@ -7,22 +8,30 @@ interface PlayerStatCardProps {
 }
 
 export function PlayerStatCard({ player }: PlayerStatCardProps) {
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleClick = () => {
-    navigate(`/player/${player.id}`);
+    router.push(`/player/${player.id}`);
   };
 
   const latestFantasyScore = player.fantasyScore || 0;
 
-  const splitName = (fullName: string): { firstName: string; lastName: string } => {
-    const parts = fullName.trim().split(/\s+/);
-    if (parts.length === 1) {
-      return { firstName: parts[0], lastName: '' };
+  const splitName = (
+    fullName?: string
+  ): { firstName: string; lastName: string } => {
+    const safe = (fullName ?? "").trim();
+    if (!safe) {
+      return { firstName: "", lastName: "" };
     }
 
-    const firstName = parts[0];
-    const lastName = parts.slice(1).join(' ');
+    const parts = safe.split(/\s+/);
+    const first = parts[0] ?? "";
+    if (parts.length === 1) {
+      return { firstName: first, lastName: "" };
+    }
+
+    const firstName = first;
+    const lastName = parts.slice(1).join(" ");
     return { firstName, lastName };
   };
 

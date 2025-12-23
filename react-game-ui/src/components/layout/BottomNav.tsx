@@ -1,5 +1,8 @@
+'use client';
+
 import { Home, Trophy, Users, User } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const navItems = [
   { path: '/home', icon: Home, label: 'Home' },
@@ -10,10 +13,9 @@ const navItems = [
 ];
 
 export function BottomNav() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const pathname = usePathname();
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => pathname === path;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto h-[90px] bottom-nav-bg shadow-glow-nav z-50">
@@ -22,12 +24,11 @@ export function BottomNav() {
           if (item.isCenter) {
             // Special center button with basketball icon
             return (
-              <button
+              <Link
                 key={item.path}
-                onClick={() => navigate(item.path)}
-                className={`flex flex-col items-center w-20 relative ${
-                  isActive(item.path) ? '-mt-6 text-brand-blue' : 'text-brand-text-dim'
-                }`}
+                href={item.path}
+                className={`flex flex-col items-center w-20 relative ${isActive(item.path) ? '-mt-6 text-brand-blue' : 'text-brand-text-dim'
+                  }`}
                 aria-label={item.label}
               >
                 {/* Glowing halo effect - only when active */}
@@ -39,22 +40,19 @@ export function BottomNav() {
                     }}
                   />
                 )}
-                
+
                 <div
-                  className={`flex items-center justify-center relative transition-all duration-300 mb-1 ${
-                    isActive(item.path)
+                  className={`flex items-center justify-center relative transition-all duration-300 mb-1 ${isActive(item.path)
                       ? 'w-16 h-16 rounded-full bg-gradient-to-br from-brand-blue to-brand-orange shadow-[0_8px_20px_rgba(110,226,245,0.5),0_4px_10px_rgba(245,166,35,0.4),inset_0_2px_4px_rgba(255,255,255,0.2)] transform translate-y-[-4px]'
                       : 'w-6 h-6'
-                  }`}
+                    }`}
                 >
                   <div
-                    className={`${
-                      isActive(item.path) ? 'w-[60px] h-[60px]' : 'w-6 h-6'
-                    } rounded-full flex items-center justify-center transition-all duration-300 ${
-                      isActive(item.path)
+                    className={`${isActive(item.path) ? 'w-[60px] h-[60px]' : 'w-6 h-6'
+                      } rounded-full flex items-center justify-center transition-all duration-300 ${isActive(item.path)
                         ? 'bg-brand-dark shadow-[inset_0_2px_8px_rgba(0,0,0,0.5)]'
                         : 'bg-transparent'
-                    }`}
+                      }`}
                   >
                     <svg
                       className={`${isActive(item.path) ? 'w-8 h-8' : 'w-6 h-6'}`}
@@ -72,23 +70,22 @@ export function BottomNav() {
                 <span className={`text-xs ${isActive(item.path) ? 'text-brand-blue' : 'text-brand-text-dim'}`}>
                   {item.label}
                 </span>
-              </button>
+              </Link>
             );
           }
 
           const Icon = item.icon!;
           return (
-            <button
+            <Link
               key={item.path}
-              onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center gap-1 w-16 ${
-                isActive(item.path) ? 'text-brand-blue' : 'text-brand-text-dim'
-              }`}
+              href={item.path}
+              className={`flex flex-col items-center gap-1 w-16 ${isActive(item.path) ? 'text-brand-blue' : 'text-brand-text-dim'
+                }`}
               aria-label={item.label}
             >
               <Icon className="w-6 h-6" />
               <span className="text-xs">{item.label}</span>
-            </button>
+            </Link>
           );
         })}
       </div>

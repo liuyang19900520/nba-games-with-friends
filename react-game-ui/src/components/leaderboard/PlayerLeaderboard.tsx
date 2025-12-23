@@ -1,9 +1,10 @@
+'use client';
+
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useInfinitePlayerStats } from '@/hooks/useInfinitePlayerStats';
 import type { PlayerSeasonStats } from '@/types/nba';
-import { DEFAULT_SEASON, PLAYER_SORT_CATEGORIES } from '@/config/constants';
+import { PLAYER_SORT_CATEGORIES } from '@/config/constants';
 import type { PlayerSortCategory } from '@/config/constants';
 
 interface SortOption {
@@ -21,29 +22,18 @@ const SORT_OPTIONS: SortOption[] = [
 ];
 
 interface PlayerLeaderboardProps {
-  season?: string;
+  stats: PlayerSeasonStats[];
 }
 
 /**
  * Player Leaderboard Component
- * 
- * Matches the exact UI style of the Teams tab for consistency.
- * Uses the same sidebar styling, list item layout, and loading states.
+ *
+ * UI 与 Teams tab 保持一致。
+ * 数据由上层组件（或 RSC）通过 props 提供。
  */
-export function PlayerLeaderboard({ season = DEFAULT_SEASON }: PlayerLeaderboardProps) {
-  const navigate = useNavigate();
+export function PlayerLeaderboard({ stats }: PlayerLeaderboardProps) {
+  const router = useRouter();
   const [selectedSort, setSelectedSort] = useState<PlayerSortCategory>(PLAYER_SORT_CATEGORIES.FANTASY_AVG);
-
-  const {
-    stats,
-    loading,
-    hasMore,
-    error,
-    loadMore,
-  } = useInfinitePlayerStats({
-    sortBy: selectedSort,
-    season,
-  });
 
 
   const getStatValue = (stat: PlayerSeasonStats, category: PlayerSortCategory): number => {
@@ -71,7 +61,7 @@ export function PlayerLeaderboard({ season = DEFAULT_SEASON }: PlayerLeaderboard
 
   const handlePlayerClick = (stat: PlayerSeasonStats) => {
     if (stat.player?.id) {
-      navigate(`/player/${stat.player.id}`);
+      router.push(`/player/${stat.player.id}`);
     }
   };
 
@@ -102,23 +92,8 @@ export function PlayerLeaderboard({ season = DEFAULT_SEASON }: PlayerLeaderboard
 
       {/* Right Content Area (75% width) */}
       <div className="flex-1 overflow-y-auto">
-        {/* Loading State - Matching Teams tab style */}
-        {loading && stats.length === 0 && (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-brand-text-dim">Loading standings...</p>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="flex flex-col items-center justify-center h-full p-4">
-            <p className="text-red-500 mb-2">Error loading player stats</p>
-            <p className="text-brand-text-dim text-sm mb-4">{error.message}</p>
-          </div>
-        )}
-
         {/* Empty State */}
-        {!loading && !error && stats.length === 0 && (
+        {stats.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <p className="text-brand-text-dim">No player stats available</p>
           </div>
@@ -184,31 +159,7 @@ export function PlayerLeaderboard({ season = DEFAULT_SEASON }: PlayerLeaderboard
             ))}
 
             {/* Load More Button - Subtle style matching app theme */}
-            {hasMore && (
-              <div className="px-4 py-3 border-t border-brand-card-border">
-                <button
-                  onClick={() => loadMore()}
-                  disabled={loading}
-                  className={cn(
-                    'w-full py-2.5 text-sm font-medium transition-colors rounded-md',
-                    loading
-                      ? 'text-brand-text-dim cursor-not-allowed'
-                      : 'text-brand-blue hover:bg-brand-card/30 active:bg-brand-card/50 border border-brand-card-border hover:border-brand-card-border-active'
-                  )}
-                >
-                  {loading ? 'Loading...' : 'Load More'}
-                </button>
-              </div>
-            )}
-
-            {/* End of list indicator */}
-            {!hasMore && stats.length > 0 && (
-              <div className="px-4 py-3 border-t border-brand-card-border">
-                <div className="text-center">
-                  <p className="text-brand-text-dim text-xs">No more players</p>
-                </div>
-              </div>
-            )}
+            {/* 无分页：由上层控制数据量 */}
           </div>
         )}
       </div>

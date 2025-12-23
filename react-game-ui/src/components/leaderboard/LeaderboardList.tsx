@@ -1,5 +1,7 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
 import type { LeaderboardEntry, LeaderboardFilter } from '@/types';
 import { TeamRankItem } from './TeamRankItem';
 
@@ -23,7 +25,7 @@ const getFilterLabel = (filter: LeaderboardFilter): string => {
 };
 
 export function LeaderboardList({ entries, filter }: LeaderboardListProps) {
-  const navigate = useNavigate();
+  const router = useRouter();
 
   // Filter entries based on selected filter
   const filteredEntries = entries.filter((entry) => {
@@ -38,11 +40,11 @@ export function LeaderboardList({ entries, filter }: LeaderboardListProps) {
   const handleEntryClick = (entry: LeaderboardEntry) => {
     // Navigate to team page if it's a team entry
     if (entry.conference && (entry.wins !== undefined || entry.logo)) {
-      navigate(`/team/${entry.id}`);
+      router.push(`/team/${entry.id}`);
     }
     // Navigate to player page if it's a player entry (has team field and avatar)
     else if (entry.team && entry.avatar) {
-      navigate(`/player/${entry.id}`);
+      router.push(`/player/${entry.id}`);
     }
   };
 
@@ -65,7 +67,7 @@ export function LeaderboardList({ entries, filter }: LeaderboardListProps) {
             {filteredEntries.map((entry) => {
               // Use TeamRankItem for team entries (when conference exists and wins/losses are available)
               const isTeamEntry = entry.conference && (entry.wins !== undefined || entry.logo || entry.logoUrl);
-              
+
               if (isTeamEntry) {
                 return (
                   <TeamRankItem
@@ -75,7 +77,7 @@ export function LeaderboardList({ entries, filter }: LeaderboardListProps) {
                   />
                 );
               }
-              
+
               // Use LeaderboardItem for player entries
               return (
                 <LeaderboardItem

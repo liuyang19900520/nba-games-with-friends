@@ -1,5 +1,7 @@
+'use client';
+
 import { ArrowLeft, Settings, Search, Share2, MoreVertical } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 interface HeaderProps {
@@ -31,13 +33,13 @@ export function Header({
   onShare,
   onMore,
 }: HeaderProps) {
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleBack = () => {
     if (onBack) {
       onBack();
     } else {
-      navigate(-1);
+      router.back();
     }
   };
 
