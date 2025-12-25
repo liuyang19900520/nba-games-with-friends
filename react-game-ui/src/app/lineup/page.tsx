@@ -4,38 +4,52 @@ import { LineupPageClient } from '@/components/features/lineup/LineupPageClient'
 import { LineupPageSkeleton } from '@/components/features/lineup/LineupPageSkeleton';
 import { LineupErrorDisplay } from '@/components/features/lineup/LineupErrorDisplay';
 import { fetchPlayers } from '@/lib/db/players';
+import { createClient } from '@/lib/auth/supabase';
 
 /**
- * Lineup 页面 - Server Component (RSC)
+ * Lineup Page - Server Component (RSC)
  *
- * 纯服务端组件，负责：
- * - 静态布局（Header, 背景容器）
- * - 服务端数据获取
- * - 错误边界处理
- * - Suspense 流式渲染
+ * Pure server component responsible for:
+ * - Static layout (Header, background container)
+ * - Server-side data fetching
+ * - Get user login status (optional, for read-only/editable mode distinction)
+ * - Error boundary handling
+ * - Suspense streaming rendering
  *
- * 所有交互逻辑都在 LineupPageClient 中处理。
+ * All interaction logic is handled in LineupPageClient.
+ * Note: /lineup is now a public page, unauthenticated users can also access (read-only mode)
  */
 export default async function LineupPage() {
   try {
-    // ✅ 服务端数据获取（在 RSC 中）
+    // ✅ Server-side data fetching (in RSC)
     const players = await fetchPlayers();
+
+    // ✅ Get user login status (optional)
+    // If user is not logged in, user is null, LineupPageClient will handle read-only mode
+    let user = null;
+    try {
+      const supabase = await createClient();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      user = currentUser;
+    } catch {
+      // Ignore auth errors, allow unauthenticated users to access
+    }
 
     return (
       <div className="flex flex-col h-full">
-        {/* 静态 Header - 在 RSC 中渲染 */}
+        {/* Static Header - rendered in RSC */}
         <Header title="My Lineup Selection" showBack showSettings />
 
-        {/* 内容区域 - 使用 Suspense 包裹客户端组件 */}
+        {/* Content area - wrap client component with Suspense */}
         <div className="flex-1 overflow-y-auto pt-[60px]">
           <Suspense fallback={<LineupPageSkeleton />}>
-            <LineupPageClient players={players} />
+            <LineupPageClient players={players} user={user} />
           </Suspense>
         </div>
       </div>
     );
   } catch (error) {
-    // 错误边界 - 在 RSC 中处理
+    // Error boundary - handled in RSC
     return (
       <div className="flex flex-col h-full">
         <Header title="My Lineup Selection" showBack showSettings />

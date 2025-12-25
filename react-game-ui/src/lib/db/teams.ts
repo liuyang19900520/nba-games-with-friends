@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { createServerClient } from "./supabase-server";
 import { DEFAULT_SEASON } from "@/config/constants";
+import { logger } from "@/config/env";
 import type { Team, TeamStanding, PlayerSeasonStats } from "@/types/nba";
 import type { DbTeam, DbStanding, DbPlayerSeasonStats } from "@/types/db";
 
@@ -144,8 +145,8 @@ async function _fetchTeamDetailInternal(
     .single();
 
   if (standingError && standingError.code !== "PGRST116") {
-    // PGRST116 表示未找到记录，可忽略
-    console.warn("[fetchTeamDetail] Standing fetch warning:", standingError);
+    // PGRST116 means record not found, can be ignored
+    logger.warn("[fetchTeamDetail] Standing fetch warning:", standingError);
   }
 
   const team: DbTeam = {

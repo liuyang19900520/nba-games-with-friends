@@ -1,36 +1,43 @@
 'use client';
 
 import { useOptimistic, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { BasketballCourt } from '@/components/lineup/BasketballCourt';
 import { PlayerCard } from '@/components/lineup/PlayerCard';
 import type { Player } from '@/types';
+import type { User } from '@supabase/supabase-js';
 
 interface LineupPageClientProps {
   players: Player[];
+  user: User | null;
 }
 
 type Position = 'PG' | 'SG' | 'SF' | 'PF' | 'C';
 type LineupState = Partial<Record<Position, Player>>;
 
 /**
- * Lineup 页面客户端组件
+ * Lineup Page Client Component
  *
- * 使用 React 19 的 useOptimistic 实现乐观更新：
- * - 用户选择球员时立即更新 UI，无需等待服务器响应
- * - 在 Step 5 实现 Server Actions 后，这里会调用实际的保存操作
+ * Uses React 19's useOptimistic for optimistic updates:
+ * - UI updates immediately when user selects players, no need to wait for server response
+ * - After implementing Server Actions in Step 5, actual save operations will be called here
  *
- * 处理用户交互和游戏状态管理。
- * 接收从 Server Component 传递的球员数据。
+ * Handles user interactions and game state management.
+ * Receives player data passed from Server Component.
+ * 
+ * Note: If user is null, page is in read-only mode, user needs to log in to save lineup
  */
-export function LineupPageClient({ players }: LineupPageClientProps) {
-  // 实际状态（最终会同步到服务器）
+export function LineupPageClient({ players, user }: LineupPageClientProps) {
+  const router = useRouter();
+  const isReadOnly = !user;
+  // Actual state (will eventually sync to server)
   const [lineup, setLineup] = useState<LineupState>({});
 
-  // React 19 Optimistic UI: 乐观状态，立即反映用户操作
+  // React 19 Optimistic UI: optimistic state, immediately reflects user actions
   const [optimisticLineup, updateOptimisticLineup] = useOptimistic(
     lineup,
     (currentState: LineupState, newState: LineupState) => {
-      // 合并新状态，乐观更新
+      // Merge new state, optimistic update
       return { ...currentState, ...newState };
     }
   );
@@ -40,22 +47,55 @@ export function LineupPageClient({ players }: LineupPageClientProps) {
   const [isPending, startTransition] = useTransition();
 
   /**
-   * 处理球员选择 - 使用乐观更新
+   * Handle player selection - using optimistic updates
    * 
-   * TODO: 在 Step 5 中，这里会调用 Server Action 保存到数据库
+   * If user is not logged in, allow viewing but prompt to log in to save
    */
   const handlePlayerSelect = (player: Player) => {
+    // Unauthenticated users can view and select, but cannot save
+    if (isReadOnly) {
+      // Allow local preview, but don't save to server
+      startTransition(() => {
+        let newLineup: LineupState;
+
+        if (selectedPosition) {
+          newLineup = {
+            ...lineup,
+            [selectedPosition]: player,
+          };
+        } else {
+          const availablePositions: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
+          const emptyPosition = availablePositions.find((pos) => !lineup[pos]);
+          if (emptyPosition) {
+            newLineup = {
+              ...lineup,
+              [emptyPosition]: player,
+            };
+          } else {
+            return;
+          }
+        }
+
+        updateOptimisticLineup(newLineup);
+        setLineup(newLineup);
+        setSelectedPosition(null);
+        setSelectedPlayerId(player.id);
+      });
+      return;
+    }
+
+    // Logged-in user: normal flow
     startTransition(() => {
       let newLineup: LineupState;
 
       if (selectedPosition) {
-        // 如果已选择位置，直接放置
+        // If position already selected, place directly
         newLineup = {
           ...lineup,
           [selectedPosition]: player,
         };
       } else {
-        // 自动选择第一个可用位置
+        // Automatically select first available position
         const availablePositions: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
         const emptyPosition = availablePositions.find((pos) => !lineup[pos]);
         if (emptyPosition) {
@@ -64,23 +104,24 @@ export function LineupPageClient({ players }: LineupPageClientProps) {
             [emptyPosition]: player,
           };
         } else {
-          // 所有位置已满，不更新
+          // All positions full, don't update
           return;
         }
       }
 
-      // 乐观更新：立即显示在 UI 上
+      // Optimistic update: immediately display on UI
       updateOptimisticLineup(newLineup);
 
-      // 实际状态更新（未来会同步到服务器）
+      // Actual state update (will sync to server in the future)
       setLineup(newLineup);
       setSelectedPosition(null);
       setSelectedPlayerId(player.id);
 
-      // TODO: Step 5 - 调用 Server Action
+      // TODO: Step 5 - Call Server Action
       // await saveLineupAction(newLineup);
     });
   };
+
 
   const handleSlotClick = (position: Position) => {
     setSelectedPosition(position);
@@ -90,10 +131,10 @@ export function LineupPageClient({ players }: LineupPageClientProps) {
         const newLineup = { ...optimisticLineup };
         delete newLineup[position];
 
-        // 乐观更新
+        // Optimistic update
         updateOptimisticLineup(newLineup);
 
-        // 实际状态更新
+        // Actual state update
         setLineup(newLineup);
       });
     }
@@ -103,7 +144,7 @@ export function LineupPageClient({ players }: LineupPageClientProps) {
 
   return (
     <>
-      {/* Basketball Court - 使用乐观状态 */}
+      {/* Basketball Court - using optimistic state */}
       <section className="px-4 pt-4">
         <div className="bg-brand-dark/60 backdrop-blur-sm rounded-xl p-3">
           <BasketballCourt
@@ -113,6 +154,17 @@ export function LineupPageClient({ players }: LineupPageClientProps) {
           />
         </div>
       </section>
+
+      {/* Read-only Notice */}
+      {isReadOnly && (
+        <section className="px-4 pt-4">
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-2">
+            <p className="text-sm text-yellow-400 text-center">
+              🔒 View-only mode. <button onClick={() => router.push('/login?redirect=/lineup')} className="underline font-medium">Sign in</button> to save your lineup.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Player Selection Prompt */}
       <section className="mt-4 px-4">
@@ -138,7 +190,7 @@ export function LineupPageClient({ players }: LineupPageClientProps) {
               player={player}
               isActive={selectedPlayerId === player.id}
               onSelect={handlePlayerSelect}
-              priority={index < 4} // 前4个球员使用 priority 加载
+              priority={index < 4} // First 4 players use priority loading
             />
           ))}
         </div>

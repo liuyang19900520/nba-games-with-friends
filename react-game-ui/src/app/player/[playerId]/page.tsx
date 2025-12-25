@@ -1,7 +1,7 @@
 // src/app/player/[playerId]/page.tsx
 import type { Metadata, ResolvingMetadata } from "next";
 import { notFound } from "next/navigation";
-import { PlayerPageClient } from "./PlayerPageClient";
+import { PlayerPageClient } from "@/components/features/player/PlayerPageClient";
 import { fetchPlayerProfile, fetchPlayerStats } from "@/lib/db/players";
 // DbPlayerSeasonStats 导入暂时未使用，如后续需要可再打开
 

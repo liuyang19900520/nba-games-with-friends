@@ -9,7 +9,7 @@ interface TeamPageClientProps {
 }
 
 /**
- * Team 详情页客户端组件（完全由 RSC 提供数据）
+ * Team detail page client component (fully data-driven by RSC)
  */
 export function TeamPageClient({ teamDetail }: TeamPageClientProps) {
   return (
@@ -21,4 +21,3 @@ export function TeamPageClient({ teamDetail }: TeamPageClientProps) {
     </div>
   );
 }
-

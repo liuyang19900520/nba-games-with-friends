@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { createServerClient, hasSupabaseConfig } from "./supabase-server";
 import { DEFAULT_SEASON } from "@/config/constants";
+import { logger } from "@/config/env";
 import type { Player } from "@/types";
 import type { DatabasePlayerSeasonStats, Team } from "@/types/nba";
 import type { DbPlayerSeasonStats, DbPlayer } from "@/types/db";
@@ -97,8 +98,8 @@ export async function fetchPlayers(
     }
 
     if (!data || data.length === 0) {
-      console.warn(
-        `[fetchPlayers] 查询成功但未返回数据。赛季: ${season}, 表: player_season_stats`
+      logger.warn(
+        `[fetchPlayers] Query succeeded but returned no data. Season: ${season}, Table: player_season_stats`
       );
       return [];
     }

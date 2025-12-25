@@ -1,7 +1,7 @@
 import type { Metadata, ResolvingMetadata } from "next";
 import { Suspense } from "react";
-import { TeamPageClient } from "./TeamPageClient";
-import { TeamPageSkeleton } from "./TeamPageSkeleton";
+import { TeamPageClient } from "@/components/features/team/TeamPageClient";
+import { TeamPageSkeleton } from "@/components/features/team/TeamPageSkeleton";
 import { fetchTeamDetail, fetchTeamRoster } from "@/lib/db/teams";
 import type { TeamDetail } from "@/types";
 
