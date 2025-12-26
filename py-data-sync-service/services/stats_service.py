@@ -2,13 +2,14 @@
 Player season statistics synchronization service.
 Fetches player season averages from NBA API and syncs to Supabase player_season_stats table.
 """
+from typing import Optional
 import pandas as pd
 from nba_api.stats.endpoints import leaguedashplayerstats
 from db import get_db
 from utils import get_current_nba_season, safe_call_nba_api
 
 
-def sync_player_season_stats(season=None):
+def sync_player_season_stats(season: Optional[str] = None) -> None:
     """
     Sync player season statistics from NBA API to Supabase player_season_stats table.
     

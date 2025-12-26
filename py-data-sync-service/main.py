@@ -11,7 +11,7 @@ from services import (
 )
 
 
-def truncate_tables():
+def truncate_tables() -> None:
     """
     Truncate all data tables before syncing to ensure fresh data.
     Tables are truncated in reverse dependency order to avoid foreign key constraints.
@@ -73,7 +73,7 @@ def truncate_tables():
         raise
 
 
-def sync_all_data():
+def sync_all_data() -> None:
     """
     Main function to sync all NBA data.
     Truncates tables first, then syncs all data.

@@ -105,7 +105,8 @@ function LeaderboardItem({ entry, filter, onClick }: LeaderboardItemProps) {
   const isTeamClickable = !!onClick && entry.conference && (entry.wins !== undefined || entry.logo);
   const isPlayerClickable = !!onClick && entry.team && entry.avatar;
   const isClickable = isTeamClickable || isPlayerClickable;
-  const formatValue = (value: number, filter: LeaderboardFilter): string => {
+  const formatValue = (value: number | undefined, filter: LeaderboardFilter): string => {
+    if (value === undefined) return "-";
     if (filter === 'WINS' || filter === 'LOSSES' || filter === 'East' || filter === 'West') {
       return value.toString();
     }
@@ -154,7 +155,7 @@ function LeaderboardItem({ entry, filter, onClick }: LeaderboardItemProps) {
           ) : (
             <div className="w-10 h-10 rounded-full bg-brand-card border-2 border-brand-card-border flex items-center justify-center">
               <span className="text-xs font-bold text-brand-text-dim">
-                {entry.name.charAt(0).toUpperCase()}
+                {(entry.name || entry.teamName || "?").charAt(0).toUpperCase()}
               </span>
             </div>
           )}
@@ -164,7 +165,7 @@ function LeaderboardItem({ entry, filter, onClick }: LeaderboardItemProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0">
-              <p className="text-white font-medium text-sm truncate">{entry.name}</p>
+              <p className="text-white font-medium text-sm truncate">{entry.name || entry.teamName || "Unknown"}</p>
               {entry.team && (
                 <p className="text-xs text-brand-text-dim truncate">{entry.team}</p>
               )}
@@ -174,7 +175,7 @@ function LeaderboardItem({ entry, filter, onClick }: LeaderboardItemProps) {
             </div>
             <div className="flex-shrink-0 ml-2 text-right">
               <p className="text-brand-blue font-bold text-lg">
-                {formatValue(entry.value, filter)}
+                {formatValue(entry.value ?? 0, filter)}
               </p>
               {(filter === 'WINS' || filter === 'East' || filter === 'West') && 'wins' in entry && entry.losses !== undefined && (
                 <p className="text-xs text-brand-text-dim">

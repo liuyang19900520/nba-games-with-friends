@@ -2,13 +2,14 @@
 Team standings synchronization service.
 Fetches team standings data from NBA API and syncs to Supabase team_standings table.
 """
+from typing import Optional
 import pandas as pd
 from nba_api.stats.endpoints import leaguestandings
 from db import get_db
 from utils import get_current_nba_season, safe_call_nba_api
 
 
-def sync_team_standings(season=None):
+def sync_team_standings(season: Optional[str] = None) -> None:
     """
     Sync team standings from NBA API to Supabase team_standings table.
     

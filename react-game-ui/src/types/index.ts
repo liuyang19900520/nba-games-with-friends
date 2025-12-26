@@ -1,3 +1,8 @@
+/**
+ * UI-specific types (view models)
+ * These types are optimized for component props and UI rendering
+ */
+
 export interface Player {
   id: string;
   name: string;
@@ -9,28 +14,131 @@ export interface Player {
   teamLogo?: string;
 }
 
-export interface LineupSlot {
-  position: "PG" | "SG" | "SF" | "PF" | "C";
-  playerId?: string;
+export interface LeaderboardEntry {
+  id?: string;
+  rank: number;
+  name: string; // Required - team or player name
+  teamName?: string; // Legacy field, use name instead
+  wins?: number;
+  losses?: number;
+  winPct?: number;
+  logo?: string;
+  logoUrl?: string;
+  streak?: string;
+  conference?: "East" | "West";
+  value?: number;
+  avatar?: string;
+  team?: string;
 }
 
-export interface Team {
+export interface PlayerCardProps {
+  player: {
+    id: string;
+    name: string;
+    position: string;
+    team: string;
+    avatar: string;
+    ppg: number;
+    rpg: number;
+    apg: number;
+    fantasyScore: number;
+  };
+  isActive?: boolean;
+  onSelect?: () => void;
+  priority?: boolean;
+}
+
+export interface TeamHeaderProps {
+  name: string;
+  logo?: string;
+  record: string;
+  rank: number;
+}
+
+export interface TeamDetail {
+  id: string | number;
+  name: string;
+  logo?: string;
+  rank: number;
+  record: string;
+  conference: "East" | "West";
+  stats: {
+    ppg: number;
+    rpg: number;
+    apg: number;
+    stl: number;
+    blk: number;
+    tov: number;
+  };
+  players: Array<{
+    id: string;
+    name: string;
+    position: "PG" | "SG" | "SF" | "PF" | "C";
+    avatar: string;
+    pts: number;
+    reb: number;
+    ast: number;
+    stl: number;
+    blk: number;
+    tov: number;
+    fantasyScore: number;
+    fantasyScores: number[];
+  }>;
+}
+
+export interface PlayerDetail {
   id: string;
   name: string;
-  conference: "East" | "West";
-  wins: number;
-  losses: number;
-  winPercentage: number;
-  logo?: string;
+  position: string;
+  jerseyNumber: string;
+  team: string;
+  teamLogo?: string;
+  avatar: string;
+  ppg: number;
+  rpg: number;
+  apg: number;
+  stl: number;
+  blk: number;
+  tov: number;
+  fantasyScore: number;
+  clutchTimeStats: {
+    points: { player: number; league: number; percentile: number };
+    assists: { player: number; league: number; percentile: number };
+    rebounds: { player: number; league: number; percentile: number };
+  };
+  shotChart: {
+    fgPercentage: number;
+    threePointPercentage: number;
+  };
+  leagueComparison: {
+    scoring: number;
+    playmaking: number;
+    rebounding: number;
+    defense: number;
+    efficiency: number;
+    leagueMean: {
+      scoring: number;
+      playmaking: number;
+      rebounding: number;
+      defense: number;
+      efficiency: number;
+    };
+  };
+  recentGames: RecentGame[];
+  isFollowed: boolean;
 }
 
-export interface TeamStats {
-  ppg: number; // Points per game
-  rpg: number; // Rebounds per game
-  apg: number; // Assists per game
-  stl: number; // Steals per game
-  blk: number; // Blocks per game
-  tov: number; // Turnovers per game
+export interface RecentGame {
+  date: string; // Format: YYYY/MM/DD
+  opponent: string; // Format: "@TEAM" or "vs TEAM"
+  min: number; // Minutes played
+  pts: number; // Points
+  reb: number; // Rebounds
+  ast: number; // Assists
+  stl: number; // Steals
+  blk: number; // Blocks
+  tov: number; // Turnovers
+  fantasy: number; // Fantasy score
 }
 
 export interface PlayerStats {
@@ -57,76 +165,6 @@ export interface PlayerStats {
   };
 }
 
-export interface PlayerDetail {
-  id: string;
-  name: string;
-  position: string; // e.g., "PG/SG"
-  jerseyNumber: string;
-  team: string;
-  teamLogo?: string;
-  avatar: string;
-  ppg: number;
-  rpg: number;
-  apg: number;
-  stl?: number; // Steals
-  blk?: number; // Blocks
-  tov?: number; // Turnovers
-  fantasyScore?: number; // Fantasy average score
-  clutchTimeStats: {
-    points: { player: number; league: number; percentile: number };
-    assists: { player: number; league: number; percentile: number };
-    rebounds: { player: number; league: number; percentile: number };
-  };
-  shotChart: {
-    fgPercentage: number;
-    threePointPercentage: number;
-    // Heat map data would typically be more complex
-  };
-  leagueComparison: {
-    scoring: number; // 0-100
-    playmaking: number;
-    rebounding: number;
-    defense: number;
-    efficiency: number;
-    leagueMean: {
-      scoring: number;
-      playmaking: number;
-      rebounding: number;
-      defense: number;
-      efficiency: number;
-    };
-  };
-  recentGames?: RecentGame[]; // Recent 10 games data
-  isFollowed?: boolean;
-}
-
-export interface TeamDetail {
-  id: string;
-  name: string;
-  logo?: string;
-  rank: number;
-  record: string; // e.g., "45-20"
-  conference: "East" | "West";
-  stats: TeamStats;
-  players: PlayerStats[];
-}
-
-export interface LeaderboardEntry {
-  id: string;
-  rank: number;
-  name: string;
-  value: number;
-  avatar?: string;
-  logo?: string;
-  logoUrl?: string; // Preferred over logo for team entries
-  team?: string;
-  conference?: "East" | "West";
-  wins?: number;
-  losses?: number;
-  winPct?: number; // Win percentage (e.g., 0.750)
-  streak?: string; // e.g., "W5", "L2"
-}
-
 export type LeaderboardFilter =
   | "East"
   | "West"
@@ -136,15 +174,26 @@ export type LeaderboardFilter =
   | "WINS"
   | "LOSSES";
 
-export interface RecentGame {
-  date: string; // Format: YYYY/MM/DD
-  opponent: string; // Format: "@TEAM" or "vs TEAM"
-  min: number; // Minutes played
-  pts: number; // Points
-  reb: number; // Rebounds
-  ast: number; // Assists
-  stl: number; // Steals
-  blk: number; // Blocks
-  tov: number; // Turnovers
-  fantasy: number; // Fantasy score
+/**
+ * Game result for home page display
+ */
+export interface GameResult {
+  id: string;
+  gameType: string; // e.g., "NBA Regular Season"
+  homeTeam: {
+    id: string;
+    name: string;
+    code: string;
+    logoUrl: string | null;
+    score: number;
+  };
+  awayTeam: {
+    id: string;
+    name: string;
+    code: string;
+    logoUrl: string | null;
+    score: number;
+  };
+  ratingCount?: number; // Number of ratings (e.g., 118000)
+  gameDate?: string; // ISO date string
 }

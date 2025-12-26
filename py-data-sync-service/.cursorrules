@@ -1,0 +1,661 @@
+# NBA Data Synchronization System - Cursor Rules
+
+## Project Overview
+This is a Python-based NBA Data Synchronization System that fetches, cleans, and syncs NBA data (Games, Players, Stats, Teams) to a Postgres database via Supabase. The system is designed to run reliably in both local development and AWS Lambda environments.
+
+**Tech Stack:** Python 3.x, Supabase (PostgreSQL), `nba_api`, GitHub Actions
+
+---
+
+## 1. DATA ENGINEERING PRINCIPLES (ETL)
+
+### 1.1 Idempotency is King
+- **CRITICAL:** All sync scripts MUST be idempotent. Running the same script multiple times should NOT create duplicate rows.
+- **Always use `upsert` instead of `insert`** when syncing data to Supabase.
+- Use `on_conflict` parameter to specify unique constraints:
+  ```python
+  supabase.table('games').upsert(games_data, on_conflict='id').execute()
+  supabase.table('player_season_stats').upsert(stats_data, on_conflict='player_id,season').execute()
+  ```
+- If a script fails partway through, re-running it should complete successfully without creating duplicates.
+
+### 1.2 Data Integrity
+- **Always validate data before sending to DB.** Check for `None`, `NaN`, empty strings, and invalid types.
+- Handle missing fields gracefully with default values or `None`:
+  ```python
+  home_score = int(score) if score is not None and score != '' else None
+  arena_name = arena.get('name', '') or None  # Empty string becomes None
+  ```
+- Use type-safe conversions with error handling:
+  ```python
+  def safe_float(value, default=0.0):
+      if pd.isna(value) or value is None:
+          return default
+      try:
+          return float(value)
+      except (ValueError, TypeError):
+          return default
+  ```
+- **Foreign Key Constraints:** Always verify referenced records exist before inserting (e.g., check team_id exists in teams table before inserting players).
+
+### 1.3 Timezone Handling (STRICT RULE)
+- **CRITICAL:** Store ALL timestamps in **UTC** in the database. Never store JST or any other timezone.
+- Only convert to JST (Tokyo) for logging or display logic, NEVER for storage.
+- Use `pytz.UTC` for timezone-aware datetime objects:
+  ```python
+  import pytz
+  from datetime import datetime
+  
+  # Parse and convert to UTC
+  dt = datetime.fromisoformat(game_time_utc.replace('Z', '+00:00'))
+  if dt.tzinfo is None:
+      dt = pytz.UTC.localize(dt)
+  else:
+      dt = dt.astimezone(pytz.UTC)
+  
+  # Store as ISO string
+  game_date_iso = dt.isoformat()  # This is UTC
+  ```
+- When converting from EST/EDT (NBA API timezone), always convert to UTC:
+  ```python
+  est_tz = pytz.timezone('US/Eastern')
+  dt_est = est_tz.localize(datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S'))
+  dt_utc = dt_est.astimezone(pytz.UTC)
+  ```
+
+---
+
+## 2. PYTHON CODING STANDARDS
+
+### 2.1 Type Hinting (Mandatory)
+- **All functions MUST have type hints** for arguments and return values:
+  ```python
+  def fetch_games(day_offset: int) -> list[dict]:
+      """Fetch games from NBA API."""
+      pass
+  
+  def transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> Optional[dict]:
+      """Transform NBA API data to Supabase format."""
+      pass
+  ```
+- Use `Optional[Type]` for nullable return values.
+- Use `Dict[str, Type]` instead of `dict` for better type safety.
+- Import types from `typing`: `from typing import Dict, Optional, List, Any, Callable`
+
+### 2.2 Error Handling
+- **Never let a script crash silently.** Always use `try/except` blocks.
+- Log errors explicitly with context:
+  ```python
+  try:
+      result = supabase.table('games').upsert(data).execute()
+  except Exception as e:
+      print(f"[ERROR] Failed to upsert games: {e}")
+      import traceback
+      traceback.print_exc()
+      raise  # Re-raise if critical, or return/continue if non-critical
+  ```
+- For API calls, use the existing `safe_call_nba_api` utility from `utils.py` which handles retries and timeouts.
+- When API calls fail after retries, gracefully skip that data and continue (don't crash the entire sync):
+  ```python
+  games = safe_call_nba_api(...)
+  if games is None:
+      print("[game_service] Failed to fetch games after retries. Skipping.")
+      return  # Don't raise, just skip
+  ```
+
+### 2.3 Modular Design (Separation of Concerns)
+- **Separate Fetching, Transformation, and Loading logic:**
+  - **Fetching:** API calls should be in separate functions (e.g., `_fetch_games_for_date()`)
+  - **Transformation:** Data cleaning/mapping should be in separate functions (e.g., `_transform_game_data()`)
+  - **Loading:** Supabase operations should be in the main sync function
+- Use private functions (prefix with `_`) for internal helpers:
+  ```python
+  def _build_team_map() -> Dict[str, str]:
+      """Internal helper to build team mapping."""
+      pass
+  
+  def sync_games():
+      """Public sync function."""
+      team_map = _build_team_map()
+      # ...
+  ```
+- Keep service files focused on one table/entity (e.g., `game_service.py` only handles games).
+
+### 2.4 Function Naming Conventions
+- Public sync functions: `sync_*()` (e.g., `sync_games()`, `sync_teams()`, `sync_active_players()`)
+- Private helper functions: `_*()` (e.g., `_build_team_map()`, `_transform_game_data()`)
+- Utility functions in `utils.py`: descriptive names (e.g., `get_current_nba_season()`, `safe_call_nba_api()`)
+
+---
+
+## 3. LIBRARY-SPECIFIC BEST PRACTICES
+
+### 3.1 Supabase Client
+- **Always use `get_db()` from `db.py`** to get the Supabase client (singleton pattern).
+- **Use `upsert` for all data operations:**
+  ```python
+  from db import get_db
+  
+  supabase = get_db()
+  result = supabase.table('games').upsert(
+      games_data,
+      on_conflict='id'  # or 'player_id,season' for composite keys
+  ).execute()
+  ```
+- **Always check `.data` after execution:**
+  ```python
+  result = supabase.table('teams').select('id, code').execute()
+  if not result.data:
+      print("⚠️ Warning: No teams found")
+      return
+  ```
+- Handle Supabase errors gracefully:
+  ```python
+  try:
+      result = supabase.table('games').upsert(data).execute()
+  except Exception as e:
+      # Try individual upserts as fallback
+      for item in data:
+          try:
+              supabase.table('games').upsert(item).execute()
+          except Exception as item_error:
+              print(f"  ❌ Failed to upsert {item['id']}: {item_error}")
+  ```
+
+### 3.2 NBA API (`nba_api` library)
+- **Always use `safe_call_nba_api()` from `utils.py`** for all NBA API calls. This handles:
+  - Retries (default: 3 attempts)
+  - Exponential backoff (base_delay * attempt)
+  - Timeout handling
+  - Rate limiting (post_success_sleep)
+- Example usage:
+  ```python
+  from utils import safe_call_nba_api
+  from nba_api.stats.endpoints import leaguestandings
+  
+  standings = safe_call_nba_api(
+      name=f"LeagueStandings(season={season})",
+      call_fn=lambda: leaguestandings.LeagueStandings(season=season),
+      max_retries=3,
+      base_delay=3.0,
+      post_success_sleep=0.6,  # Optional: for rate limiting
+  )
+  if standings is None:
+      print("[service_name] Failed to fetch after retries. Skipping.")
+      return
+  ```
+- **Map API keys (camelCase) to DB columns (snake_case) explicitly:**
+  ```python
+  # NBA API uses: 'gameId', 'gameTimeUTC', 'homeTeam'
+  # Database uses: 'id', 'game_date', 'home_team_id'
+  
+  game_data = {
+      'id': str(game.get('gameId')),
+      'game_date': parse_utc(game.get('gameTimeUTC')),
+      'home_team_id': team_map.get(game.get('homeTeam', {}).get('tricode')),
+  }
+  ```
+- Handle different API response formats (some endpoints return DataFrames, others return dicts):
+  ```python
+  # For stats endpoints (returns DataFrames)
+  df = standings.get_data_frames()[0]
+  if df.empty:
+      return
+  
+  # For live endpoints (returns dicts)
+  data = scoreboard.get_dict()
+  games = data.get('scoreboard', {}).get('games', [])
+  ```
+
+### 3.3 Environment Configuration
+- **Always use `Config` class from `config.py`** for environment variables.
+- Support multiple environments: `development`, `production` (via `ENVIRONMENT` env var).
+- Environment files: `.env.development`, `.env.production` (not committed to git).
+- Required env vars:
+  - `SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY` (preferred) or `SUPABASE_KEY` or `SUPABASE_ANON_KEY`
+- Validate config before use:
+  ```python
+  from config import Config
+  Config.validate()  # Raises ValueError if missing required vars
+  ```
+
+---
+
+## 4. LOGGING STANDARDS
+
+### 4.1 Logging Format
+- Use clear prefixes for log levels: `[INFO]`, `[ERROR]`, `[WARNING]`, `[nba_api]`, `[service_name]`
+- Use emoji for visual clarity in console output:
+  - `✅` for success
+  - `❌` for errors
+  - `⚠️` for warnings
+  - `ℹ️` for info
+- Example:
+  ```python
+  print("Starting game sync...")
+  print(f"✅ Successfully synced {count} games")
+  print(f"❌ Error during sync: {error}")
+  print("⚠️ Warning: No teams found in database")
+  ```
+
+### 4.2 Logging Structure
+- **Start of sync:** Print service name and season/date info:
+  ```python
+  print("Starting game sync...")
+  print(f"Current NBA season: {season}")
+  ```
+- **Progress updates:** Print counts and progress:
+  ```python
+  print(f"Fetched {len(games)} games from NBA API")
+  print(f"Transformed {len(games_data)} games")
+  print(f"Syncing {len(games_data)} games to Supabase...")
+  ```
+- **Summary:** Print final counts:
+  ```python
+  print(f"\n{'='*60}")
+  print(f"Game sync completed!")
+  print(f"  Total games synced: {total_synced}")
+  if total_failed > 0:
+      print(f"  Total games failed: {total_failed}")
+  print(f"{'='*60}")
+  ```
+- **Verification:** Always verify data insertion:
+  ```python
+  print("\nVerifying data insertion...")
+  verify_result = supabase.table('games').select('id, status').limit(5).execute()
+  if verify_result.data:
+      print(f"✅ Verification successful! Found games in database")
+      print("Sample games:")
+      for game in verify_result.data[:3]:
+          print(f"  - Game {game['id']}: {game['status']}")
+  ```
+- **End of sync:** Print completion message:
+  ```python
+  print("\n✅ Game sync completed successfully!")
+  ```
+
+### 4.3 Error Logging
+- Always include context in error messages:
+  ```python
+  print(f"❌ Error during game sync: {str(e)}")
+  import traceback
+  traceback.print_exc()  # Full stack trace for debugging
+  ```
+- For non-critical errors (e.g., single record failure), log but continue:
+  ```python
+  failed_count = 0
+  for item in items:
+      try:
+          supabase.table('games').upsert(item).execute()
+      except Exception as e:
+          failed_count += 1
+          if failed_count <= 3:  # Only log first 3 failures
+              print(f"  ❌ Failed to upsert game {item['id']}: {e}")
+  ```
+
+---
+
+## 5. SERVICE FILE STRUCTURE
+
+### 5.1 File Organization
+- All sync services go in `services/` directory.
+- Naming: `{entity}_service.py` (e.g., `game_service.py`, `team_service.py`, `player_service.py`).
+- Each service file should have:
+  1. Module docstring describing what it syncs
+  2. Private helper functions (prefixed with `_`)
+  3. Public `sync_*()` function
+  4. Proper error handling and logging
+
+### 5.2 Service Function Template
+```python
+"""
+{Entity} synchronization service.
+Fetches {entity} data from NBA API and syncs to Supabase {table} table.
+"""
+from typing import Dict, Optional, List
+from db import get_db
+from utils import get_current_nba_season, safe_call_nba_api
+
+def _helper_function() -> Dict[str, str]:
+    """Private helper function."""
+    pass
+
+def sync_{entity}():
+    """
+    Sync {entity} from NBA API to Supabase {table} table.
+    
+    Fetches {description} and extracts:
+    - field1, field2, field3
+    """
+    try:
+        print("Starting {entity} sync...")
+        
+        # Get season/config
+        season = get_current_nba_season()
+        print(f"Current NBA season: {season}")
+        
+        # Get Supabase client
+        supabase = get_db()
+        
+        # Fetch data
+        print("Fetching data from NBA API...")
+        data = safe_call_nba_api(...)
+        if data is None:
+            print("[{service_name}] Failed to fetch after retries. Skipping.")
+            return
+        
+        # Transform data
+        print("Transforming data...")
+        transformed_data = []
+        for item in raw_data:
+            transformed = transform_item(item)
+            if transformed:
+                transformed_data.append(transformed)
+        
+        # Upsert to Supabase
+        print(f"Syncing {len(transformed_data)} items to Supabase...")
+        try:
+            supabase.table('{table}').upsert(
+                transformed_data,
+                on_conflict='{unique_key}'
+            ).execute()
+            print(f"✅ Successfully synced {len(transformed_data)} items")
+        except Exception as e:
+            # Fallback to individual upserts
+            # ...
+        
+        # Verify
+        print("\nVerifying data insertion...")
+        verify_result = supabase.table('{table}').select('*').limit(5).execute()
+        if verify_result.data:
+            print(f"✅ Verification successful!")
+        
+        print("\n✅ {Entity} sync completed successfully!")
+        
+    except Exception as e:
+        print(f"\n❌ Error during {entity} sync: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+```
+
+### 5.3 Service Exports
+- Add new services to `services/__init__.py`:
+  ```python
+  from .game_service import sync_games
+  __all__ = [..., 'sync_games']
+  ```
+
+---
+
+## 6. DATA VALIDATION PATTERNS
+
+### 6.1 Required Fields
+- Always check for required fields before inserting:
+  ```python
+  if not game_id or not home_team_id or not away_team_id:
+      return None  # Skip invalid records
+  ```
+
+### 6.2 Type Conversions
+- Use safe conversion functions:
+  ```python
+  def safe_int(value, default=0):
+      try:
+          return int(value) if value is not None and value != '' else default
+      except (ValueError, TypeError):
+          return default
+  
+  def safe_float(value, default=0.0):
+      if pd.isna(value) or value is None:
+          return default
+      try:
+          return float(value)
+      except (ValueError, TypeError):
+          return default
+  ```
+
+### 6.3 Null Handling
+- Convert empty strings to `None` for optional fields:
+  ```python
+  arena_name = arena.get('name', '') or None  # Empty string -> None
+  jersey_num = str(row.get('NUM', '')).strip() if pd.notna(row.get('NUM')) else None
+  ```
+
+---
+
+## 7. COMMON PATTERNS
+
+### 7.1 Team Mapping
+- When syncing games/players, always build team map first:
+  ```python
+  def _build_team_map() -> Dict[str, str]:
+      supabase = get_db()
+      teams_result = supabase.table('teams').select('id, code').execute()
+      team_map = {}
+      for team in teams_result.data:
+          code = team.get('code', '').strip().upper()
+          team_id = team.get('id')
+          if code and team_id:
+              team_map[code] = str(team_id)
+      return team_map
+  ```
+
+### 7.2 Bulk Upsert with Fallback
+- Always try bulk upsert first, fallback to individual:
+  ```python
+  try:
+      supabase.table('games').upsert(games_data, on_conflict='id').execute()
+      synced_count = len(games_data)
+  except Exception as bulk_error:
+      print("⚠️ Bulk upsert failed, trying individual upserts...")
+      synced_count = 0
+      for game_data in games_data:
+          try:
+              supabase.table('games').upsert(game_data, on_conflict='id').execute()
+              synced_count += 1
+          except Exception as e:
+              failed_count += 1
+              if failed_count <= 3:
+                  print(f"  ❌ Failed to upsert game {game_data['id']}: {e}")
+  ```
+
+### 7.3 Season Handling
+- Always use `get_current_nba_season()` from `utils.py`:
+  ```python
+  from utils import get_current_nba_season
+  season = get_current_nba_season()  # Returns '2024-25' format
+  ```
+
+---
+
+## 8. GIT AND DEPLOYMENT
+
+### 8.1 File Organization
+- Never commit `.env*` files (already in `.gitignore`).
+- Service files go in `services/` directory.
+- Utility functions go in `utils.py`.
+- Configuration goes in `config.py`.
+- Database client goes in `db.py`.
+
+### 8.2 Lambda Deployment
+- Main entry point: `handler.py` (calls `main.sync_all_data()`).
+- Environment variables set in Lambda console (not in code).
+- Package size: Use S3 for large deployments (see GitHub Actions workflow).
+
+---
+
+## 9. CODE REVIEW CHECKLIST
+
+Before submitting code, ensure:
+- [ ] All functions have type hints
+- [ ] All database operations use `upsert` with `on_conflict`
+- [ ] All timestamps stored in UTC
+- [ ] All NBA API calls use `safe_call_nba_api()`
+- [ ] Error handling with try/except blocks
+- [ ] Data validation before DB insertion
+- [ ] Logging with clear prefixes and emoji
+- [ ] Verification step after data insertion
+- [ ] Idempotent (can run multiple times safely)
+- [ ] Follows service file structure template
+
+---
+
+## 10. EXAMPLES
+
+### Example: Syncing Games
+```python
+def sync_games():
+    """Sync games from NBA API to Supabase."""
+    try:
+        print("Starting game sync...")
+        season = get_current_nba_season()
+        supabase = get_db()
+        
+        # Build team map
+        team_map = _build_team_map()
+        if not team_map:
+            print("⚠️ Warning: No teams found. Please sync teams first.")
+            return
+        
+        # Fetch games
+        games = _fetch_games_for_date(day_offset=-1)
+        if games is None:
+            return
+        
+        # Transform
+        games_data = [_transform_game_data(g, team_map, season) for g in games]
+        games_data = [g for g in games_data if g is not None]  # Filter None
+        
+        # Upsert
+        supabase.table('games').upsert(games_data, on_conflict='id').execute()
+        
+        print("✅ Game sync completed successfully!")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise
+```
+
+---
+
+## 11. PYTHON DATA SYNC PROJECT BEST PRACTICES
+
+### 11.1 Batch Processing
+- **Always prefer bulk operations over individual operations** for better performance:
+  ```python
+  # Good: Bulk upsert
+  supabase.table('games').upsert(games_data, on_conflict='id').execute()
+  
+  # Bad: Individual upserts in a loop (only use as fallback)
+  for game in games_data:
+      supabase.table('games').upsert(game, on_conflict='id').execute()
+  ```
+- Process data in batches when dealing with large datasets:
+  ```python
+  BATCH_SIZE = 100
+  for i in range(0, len(data), BATCH_SIZE):
+      batch = data[i:i + BATCH_SIZE]
+      supabase.table('table').upsert(batch, on_conflict='id').execute()
+  ```
+
+### 11.2 Data Quality Checks
+- **Validate data completeness** before syncing:
+  ```python
+  required_fields = ['id', 'name', 'code']
+  for item in data:
+      if not all(item.get(field) for field in required_fields):
+          print(f"⚠️ Skipping incomplete record: {item}")
+          continue
+  ```
+- **Check data freshness**: Verify API data is current (e.g., check season matches current season)
+- **Handle data anomalies**: Log and skip records with unexpected values rather than crashing
+
+### 11.3 Performance Optimization
+- **Minimize database queries**: Build lookup maps once, reuse them:
+  ```python
+  # Build team map once
+  team_map = _build_team_map()
+  # Reuse for all games
+  for game in games:
+      transform_game(game, team_map)
+  ```
+- **Use connection pooling**: Supabase client handles this automatically via singleton pattern
+- **Rate limiting**: Use `post_success_sleep` in `safe_call_nba_api()` to respect API limits
+
+### 11.4 Error Recovery and Resilience
+- **Graceful degradation**: If one record fails, continue with others:
+  ```python
+  failed_count = 0
+  for item in items:
+      try:
+          supabase.table('games').upsert(item).execute()
+      except Exception as e:
+          failed_count += 1
+          if failed_count <= 3:
+              print(f"  ❌ Failed: {e}")
+  ```
+- **Retry logic**: Always use `safe_call_nba_api()` for external API calls
+- **Partial success handling**: Report both successful and failed operations
+
+### 11.5 Monitoring and Observability
+- **Structured logging**: Include context in all log messages:
+  ```python
+  print(f"[game_service] Syncing {len(games)} games for season {season}")
+  ```
+- **Progress indicators**: Show progress for long-running operations:
+  ```python
+  for i, item in enumerate(items, 1):
+      if i % 100 == 0:
+          print(f"  Processed {i}/{len(items)} items...")
+  ```
+- **Summary statistics**: Always print summary at the end:
+  ```python
+  print(f"Total: {total}, Success: {success}, Failed: {failed}")
+  ```
+
+### 11.6 Dependency Management
+- **Pin dependency versions** in `requirements.txt`:
+  ```txt
+  supabase==2.0.0
+  nba-api==1.2.1
+  ```
+- **Document dependencies**: Include all required packages
+- **Environment isolation**: Use virtual environments for development
+
+### 11.7 Data Consistency
+- **Foreign key validation**: Always verify referenced records exist:
+  ```python
+  # Before inserting players, verify teams exist
+  team_ids = {team['id'] for team in teams_result.data}
+  if player['team_id'] not in team_ids:
+      print(f"⚠️ Skipping player: team_id {player['team_id']} not found")
+      continue
+  ```
+- **Transaction-like behavior**: Use upsert to maintain consistency even if script is interrupted
+
+### 11.8 CLI and Entry Points
+- **Multiple entry points**: Support both programmatic and CLI usage:
+  - `handler.py`: Lambda entry point
+  - `main.py`: Full sync entry point
+  - `cli.py`: Interactive CLI for selective syncing
+- **Exit codes**: Return appropriate exit codes (0 = success, 1 = error, 130 = interrupted)
+- **User feedback**: Provide clear feedback on what's happening and what succeeded/failed
+
+### 11.9 Testing Considerations
+- **Idempotency testing**: Verify scripts can run multiple times without creating duplicates
+- **Error handling testing**: Test behavior when API fails, DB is unavailable, etc.
+- **Data validation testing**: Test with missing fields, invalid types, edge cases
+
+### 11.10 Documentation
+- **Function docstrings**: All public functions must have docstrings describing:
+  - What the function does
+  - Parameters and return values
+  - Any side effects or dependencies
+- **Module docstrings**: Each service file should describe what it syncs
+- **Inline comments**: Explain complex logic or non-obvious decisions
+
+---
+
+**Remember:** When in doubt, follow the patterns in existing service files (`team_service.py`, `player_service.py`, `game_service.py`). Consistency is key!
+

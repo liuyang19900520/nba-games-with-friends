@@ -8,7 +8,7 @@ from db import get_db
 from utils import get_current_nba_season, safe_call_nba_api
 
 
-def sync_teams():
+def sync_teams() -> None:
     """
     Sync teams from NBA API to Supabase teams table.
     
@@ -77,38 +77,43 @@ def sync_teams():
                 'logo_url': logo_url
             })
         
-        # Insert/Update teams to Supabase
+        # Upsert teams to Supabase (idempotent operation)
         print(f"Syncing {len(teams_data)} teams to Supabase...")
-        inserted_count = 0
+        synced_count = 0
         failed_count = 0
         
-        for team in teams_data:
-            try:
-                # Try insert first
-                supabase.table('teams').insert(team).execute()
-                inserted_count += 1
-                if inserted_count % 10 == 0:
-                    print(f"  Inserted {inserted_count} teams...")
-            except Exception:
-                # If insert fails, try update
+        try:
+            # Try bulk upsert first
+            result = supabase.table('teams').upsert(
+                teams_data,
+                on_conflict='id'
+            ).execute()
+            synced_count = len(teams_data)
+            print(f"✅ Successfully upserted {synced_count} teams")
+            
+        except Exception as bulk_error:
+            # If bulk upsert fails, try one by one
+            print(f"  ⚠️ Bulk upsert failed, trying individual upserts...")
+            print(f"  Error: {bulk_error}")
+            
+            for team in teams_data:
                 try:
-                    supabase.table('teams').update({
-                        'name': team['name'],
-                        'city': team['city'],
-                        'code': team['code'],
-                        'conference': team['conference'],
-                        'logo_url': team['logo_url']
-                    }).eq('id', team['id']).execute()
-                    inserted_count += 1
+                    supabase.table('teams').upsert(
+                        team,
+                        on_conflict='id'
+                    ).execute()
+                    synced_count += 1
+                    if synced_count % 10 == 0:
+                        print(f"  Upserted {synced_count} teams...")
                 except Exception as e:
                     failed_count += 1
                     if failed_count <= 3:
-                        print(f"  ❌ Failed team {team['id']} ({team['name']}): {e}")
+                        print(f"  ❌ Failed to upsert team {team['id']} ({team['name']}): {e}")
         
-        if inserted_count > 0:
-            print(f"✅ Successfully synced {inserted_count}/{len(teams_data)} teams")
+        if synced_count > 0:
+            print(f"✅ Successfully synced {synced_count}/{len(teams_data)} teams")
         else:
-            raise Exception("Failed to insert any teams")
+            raise Exception("Failed to sync any teams")
         
         # Verify data insertion
         print("\nVerifying data insertion...")

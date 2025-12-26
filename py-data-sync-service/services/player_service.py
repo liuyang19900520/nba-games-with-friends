@@ -9,7 +9,7 @@ from db import get_db
 from utils import get_current_nba_season, safe_call_nba_api
 
 
-def sync_active_players():
+def sync_active_players() -> None:
     """
     Sync active players from NBA API to Supabase players table.
     
