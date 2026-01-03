@@ -18,12 +18,16 @@ export function GameResultsList({ games }: GameResultsListProps) {
     );
   }
 
-  // Limit to 3 games and make scrollable
-  const displayGames = games.slice(0, 3);
+  // Calculate max height to show approximately 3 items (each item is ~80px with spacing)
+  // Allow scrolling for items beyond 3
+  const maxHeight = "260px"; // ~3 items * ~80px per item
 
   return (
-    <div className="space-y-3 max-h-[600px] overflow-y-auto">
-      {displayGames.map((game) => (
+    <div
+      className="space-y-2 overflow-y-auto"
+      style={{ maxHeight }}
+    >
+      {games.map((game) => (
         <GameResultCard key={game.id} game={game} />
       ))}
     </div>

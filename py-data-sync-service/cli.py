@@ -11,7 +11,8 @@ from services import (
     sync_team_standings,
     sync_active_players,
     sync_player_season_stats,
-    sync_games
+    sync_games,
+    sync_game_details,
 )
 
 
@@ -55,13 +56,23 @@ def sync_games_cmd() -> None:
     sync_games()
 
 
+def sync_game_details_cmd(game_id: str) -> None:
+    """Sync game player stats for a specific game."""
+    print("=" * 60)
+    print(f"Syncing Game Player Stats for Game {game_id}")
+    print("=" * 60)
+    sync_game_details(game_id=game_id)
+
+
 # Mapping of command names to functions
+# Note: game-player-stats is handled specially in main() because it requires --game-id argument
 SYNC_COMMANDS = {
     'teams': sync_teams_cmd,
     'team-standings': sync_team_standings_cmd,
     'players': sync_players_cmd,
     'stats': sync_stats_cmd,
     'games': sync_games_cmd,
+    # 'game-player-stats' is handled separately in main() due to required --game-id argument
 }
 
 
@@ -85,11 +96,12 @@ Examples:
   python cli.py games
 
 Available sync commands:
-  teams          - Sync teams table (static team info)
-  team-standings - Sync team standings table (wins, losses, etc.)
-  players        - Sync players table (active players)
-  stats          - Sync player season stats table
-  games           - Sync games table (schedule and results)
+  teams              - Sync teams table (static team info)
+  team-standings     - Sync team standings table (wins, losses, etc.)
+  players            - Sync players table (active players)
+  stats              - Sync player season stats table
+  games              - Sync games table (schedule and results)
+  game-player-stats  - Sync game player stats for a specific game (requires --game-id)
         """
     )
     
@@ -111,11 +123,17 @@ Available sync commands:
         help='List all available sync commands and exit'
     )
     
+    parser.add_argument(
+        '--game-id',
+        type=str,
+        help='Game ID for syncing game player stats (required for game-player-stats command)'
+    )
+    
     args = parser.parse_args()
     
     # Validate commands if provided (but not if --list is used)
     if not args.list and args.commands:
-        valid_commands = list(SYNC_COMMANDS.keys()) + ['all']
+        valid_commands = list(SYNC_COMMANDS.keys()) + ['all', 'game-player-stats']
         invalid = [cmd for cmd in args.commands if cmd not in valid_commands]
         if invalid:
             parser.error(f"Invalid command(s): {', '.join(invalid)}. Use --list to see available commands.")
@@ -130,10 +148,11 @@ def list_commands() -> None:
     for cmd, func in SYNC_COMMANDS.items():
         print(f"  {cmd:20} - {func.__doc__}")
     print()
-    print("You can combine multiple commands:")
-    print("  python cli.py teams players games")
+    print("  game-player-stats  - Sync player stats for a specific game (requires --game-id)")
     print()
-    print("Or use --all to sync everything:")
+    print("Examples:")
+    print("  python cli.py teams players games")
+    print("  python cli.py game-player-stats --game-id 0022500009")
     print("  python cli.py --all")
 
 
@@ -169,10 +188,19 @@ def main() -> int:
         print("No commands to execute.")
         return 1
     
+    # Special handling for game-player-stats command
+    if 'game-player-stats' in commands_to_run:
+        if not args.game_id:
+            print("❌ Error: --game-id is required for game-player-stats command")
+            print("Example: python cli.py game-player-stats --game-id 0022500009")
+            return 1
+    
     print("=" * 60)
     print("NBA Data Synchronization CLI")
     print("=" * 60)
     print(f"Commands to execute: {', '.join(commands_to_run)}")
+    if args.game_id:
+        print(f"Game ID: {args.game_id}")
     print("=" * 60)
     print()
     
@@ -182,7 +210,13 @@ def main() -> int:
         try:
             print(f"\n[{i}/{len(commands_to_run)}] Executing: {cmd}")
             print("-" * 60)
-            SYNC_COMMANDS[cmd]()
+            
+            # Special handling for game-player-stats
+            if cmd == 'game-player-stats':
+                sync_game_details_cmd(args.game_id)
+            else:
+                SYNC_COMMANDS[cmd]()
+            
             print(f"\n✅ {cmd} completed successfully")
         except KeyboardInterrupt:
             print(f"\n⚠️ Interrupted by user during {cmd}")

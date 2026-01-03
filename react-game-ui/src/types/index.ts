@@ -180,6 +180,7 @@ export type LeaderboardFilter =
 export interface GameResult {
   id: string;
   gameType: string; // e.g., "NBA Regular Season"
+  status?: string; // e.g., "Scheduled", "Final"
   homeTeam: {
     id: string;
     name: string;
@@ -196,4 +197,62 @@ export interface GameResult {
   };
   ratingCount?: number; // Number of ratings (e.g., 118000)
   gameDate?: string; // ISO date string
+}
+
+/**
+ * Match detail page types
+ */
+export interface MatchDetail {
+  id: string;
+  status: "Scheduled" | "Live" | "Final";
+  gameDate: string;
+  gameType: string;
+  arenaName?: string;
+  awayTeam: {
+    id: string;
+    name: string;
+    code: string;
+    logoUrl: string | null;
+    score: number;
+    rank?: number;
+    conference?: "East" | "West";
+  };
+  homeTeam: {
+    id: string;
+    name: string;
+    code: string;
+    logoUrl: string | null;
+    score: number;
+    rank?: number;
+    conference?: "East" | "West";
+  };
+  quarters: {
+    q1: { away: number; home: number };
+    q2: { away: number; home: number };
+    q3: { away: number; home: number };
+    q4: { away: number; home: number };
+    total: { away: number; home: number };
+  };
+  scoreTrend?: Array<{
+    time: string;
+    awayScore: number;
+    homeScore: number;
+    diff: number; // home - away
+  }>;
+  awayTeamPlayers: MatchPlayerStat[];
+  homeTeamPlayers: MatchPlayerStat[];
+}
+
+export interface MatchPlayerStat {
+  id: string;
+  name: string;
+  number?: string;
+  avatar?: string;
+  position: string;
+  time: string; // e.g., "32:45"
+  pts: number;
+  reb: number;
+  ast: number;
+  fg: string; // e.g., "8-15"
+  threePt: string; // e.g., "2-5"
 }

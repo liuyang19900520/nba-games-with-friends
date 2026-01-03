@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Header } from "@/components/layout/Header";
 import { GameResultsList } from "@/components/features/home/GameResultsList";
 import { getRecentGames } from "@/lib/db/games";
+import { logger } from "@/config/env";
 
 export const metadata: Metadata = {
   title: "Home - NBA Fantasy Manager",
@@ -13,7 +14,17 @@ export const metadata: Metadata = {
  */
 export default async function HomePage() {
   // Fetch recent games (returns empty array if games table doesn't exist)
+  // Note: Using getRecentGames which is cached. For debugging, you can temporarily
+  // import fetchRecentGames directly to bypass cache.
   const recentGames = await getRecentGames(10);
+  
+  // Debug: Log the result
+  logger.info(`[HomePage] Received ${recentGames.length} games`);
+  if (recentGames.length > 0) {
+    logger.info("[HomePage] First game:", JSON.stringify(recentGames[0], null, 2));
+  } else {
+    logger.warn("[HomePage] No games returned from getRecentGames");
+  }
 
   return (
     <div className="flex flex-col h-full">

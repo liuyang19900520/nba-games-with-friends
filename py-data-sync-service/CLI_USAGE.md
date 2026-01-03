@@ -96,6 +96,42 @@ python cli.py stats
 
 这会同步球员赛季统计数据。
 
+### 示例 7: 同步特定比赛的球员统计数据
+
+```bash
+python cli.py game-player-stats --game-id 0022500009
+```
+
+这会同步指定比赛的球员统计数据到 `game_player_stats` 表。
+
+**参数说明：**
+- `--game-id`: 必需参数，NBA 比赛 ID（例如：`0022500009`）
+
+**输出示例：**
+```
+============================================================
+NBA Data Synchronization CLI
+============================================================
+Commands to execute: game-player-stats
+Game ID: 0022500009
+============================================================
+
+[1/1] Executing: game-player-stats
+------------------------------------------------------------
+============================================================
+Syncing Game Player Stats for Game 0022500009
+============================================================
+Starting game player stats sync for game 0022500009...
+Fetching player stats for game 0022500009 from NBA API...
+...
+✅ Game player stats sync completed successfully for game 0022500009!
+```
+
+**注意：**
+- 这个命令需要提供 `--game-id` 参数，否则会报错
+- 比赛必须已经完成或正在进行中，才能获取到球员统计数据
+- 如果比赛还未开始，API 可能返回空数据
+
 ## 常见使用场景
 
 ### 场景 1: 首次设置数据库
@@ -134,6 +170,22 @@ python cli.py --all
 # 只更新团队排名（不更新其他数据）
 python cli.py team-standings
 ```
+
+### 场景 5: 同步特定比赛的球员统计数据
+
+```bash
+# 同步某场比赛的球员统计数据（比赛结束后）
+python cli.py game-player-stats --game-id 0022500009
+```
+
+**使用场景：**
+- 比赛结束后，需要获取该场比赛的详细球员统计数据
+- 用于更新 fantasy score 和比赛详情
+- 可以批量处理多场比赛（需要多次运行命令）
+
+**获取 game_id：**
+- 可以从 `games` 表中查询已完成的比赛
+- 或者从 NBA 官网的比赛页面 URL 中获取
 
 ## 错误处理
 
@@ -178,6 +230,7 @@ Failed commands: players
 
 1. **依赖关系**：
    - `players` 和 `games` 依赖于 `teams`
+   - `game-player-stats` 依赖于 `players` 和 `teams`（需要验证外键）
    - 建议先同步 `teams`，再同步其他数据
 
 2. **幂等性**：
