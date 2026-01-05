@@ -6,38 +6,37 @@ import { NeonCourtOverlay } from './NeonCourtOverlay';
 
 interface BasketballCourtProps {
   lineup: {
-    PG?: Player;
-    SG?: Player;
-    SF?: Player;
-    PF?: Player;
     C?: Player;
+    F1?: Player;
+    F2?: Player;
+    G1?: Player;
+    G2?: Player;
   };
-  onSlotClick: (position: 'PG' | 'SG' | 'SF' | 'PF' | 'C') => void;
+  onSlotClick: (position: 'C' | 'F1' | 'F2' | 'G1' | 'G2') => void;
   isPending?: boolean; // 是否正在保存（用于乐观更新状态）
 }
 
 export function BasketballCourt({ lineup, onSlotClick, isPending = false }: BasketballCourtProps) {
   // Half court positions:
-  // - C (Center): Near basket, left side of key
-  // - PF (Power Forward): Near basket, right side of key
-  // - SF (Small Forward): Outside three-point line, left side
-  // - PG (Point Guard): Outside three-point line, center
-  // - SG (Shooting Guard): Outside three-point line, right side
+  // - C (Center): 1 position near basket
+  // - F1, F2 (Forwards): 2 positions near basket
+  // - G1, G2 (Guards): 2 positions outside three-point line
   const positions: Array<{
-    position: 'PG' | 'SG' | 'SF' | 'PF' | 'C';
+    position: 'C' | 'F1' | 'F2' | 'G1' | 'G2';
+    label: string;
     style: string;
   }> = [
-      { position: 'C', style: 'bottom-[18%] right-[32.5%]' }, // Symmetric to PF (PF at left 32.5%, C at right 32.5%)
-      { position: 'PF', style: 'bottom-[18%] left-[32.5%]' }, // Between SF and PG (SF at 15%, PG at 50%)
-      { position: 'SF', style: 'bottom-[45%] left-[15%]' }, // Outside three-point line, left
-      { position: 'PG', style: 'bottom-[47%] left-1/2 -translate-x-1/2' }, // Outside three-point line, center
-      { position: 'SG', style: 'bottom-[45%] right-[15%]' }, // Outside three-point line, right
+      { position: 'C', label: 'C', style: 'bottom-[55%] left-1/2 -translate-x-1/2' }, // Center near basket
+      { position: 'F1', label: 'F', style: 'bottom-[45%] left-[15%]' }, // Forward 1 near basket, left
+      { position: 'F2', label: 'F', style: 'bottom-[45%] right-[15%]' }, // Forward 2 near basket, right
+      { position: 'G1', label: 'G', style: 'bottom-[15%] left-[32.5%]' }, // Guard 1 outside three-point line, left
+      { position: 'G2', label: 'G', style: 'bottom-[15%] right-[32.5%]' }, // Guard 2 outside three-point line, right
     ];
 
   return (
     <div className="basketball-court-container relative">
       <NeonCourtOverlay />
-      {positions.map(({ position, style }) => {
+      {positions.map(({ position, label, style }) => {
         const player = lineup[position];
         return (
           <div
@@ -59,7 +58,7 @@ export function BasketballCourt({ lineup, onSlotClick, isPending = false }: Bask
                 <span className="player-slot-plus">+</span>
               )}
             </div>
-            <span>{position}</span>
+            <span>{label}</span>
           </div>
         );
       })}

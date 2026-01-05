@@ -78,7 +78,7 @@ export async function fetchMatchDetail(
           full_name,
           position,
           headshot_url,
-          jersey_number
+          jersey_num
         )
       `
       )
@@ -181,7 +181,7 @@ function transformPlayerStat(stat: {
     full_name?: string | null;
     position?: string | null;
     headshot_url?: string | null;
-    jersey_number?: number | string | null;
+    jersey_num?: string | null;
   } | null;
 }): {
   id: string;
@@ -208,7 +208,7 @@ function transformPlayerStat(stat: {
   return {
     id: String(player?.id || stat.player_id),
     name: player?.full_name || "Unknown",
-    number: player?.jersey_number?.toString(),
+    number: player?.jersey_num || undefined,
     avatar: player?.headshot_url || undefined,
     position: player?.position || "",
     time,

@@ -129,6 +129,8 @@ export async function fetchPlayers(
           avatar: stat.player.headshot_url || "",
           ppg: stat.pts || 0,
           rpg: stat.reb || 0,
+          apg: stat.ast || 0,
+          fantasyScore: stat.fantasy_avg || 0,
         };
 
         return playerData;
@@ -358,3 +360,207 @@ export const fetchPlayerStats = unstable_cache(
     revalidate: 300,
   }
 );
+
+/**
+ * 获取指定日期有比赛的球员列表
+ * 
+ * @param gameDate - 比赛日期，格式为 "YYYY-MM-DD" 或 Date 对象，默认为 "2025-12-25" (测试用)
+ * @param season - 赛季，默认为 DEFAULT_SEASON
+ * @returns Promise<Player[]> 球员列表
+ */
+export async function fetchPlayersWithGames(
+  gameDate: string | Date = "2025-12-25",
+  season: string = DEFAULT_SEASON
+): Promise<Player[]> {
+  if (!hasSupabaseConfig()) {
+    throw new PlayerFetchError("Supabase 环境变量未配置", "MISSING_ENV_VARS");
+  }
+
+  try {
+    const supabase = createServerClient();
+
+    // 1. 将日期转换为 Date 对象并计算日期范围（UTC）
+    let dateStart: Date;
+    let dateEnd: Date;
+
+    if (typeof gameDate === "string") {
+      // 解析日期字符串 "YYYY-MM-DD"
+      const date = new Date(gameDate + "T00:00:00Z");
+      dateStart = new Date(date);
+      dateEnd = new Date(date);
+      dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
+    } else {
+      dateStart = new Date(gameDate);
+      dateStart.setUTCHours(0, 0, 0, 0);
+      dateEnd = new Date(dateStart);
+      dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
+    }
+
+    logger.info(
+      `[fetchPlayersWithGames] Fetching players for games on ${dateStart.toISOString()} (season: ${season})`
+    );
+
+    // 2. 查询指定日期的比赛，获取所有涉及的 team_id
+    const { data: gamesData, error: gamesError } = await supabase
+      .from("games")
+      .select("home_team_id, away_team_id")
+      .gte("game_date", dateStart.toISOString())
+      .lt("game_date", dateEnd.toISOString())
+      .eq("season", season);
+
+    if (gamesError) {
+      throw new PlayerFetchError(
+        `Failed to fetch games: ${gamesError.message}`,
+        gamesError.code,
+        {
+          message: gamesError.message,
+          details: gamesError.details,
+          hint: gamesError.hint,
+          code: gamesError.code,
+          gameDate: dateStart.toISOString(),
+          season,
+        }
+      );
+    }
+
+    if (!gamesData || gamesData.length === 0) {
+      logger.warn(
+        `[fetchPlayersWithGames] No games found for date ${dateStart.toISOString()}`
+      );
+      return [];
+    }
+
+    // 3. 收集所有涉及的 team_id
+    const teamIds = new Set<number>();
+    gamesData.forEach((game) => {
+      if (game.home_team_id !== null && game.home_team_id !== undefined) {
+        teamIds.add(game.home_team_id);
+      }
+      if (game.away_team_id !== null && game.away_team_id !== undefined) {
+        teamIds.add(game.away_team_id);
+      }
+    });
+
+    if (teamIds.size === 0) {
+      logger.warn(
+        `[fetchPlayersWithGames] No valid team IDs found in games`
+      );
+      return [];
+    }
+
+    logger.info(
+      `[fetchPlayersWithGames] Found ${gamesData.length} games with ${teamIds.size} teams`
+    );
+
+    // 4. 查询这些球队的球员赛季统计数据
+    const { data: statsData, error: statsError } = await supabase
+      .from("player_season_stats")
+      .select(
+        `
+        *,
+        player:players!inner(
+          id,
+          full_name,
+          position,
+          headshot_url,
+          jersey_num,
+          team_id,
+          team:teams(
+            id,
+            name,
+            code,
+            logo_url
+          )
+        )
+      `
+      )
+      .eq("season", season)
+      .in("team_id", Array.from(teamIds))
+      .order("fantasy_avg", { ascending: false });
+
+    if (statsError) {
+      throw new PlayerFetchError(
+        `Failed to fetch player stats: ${statsError.message}`,
+        statsError.code,
+        {
+          message: statsError.message,
+          details: statsError.details,
+          hint: statsError.hint,
+          code: statsError.code,
+          teamIds: Array.from(teamIds),
+          season,
+        }
+      );
+    }
+
+    if (!statsData || statsData.length === 0) {
+      logger.warn(
+        `[fetchPlayersWithGames] No player stats found for teams ${Array.from(teamIds).join(", ")}`
+      );
+      return [];
+    }
+
+    logger.info(
+      `[fetchPlayersWithGames] Found ${statsData.length} players with stats`
+    );
+
+    // 5. 转换为 Player 类型
+    type Row = DatabasePlayerSeasonStats & {
+      player: (DbPlayer & { team?: Team | null; jersey_num?: number | null }) | null;
+    };
+
+    const rows = statsData as unknown as Row[];
+
+    const players: Player[] = rows
+      .map((stat): Player | null => {
+        if (!stat.player) {
+          return null;
+        }
+
+        const team = stat.player.team;
+        const teamName = team ? team.name : "Unknown Team";
+        const teamLogo = team?.logo_url || undefined;
+
+        const playerData: Player = {
+          id: String(stat.player.id),
+          name: stat.player.full_name,
+          team: teamName,
+          position:
+            (stat.player.position as "PG" | "SG" | "SF" | "PF" | "C") || "C",
+          avatar: stat.player.headshot_url || "",
+          ppg: stat.pts || 0,
+          rpg: stat.reb || 0,
+          apg: stat.ast || 0,
+          fantasyScore: stat.fantasy_avg || 0,
+          teamLogo,
+        };
+
+        return playerData;
+      })
+      .filter((player): player is Player => player !== null);
+
+    logger.info(
+      `[fetchPlayersWithGames] Successfully transformed ${players.length} players`
+    );
+
+    return players;
+  } catch (error) {
+    if (error instanceof PlayerFetchError) {
+      throw error;
+    }
+
+    const unknownError = new PlayerFetchError(
+      `获取有比赛的球员数据时发生未知错误: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      "UNKNOWN_ERROR",
+      {
+        originalError: error instanceof Error ? error.stack : String(error),
+        gameDate: typeof gameDate === "string" ? gameDate : gameDate.toISOString(),
+        season,
+      }
+    );
+    logger.error("[fetchPlayersWithGames] 未知错误:", unknownError);
+    throw unknownError;
+  }
+}

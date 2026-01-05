@@ -67,7 +67,7 @@ export function PlayerStatsSection({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-brand-card-border bg-brand-dark/30">
-              <th className="px-3 py-2 text-left text-xs font-medium text-brand-text-dim uppercase sticky left-0 bg-brand-dark/30 z-10">
+              <th className="px-3 py-2 text-left text-xs font-medium text-brand-text-dim uppercase sticky left-0 bg-brand-card z-10">
                 Player
               </th>
               <th className="px-3 py-2 text-right text-xs font-medium text-brand-text-dim uppercase">
@@ -97,7 +97,7 @@ export function PlayerStatsSection({
                 className="border-b border-brand-card-border last:border-b-0 hover:bg-brand-dark/20"
               >
                 {/* Player Name with Avatar */}
-                <td className="px-3 py-2 sticky left-0 bg-brand-card z-10">
+                <td className="px-3 py-2 sticky left-0 bg-brand-card z-10 border-r border-brand-card-border">
                   <div className="flex items-center gap-2 min-w-[140px]">
                     {player.avatar ? (
                       <div className="w-8 h-8 relative flex-shrink-0">

@@ -10,16 +10,19 @@ interface PlayerCardProps {
   isActive?: boolean;
   onSelect: (player: Player) => void;
   priority?: boolean; // 是否优先加载（用于首屏球员）
+  disabled?: boolean; // 禁用选择（已提交时）
 }
 
 export function PlayerCard({
   player,
   isActive = false,
   onSelect,
-  priority = false
+  priority = false,
+  disabled = false
 }: PlayerCardProps) {
   const handleSelect = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (disabled) return;
     onSelect(player);
   };
 
@@ -70,7 +73,12 @@ export function PlayerCard({
         </div>
         <button
           onClick={handleSelect}
-          className="w-7 h-7 bg-brand-blue/20 text-brand-blue rounded-full flex items-center justify-center text-xl font-light hover:bg-brand-blue/30 transition-colors"
+          disabled={disabled}
+          className={`w-7 h-7 rounded-full flex items-center justify-center text-xl font-light transition-colors
+            ${disabled
+              ? 'bg-gray-600/20 text-gray-500 cursor-not-allowed'
+              : 'bg-brand-blue/20 text-brand-blue hover:bg-brand-blue/30'
+            }`}
           aria-label={`Select ${player.name}`}
         >
           <Plus className="w-4 h-4" />

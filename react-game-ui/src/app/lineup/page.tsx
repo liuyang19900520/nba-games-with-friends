@@ -3,7 +3,8 @@ import { Header } from '@/components/layout/Header';
 import { LineupPageClient } from '@/components/features/lineup/LineupPageClient';
 import { LineupPageSkeleton } from '@/components/features/lineup/LineupPageSkeleton';
 import { LineupErrorDisplay } from '@/components/features/lineup/LineupErrorDisplay';
-import { fetchPlayers } from '@/lib/db/players';
+import { fetchPlayersWithGames } from '@/lib/db/players';
+import { getTodayLineup } from '@/app/lineup/actions';
 import { createClient } from '@/lib/auth/supabase';
 
 /**
@@ -22,15 +23,27 @@ import { createClient } from '@/lib/auth/supabase';
 export default async function LineupPage() {
   try {
     // ✅ Server-side data fetching (in RSC)
-    const players = await fetchPlayers();
+    // Fetch players who have games on the specified date (default: 2025-12-25 for testing)
+    const testDate = "2025-12-25"; // TODO: Change to today's date in production
+    const players = await fetchPlayersWithGames(testDate);
 
-    // ✅ Get user login status (optional)
+    // ✅ Get user login status and today's lineup (optional)
     // If user is not logged in, user is null, LineupPageClient will handle read-only mode
     let user = null;
+    let initialLineup = null;
+    
     try {
       const supabase = await createClient();
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       user = currentUser;
+      
+      // If user is logged in, fetch today's lineup
+      if (user) {
+        const lineupData = await getTodayLineup();
+        if (lineupData.lineup) {
+          initialLineup = lineupData.lineup;
+        }
+      }
     } catch {
       // Ignore auth errors, allow unauthenticated users to access
     }
@@ -43,7 +56,11 @@ export default async function LineupPage() {
         {/* Content area - wrap client component with Suspense */}
         <div className="flex-1 overflow-y-auto pt-[60px]">
           <Suspense fallback={<LineupPageSkeleton />}>
-            <LineupPageClient players={players} user={user} />
+            <LineupPageClient 
+              players={players} 
+              user={user} 
+              initialLineup={initialLineup}
+            />
           </Suspense>
         </div>
       </div>

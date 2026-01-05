@@ -11,6 +11,8 @@ export interface Player {
   avatar: string;
   ppg: number;
   rpg: number;
+  apg?: number; // Assists per game
+  fantasyScore?: number; // Fantasy points average
   teamLogo?: string;
 }
 
