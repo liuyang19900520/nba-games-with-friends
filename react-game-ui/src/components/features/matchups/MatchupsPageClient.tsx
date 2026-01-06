@@ -2,80 +2,15 @@
 
 import { StartingFiveSection } from './StartingFiveSection';
 import { FriendsLeaderboardSection } from './FriendsLeaderboardSection';
+import type { MatchupPlayer } from '@/lib/db/matchups';
 
-// Mock data - will be replaced with real data later
-const MOCK_STARTING_FIVE = [
-  {
-    id: '1',
-    name: 'LeBron James',
-    firstName: 'LeBron',
-    lastName: 'James',
-    position: 'SF',
-    teamLogo: 'https://cdn.nba.com/logos/nba/1610612747/global/L/logo.svg',
-    avatar: 'https://cdn.nba.com/headshots/nba/latest/1040x760/2544.png',
-    status: 'LIVE' as const,
-    pts: 28,
-    reb: 8,
-    ast: 10,
-    fpts: 58.4,
-  },
-  {
-    id: '2',
-    name: 'Stephen Curry',
-    firstName: 'Stephen',
-    lastName: 'Curry',
-    position: 'PG',
-    teamLogo: 'https://cdn.nba.com/logos/nba/1610612744/global/L/logo.svg',
-    avatar: 'https://cdn.nba.com/headshots/nba/latest/1040x760/201939.png',
-    status: 'FINAL' as const,
-    pts: 35,
-    reb: 4,
-    ast: 6,
-    fpts: 54.2,
-  },
-  {
-    id: '3',
-    name: 'Nikola Jokic',
-    firstName: 'Nikola',
-    lastName: 'Jokic',
-    position: 'C',
-    teamLogo: 'https://cdn.nba.com/logos/nba/1610612743/global/L/logo.svg',
-    avatar: 'https://cdn.nba.com/headshots/nba/latest/1040x760/203999.png',
-    status: 'LIVE' as const,
-    pts: 24,
-    reb: 15,
-    ast: 9,
-    fpts: 61.5,
-  },
-  {
-    id: '4',
-    name: 'Jayson Tatum',
-    firstName: 'Jayson',
-    lastName: 'Tatum',
-    position: 'PF',
-    teamLogo: 'https://cdn.nba.com/logos/nba/1610612738/global/L/logo.svg',
-    avatar: 'https://cdn.nba.com/headshots/nba/latest/1040x760/1628369.png',
-    status: 'FINAL' as const,
-    pts: 30,
-    reb: 7,
-    ast: 3,
-    fpts: 46.1,
-  },
-  {
-    id: '5',
-    name: 'Luka Doncic',
-    firstName: 'Luka',
-    lastName: 'Doncic',
-    position: 'SG',
-    teamLogo: 'https://cdn.nba.com/logos/nba/1610612742/global/L/logo.svg',
-    avatar: 'https://cdn.nba.com/headshots/nba/latest/1040x760/1629029.png',
-    status: 'LIVE' as const,
-    pts: 41,
-    reb: 5,
-    ast: 8,
-    fpts: 63.0,
-  },
-];
+interface MatchupsPageClientProps {
+  lineupData: {
+    players: MatchupPlayer[];
+    totalScore: number;
+    lineupId: number | null;
+  } | null;
+}
 
 const MOCK_LEADERBOARD = [
   {
@@ -116,18 +51,40 @@ const MOCK_LEADERBOARD = [
   },
 ];
 
-export function MatchupsPageClient() {
-  const totalScore = MOCK_STARTING_FIVE.reduce((sum, player) => sum + player.fpts, 0);
+export function MatchupsPageClient({ lineupData }: MatchupsPageClientProps) {
+  const players = lineupData?.players || [];
+  const totalScore = lineupData?.totalScore || 0;
 
   const handleRefresh = () => {
     // TODO: Implement refresh logic
     console.log('Refreshing leaderboard...');
   };
 
+  // Show empty state if no lineup
+  if (!lineupData || players.length === 0) {
+    return (
+      <div className="space-y-6 pb-24">
+        <div className="bg-brand-card border border-brand-card-border rounded-xl p-6 text-center">
+          <p className="text-brand-text-dim mb-2">
+            No lineup found for the selected date.
+          </p>
+          <p className="text-sm text-brand-text-dim">
+            Please select your lineup on the{' '}
+            <a href="/lineup" className="text-brand-blue underline font-medium">
+              Lineup
+            </a>{' '}
+            page and submit it.
+          </p>
+        </div>
+        <FriendsLeaderboardSection entries={MOCK_LEADERBOARD} onRefresh={handleRefresh} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-24">
       {/* MY STARTING 5 Section */}
-      <StartingFiveSection players={MOCK_STARTING_FIVE} totalScore={totalScore} />
+      <StartingFiveSection players={players} totalScore={totalScore} />
 
       {/* FRIENDS LEADERBOARD Section */}
       <FriendsLeaderboardSection entries={MOCK_LEADERBOARD} onRefresh={handleRefresh} />

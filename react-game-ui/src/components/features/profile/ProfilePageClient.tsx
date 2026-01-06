@@ -6,6 +6,7 @@ import { signOutWithoutRedirect } from "@/app/login/actions";
 import { Header } from "@/components/layout/Header";
 import { Settings, MessageSquare, Info, LogOut, ChevronRight } from "lucide-react";
 import { AccountConnections } from "./AccountConnections";
+import { DateConfigSettings } from "./DateConfigSettings";
 import type { User } from "@supabase/supabase-js";
 
 interface ProfilePageClientProps {
@@ -27,6 +28,7 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [showDateSettings, setShowDateSettings] = useState(false);
 
   const handleSignOut = () => {
     setError(null);
@@ -46,7 +48,7 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
       icon: Settings,
       label: "Settings",
       onClick: () => {
-        // TODO: Navigate to settings page
+        setShowDateSettings(true);
       },
     },
     {
@@ -172,6 +174,11 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
           </div>
         </div>
       </div>
+
+      {/* Date Configuration Settings Modal */}
+      {showDateSettings && (
+        <DateConfigSettings onClose={() => setShowDateSettings(false)} />
+      )}
     </div>
   );
 }

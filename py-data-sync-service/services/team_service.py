@@ -7,6 +7,41 @@ from nba_api.stats.endpoints import leaguestandings
 from db import get_db
 from utils import get_current_nba_season, safe_call_nba_api
 
+# NBA Team ID to Standard Abbreviation mapping
+# This is needed because LeagueStandings API doesn't provide abbreviations
+TEAM_ID_TO_ABBREVIATION = {
+    1610612737: 'ATL',  # Atlanta Hawks
+    1610612738: 'BOS',  # Boston Celtics
+    1610612751: 'BKN',  # Brooklyn Nets
+    1610612766: 'CHA',  # Charlotte Hornets
+    1610612741: 'CHI',  # Chicago Bulls
+    1610612739: 'CLE',  # Cleveland Cavaliers
+    1610612742: 'DAL',  # Dallas Mavericks
+    1610612743: 'DEN',  # Denver Nuggets
+    1610612765: 'DET',  # Detroit Pistons
+    1610612744: 'GSW',  # Golden State Warriors
+    1610612745: 'HOU',  # Houston Rockets
+    1610612754: 'IND',  # Indiana Pacers
+    1610612746: 'LAC',  # LA Clippers
+    1610612747: 'LAL',  # Los Angeles Lakers
+    1610612763: 'MEM',  # Memphis Grizzlies
+    1610612748: 'MIA',  # Miami Heat
+    1610612749: 'MIL',  # Milwaukee Bucks
+    1610612750: 'MIN',  # Minnesota Timberwolves
+    1610612740: 'NOP',  # New Orleans Pelicans
+    1610612752: 'NYK',  # New York Knicks
+    1610612760: 'OKC',  # Oklahoma City Thunder
+    1610612753: 'ORL',  # Orlando Magic
+    1610612755: 'PHI',  # Philadelphia 76ers
+    1610612756: 'PHX',  # Phoenix Suns
+    1610612757: 'POR',  # Portland Trail Blazers
+    1610612758: 'SAC',  # Sacramento Kings
+    1610612759: 'SAS',  # San Antonio Spurs
+    1610612761: 'TOR',  # Toronto Raptors
+    1610612762: 'UTA',  # Utah Jazz
+    1610612764: 'WAS',  # Washington Wizards
+}
+
 
 def sync_teams() -> None:
     """
@@ -54,15 +89,19 @@ def sync_teams() -> None:
             team_name = str(row.get('TeamName', row.get('TEAM_NAME', row.get('Team', '')))).strip()
             team_city = str(row.get('TeamCity', row.get('TEAM_CITY', ''))).strip()
             
-            # Try to get team code from various possible column names
-            team_code = ''
-            for code_col in ['TeamAbbreviation', 'TEAM_ABBREVIATION', 'Abbreviation', 'ABBREVIATION', 'TeamCode', 'TEAM_CODE']:
-                if code_col in row and pd.notna(row.get(code_col)):
-                    team_code = str(row.get(code_col)).strip()
-                    break
+            # Get team code from mapping table (LeagueStandings API doesn't provide abbreviations)
+            team_code = TEAM_ID_TO_ABBREVIATION.get(team_id, '')
             
-            # If no code found, use first 3 letters of team name
+            # Fallback: Try to get from API response if available
+            if not team_code:
+                for code_col in ['TeamAbbreviation', 'TEAM_ABBREVIATION', 'Abbreviation', 'ABBREVIATION', 'TeamCode', 'TEAM_CODE']:
+                    if code_col in row and pd.notna(row.get(code_col)):
+                        team_code = str(row.get(code_col)).strip()
+                        break
+            
+            # Last resort: use first 3 letters of team name (shouldn't happen with proper mapping)
             if not team_code and team_name:
+                print(f"  ⚠️ Warning: No abbreviation found for team {team_id} ({team_name}), using fallback")
                 team_code = team_name[:3].upper() if len(team_name) >= 3 else team_name.upper()
             
             conference = str(row.get('Conference', row.get('CONFERENCE', ''))).strip()

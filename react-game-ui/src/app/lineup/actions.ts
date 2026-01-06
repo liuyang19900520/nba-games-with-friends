@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/auth/supabase";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/config/env";
+import { getGameDate } from "@/lib/utils/game-date";
 
 /**
  * Server Actions for Lineup operations
@@ -51,15 +52,15 @@ export async function submitLineup(
       };
     }
 
-    // 3. Get today's date in UTC
-    const today = new Date().toISOString().split("T")[0];
+    // 3. Get configured game date
+    const gameDate = await getGameDate();
 
-    // 4. Check if lineup already exists for today
+    // 4. Check if lineup already exists for the configured date
     const { data: existingLineup, error: checkError } = await supabase
       .from("user_daily_lineups")
       .select("id, status")
       .eq("user_id", user.id)
-      .eq("game_date", today)
+      .eq("game_date", gameDate)
       .single();
 
     if (checkError && checkError.code !== "PGRST116") {
@@ -151,7 +152,7 @@ export async function submitLineup(
         .from("user_daily_lineups")
         .insert({
           user_id: user.id,
-          game_date: today,
+          game_date: gameDate,
           status: "submitted",
           total_score: 0,
         })
@@ -237,15 +238,15 @@ export async function getTodayLineup(): Promise<{
       return { lineup: null, items: [] };
     }
 
-    // 2. Get today's date
-    const today = new Date().toISOString().split("T")[0];
+    // 2. Get configured game date
+    const gameDate = await getGameDate();
 
-    // 3. Fetch lineup for today
+    // 3. Fetch lineup for the configured date
     const { data: lineup, error: lineupError } = await supabase
       .from("user_daily_lineups")
       .select("id, status, game_date, total_score")
       .eq("user_id", user.id)
-      .eq("game_date", today)
+      .eq("game_date", gameDate)
       .single();
 
     if (lineupError && lineupError.code !== "PGRST116") {

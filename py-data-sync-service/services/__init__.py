@@ -13,7 +13,7 @@ from .team_service import sync_teams
 from .team_standings_service import sync_team_standings
 from .player_service import sync_active_players
 from .stats_service import sync_player_season_stats
-from .game_service import sync_games
+from .game_service import sync_games, sync_single_game, sync_games_for_date
 from .game_player_stats_service import sync_game_details
 
 __all__ = [
@@ -22,6 +22,8 @@ __all__ = [
     'sync_active_players',
     'sync_player_season_stats',
     'sync_games',
+    'sync_single_game',
+    'sync_games_for_date',
     'sync_game_details',
 ]
 

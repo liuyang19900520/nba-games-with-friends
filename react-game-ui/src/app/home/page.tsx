@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Header } from "@/components/layout/Header";
 import { GameResultsList } from "@/components/features/home/GameResultsList";
 import { getRecentGames } from "@/lib/db/games";
+import { getGameDate } from "@/lib/utils/game-date";
 import { logger } from "@/config/env";
 
 export const metadata: Metadata = {
@@ -13,10 +14,13 @@ export const metadata: Metadata = {
  * Home page - Dashboard with recent game results
  */
 export default async function HomePage() {
-  // Fetch recent games (returns empty array if games table doesn't exist)
+  // Get configured game date
+  const gameDate = await getGameDate();
+  
+  // Fetch recent games for the configured date (returns empty array if games table doesn't exist)
   // Note: Using getRecentGames which is cached. For debugging, you can temporarily
   // import fetchRecentGames directly to bypass cache.
-  const recentGames = await getRecentGames(10);
+  const recentGames = await getRecentGames(10, gameDate);
   
   // Debug: Log the result
   logger.info(`[HomePage] Received ${recentGames.length} games`);

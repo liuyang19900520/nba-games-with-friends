@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { createServerClient, hasSupabaseConfig } from "./supabase-server";
 import { logger } from "@/config/env";
+import { getGameDate } from "@/lib/utils/game-date";
 import type { GameResult } from "@/types";
 
 /**
@@ -19,10 +20,20 @@ import type { GameResult } from "@/types";
  * - away_score (integer, optional)
  * - created_at (timestamptz)
  * - updated_at (timestamptz)
+ *
+ * @param limit - Maximum number of games to return
+ * @param gameDate - Optional game date to filter by. If not provided, uses configured date
+ * @returns Promise<GameResult[]> Array of game results
  */
 export async function fetchRecentGames(
-  limit: number = 10
+  limit: number = 10,
+  gameDate?: string | Date
 ): Promise<GameResult[]> {
+  // If gameDate not provided, use configured date
+  let targetDate: string | Date | undefined = gameDate;
+  if (!targetDate) {
+    targetDate = await getGameDate();
+  }
   // Check if Supabase is configured
   if (!hasSupabaseConfig()) {
     logger.warn(
@@ -35,7 +46,7 @@ export async function fetchRecentGames(
     const supabase = createServerClient();
 
     logger.info("[fetchRecentGames] Attempting to fetch games...");
-    logger.info(`[fetchRecentGames] Query parameters: limit=${limit}`);
+    logger.info(`[fetchRecentGames] Query parameters: limit=${limit}${targetDate ? `, date=${typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0]}` : ''}`);
 
     // Step 1: First try the simplest query to verify table access
     logger.info("[fetchRecentGames] Step 1: Testing simple SELECT * query...");
@@ -81,18 +92,32 @@ export async function fetchRecentGames(
       away_team_id?: number | null;
     };
 
-    const query = supabase
+    // Build query with optional date filter
+    let query = supabase
       .from("games")
       .select(
         "id, season, game_date, status, is_playoff, home_score, away_score, home_team_id, away_team_id"
-      )
+      );
+
+    // If gameDate is provided, filter by date
+    if (targetDate) {
+      const dateStr = typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0];
+      const dateStart = new Date(dateStr + 'T00:00:00Z');
+      const dateEnd = new Date(dateStart);
+      dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
+      
+      query = query
+        .gte("game_date", dateStart.toISOString())
+        .lt("game_date", dateEnd.toISOString());
+    }
+
+    query = query
       .order("game_date", { ascending: false, nullsFirst: false })
       .limit(limit);
 
     logger.info(
-      "[fetchRecentGames] Executing query: SELECT id, season, game_date, status, is_playoff, home_score, away_score, home_team_id, away_team_id FROM games ORDER BY game_date DESC LIMIT ?"
+      `[fetchRecentGames] Executing query with limit=${limit}${targetDate ? `, date=${typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0]}` : ''}`
     );
-    logger.info(`[fetchRecentGames] Limit: ${limit}`);
 
     const { data: simpleData, error: simpleError } = await query;
 
@@ -297,11 +322,11 @@ export async function fetchRecentGames(
  * call fetchRecentGames directly instead of getRecentGames to bypass cache.
  */
 export const getRecentGames = unstable_cache(
-  async (limit: number = 10) => {
+  async (limit: number = 10, gameDate?: string | Date) => {
     logger.info(
-      `[getRecentGames] Cache miss or expired, fetching fresh data (limit=${limit})`
+      `[getRecentGames] Cache miss or expired, fetching fresh data (limit=${limit}${gameDate ? `, date=${typeof gameDate === 'string' ? gameDate : gameDate.toISOString().split('T')[0]}` : ''})`
     );
-    return fetchRecentGames(limit);
+    return fetchRecentGames(limit, gameDate);
   },
   ["recent-games"],
   {

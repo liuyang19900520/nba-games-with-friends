@@ -6,6 +6,7 @@ import { LineupErrorDisplay } from '@/components/features/lineup/LineupErrorDisp
 import { fetchPlayersWithGames } from '@/lib/db/players';
 import { getTodayLineup } from '@/app/lineup/actions';
 import { createClient } from '@/lib/auth/supabase';
+import { getGameDate } from '@/lib/utils/game-date';
 
 /**
  * Lineup Page - Server Component (RSC)
@@ -23,9 +24,9 @@ import { createClient } from '@/lib/auth/supabase';
 export default async function LineupPage() {
   try {
     // ✅ Server-side data fetching (in RSC)
-    // Fetch players who have games on the specified date (default: 2025-12-25 for testing)
-    const testDate = "2025-12-25"; // TODO: Change to today's date in production
-    const players = await fetchPlayersWithGames(testDate);
+    // Get configured game date (from cookie or env var)
+    const gameDate = await getGameDate();
+    const players = await fetchPlayersWithGames(gameDate);
 
     // ✅ Get user login status and today's lineup (optional)
     // If user is not logged in, user is null, LineupPageClient will handle read-only mode
@@ -41,7 +42,10 @@ export default async function LineupPage() {
       if (user) {
         const lineupData = await getTodayLineup();
         if (lineupData.lineup) {
-          initialLineup = lineupData.lineup;
+          initialLineup = {
+            ...lineupData.lineup,
+            items: lineupData.items || [],
+          };
         }
       }
     } catch {

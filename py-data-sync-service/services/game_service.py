@@ -65,34 +65,56 @@ def _map_game_status(status_code: int) -> str:
     return status_map.get(status_code, 'Scheduled')
 
 
-def _fetch_games_for_date(day_offset: int, team_id_to_tricode: Optional[Dict[str, str]] = None) -> Optional[list]:
+def _fetch_games_for_date(day_offset: Optional[int] = None, team_id_to_tricode: Optional[Dict[str, str]] = None, date_str: Optional[str] = None) -> Optional[list]:
     """
     Fetch games for a specific date using NBA API.
     
     Args:
-        day_offset: -1 for US Yesterday, 0 for US Today
+        day_offset: -1 for US Yesterday, 0 for US Today (optional if date_str is provided)
+        team_id_to_tricode: Optional mapping from team ID to tricode for scheduled games
+        date_str: Date string in 'YYYY-MM-DD' format (optional, if not provided, uses day_offset)
     
     Returns:
         List of game dictionaries, or None if fetch failed
     """
-    us_eastern = pytz.timezone('US/Eastern')
-    target_date = datetime.now(us_eastern) + timedelta(days=day_offset)
-    date_str = target_date.strftime('%Y-%m-%d')
+    if date_str:
+        # Parse the provided date string (assume US Eastern timezone)
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d')
+            us_eastern = pytz.timezone('US/Eastern')
+            target_date = us_eastern.localize(target_date)
+            date_label = date_str
+        except ValueError:
+            print(f"[game_service] Invalid date format: {date_str}. Expected YYYY-MM-DD")
+            return None
+    else:
+        # Use day_offset to calculate date
+        if day_offset is None:
+            print("[game_service] Either day_offset or date_str must be provided")
+            return None
+        us_eastern = pytz.timezone('US/Eastern')
+        target_date = datetime.now(us_eastern) + timedelta(days=day_offset)
+        date_label = target_date.strftime('%Y-%m-%d')
+    
+    date_str_formatted = target_date.strftime('%Y-%m-%d')
     date_str_v2 = target_date.strftime('%m/%d/%Y')  # Format for ScoreboardV2
     
-    print(f"Fetching games for US {'Yesterday' if day_offset == -1 else 'Today'} ({date_str})...")
+    if day_offset is not None:
+        print(f"Fetching games for US {'Yesterday' if day_offset == -1 else 'Today'} ({date_str_formatted})...")
+    else:
+        print(f"Fetching games for date {date_label}...")
     
     # Use ScoreboardV2 for both yesterday and today, as it supports date parameter
     # and is more reliable than the live endpoint which may return stale data
     scoreboard_obj = safe_call_nba_api(
-        name=f"ScoreboardV2 for {date_str}",
+        name=f"ScoreboardV2 for {date_str_formatted}",
         call_fn=lambda: scoreboardv2.ScoreboardV2(game_date=date_str_v2),
         max_retries=3,
         base_delay=3.0,
     )
     
     if scoreboard_obj is None:
-        print(f"[game_service] Failed to fetch games for {date_str} after retries. "
+        print(f"[game_service] Failed to fetch games for {date_str_formatted} after retries. "
               "Skipping this date.")
         return None
     
@@ -235,6 +257,21 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
     away_team_id = team_map.get(away_tricode)
     
     if not home_team_id or not away_team_id:
+        # Log missing team mappings for debugging
+        missing_teams = []
+        if not home_tricode:
+            missing_teams.append(f"home team (empty tricode)")
+        elif not home_team_id:
+            missing_teams.append(f"home team '{home_tricode}'")
+        if not away_tricode:
+            missing_teams.append(f"away team (empty tricode)")
+        elif not away_team_id:
+            missing_teams.append(f"away team '{away_tricode}'")
+        
+        if missing_teams:
+            print(f"  ⚠️ Game {game_id}: Missing team mapping for {', '.join(missing_teams)}")
+            print(f"     Hint: Run 'python cli.py sync-teams' to update team codes in database")
+        
         return None  # Skip games with missing team mappings
     
     # Get game time (UTC)
@@ -261,9 +298,19 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
         else:
             dt = dt.astimezone(pytz.UTC)
         
-        game_date_iso = dt.isoformat()
+        # Extract date and time separately
+        game_date = dt.date()  # date object (YYYY-MM-DD)
+        game_time = dt.time()  # time object (HH:MM:SS)
     except Exception:
         return None  # Skip games with invalid dates
+    
+    # Determine if game is playoff
+    # NBA game_id format: 0022500009
+    # First 2 digits: 00=Regular Season, 01=Playoffs, 02=All-Star, etc.
+    is_playoff = False
+    if len(game_id) >= 2:
+        game_type = game_id[:2]
+        is_playoff = (game_type == '01')  # 01 = Playoffs
     
     # Get status
     status_code = game.get('gameStatus', 1)
@@ -280,11 +327,14 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
     game_data = {
         'id': str(game_id),
         'season': season,
-        'game_date': game_date_iso,
+        'game_date': game_date.isoformat(),  # YYYY-MM-DD format
+        'game_time': game_time.isoformat(),  # HH:MM:SS format
         'status': status,
-        'home_team_id': home_team_id,
-        'away_team_id': away_team_id,
-        'arena_name': arena_name if arena_name else None
+        'is_playoff': is_playoff,
+        'home_team_id': int(home_team_id),
+        'away_team_id': int(away_team_id),
+        'arena_name': arena_name if arena_name else None,
+        'updated_at': datetime.now(pytz.UTC).isoformat()  # Current UTC time
     }
     
     # Only include scores if they exist
@@ -294,6 +344,379 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
         game_data['away_score'] = int(away_score)
     
     return game_data
+
+
+def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str) -> Optional[dict]:
+    """
+    Fetch a single game by game ID from NBA API.
+    
+    Uses BoxScoreTraditionalV3 to get game info.
+    
+    Args:
+        game_id: NBA game ID (e.g., '0022500009')
+        team_map: Mapping from tricode to team UUID
+        season: Current NBA season (e.g., '2024-25')
+    
+    Returns:
+        Transformed game dictionary, or None if fetch failed
+    """
+    from nba_api.stats.endpoints import boxscoretraditionalv3
+    
+    print(f"Fetching game {game_id} from NBA API...")
+    
+    # Use BoxScoreTraditionalV3 to get game info
+    boxscore = safe_call_nba_api(
+        name=f"BoxScoreTraditionalV3(game_id={game_id})",
+        call_fn=lambda: boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id),
+        max_retries=3,
+        base_delay=3.0,
+    )
+    
+    if boxscore is None:
+        print(f"[game_service] Failed to fetch game {game_id} after retries.")
+        return None
+    
+    data = boxscore.get_dict()
+    box_score_data = data.get('boxScoreTraditional', {})
+    
+    if not box_score_data:
+        print(f"[game_service] No game data found for game {game_id}")
+        return None
+    
+    # Extract game info from boxscore (may not exist if game hasn't started)
+    game_info = box_score_data.get('game', {})
+    
+    # Get team IDs from boxscore (these should always be available)
+    home_team_id_api = box_score_data.get('homeTeamId')
+    away_team_id_api = box_score_data.get('awayTeamId')
+    
+    if not home_team_id_api or not away_team_id_api:
+        print(f"[game_service] Missing team IDs in boxscore for game {game_id}")
+        return None
+    
+    home_team_id_api = str(home_team_id_api)
+    away_team_id_api = str(away_team_id_api)
+    
+    # Get team tricodes - we need to look them up from teams table
+    supabase = get_db()
+    home_team_result = supabase.table('teams').select('id, code').eq('id', int(home_team_id_api)).execute()
+    away_team_result = supabase.table('teams').select('id, code').eq('id', int(away_team_id_api)).execute()
+    
+    if not home_team_result.data or not away_team_result.data:
+        print(f"[game_service] Could not find teams in database for game {game_id}")
+        return None
+    
+    home_tricode = home_team_result.data[0].get('code', '').strip().upper()
+    away_tricode = away_team_result.data[0].get('code', '').strip().upper()
+    
+    # Look up team IDs from team_map
+    home_team_id = team_map.get(home_tricode)
+    away_team_id = team_map.get(away_tricode)
+    
+    if not home_team_id or not away_team_id:
+        print(f"[game_service] Could not map teams for game {game_id}")
+        return None
+    
+    # Get game time
+    game_time_utc = ''
+    if game_info:
+        game_time_utc = game_info.get('gameTimeUTC', '')
+        if not game_time_utc:
+            # Try to get from game date
+            game_date = game_info.get('gameDateEst', '')
+            if game_date:
+                game_time_utc = game_date + 'T00:00:00Z'
+    
+    # If no game info, try to get from database (game might already exist)
+    if not game_time_utc:
+        supabase = get_db()
+        existing_game = supabase.table('games').select('game_date, game_time').eq('id', game_id).execute()
+        if existing_game.data:
+            existing_data = existing_game.data[0]
+            game_date_str = existing_data.get('game_date', '')
+            game_time_str = existing_data.get('game_time', '00:00:00')
+            if game_date_str:
+                # Reconstruct ISO format from date and time
+                game_time_utc = f"{game_date_str}T{game_time_str}Z"
+    
+        # If still no game time, use current date as fallback
+        if not game_time_utc:
+            print(f"[game_service] Warning: No game time found for game {game_id}, using current date")
+            dt = datetime.now(pytz.UTC)
+            game_time_utc = dt.isoformat()
+    
+    # Parse and format UTC datetime
+    try:
+        if 'T' in game_time_utc:
+            dt = datetime.fromisoformat(game_time_utc.replace('Z', '+00:00'))
+        else:
+            dt = datetime.strptime(game_time_utc, '%Y-%m-%d')
+            dt = dt.replace(hour=12, minute=0, second=0)
+            dt = pytz.UTC.localize(dt)
+        
+        if dt.tzinfo is None:
+            dt = pytz.UTC.localize(dt)
+        else:
+            dt = dt.astimezone(pytz.UTC)
+        
+        # Extract date and time separately
+        game_date = dt.date()  # date object (YYYY-MM-DD)
+        game_time = dt.time()  # time object (HH:MM:SS)
+    except Exception as e:
+        print(f"[game_service] Error parsing game time for game {game_id}: {e}")
+        return None
+    
+    # Determine if game is playoff
+    # NBA game_id format: 0022500009
+    # First 2 digits: 00=Regular Season, 01=Playoffs, 02=All-Star, etc.
+    is_playoff = False
+    if len(game_id) >= 2:
+        game_type = game_id[:2]
+        is_playoff = (game_type == '01')  # 01 = Playoffs
+    
+    # Get status - if we have boxscore, game is likely Final or Live
+    if game_info:
+        status_code = game_info.get('gameStatus', 3)  # Default to Final if we have stats
+        status = _map_game_status(status_code)
+    else:
+        # If no game info but we have boxscore, game is likely Final
+        status = 'Final'
+    
+    # Get scores from team stats
+    home_team_stats = box_score_data.get('homeTeam', {}).get('statistics', {})
+    away_team_stats = box_score_data.get('awayTeam', {}).get('statistics', {})
+    home_score = home_team_stats.get('points') if home_team_stats else None
+    away_score = away_team_stats.get('points') if away_team_stats else None
+    
+    # Get arena name
+    arena_name = ''
+    if game_info:
+        arena_name = game_info.get('arenaName', '')
+    
+    # Build game data
+    game_data = {
+        'id': str(game_id),
+        'season': season,
+        'game_date': game_date.isoformat(),  # YYYY-MM-DD format
+        'game_time': game_time.isoformat(),  # HH:MM:SS format
+        'status': status,
+        'is_playoff': is_playoff,
+        'home_team_id': int(home_team_id),
+        'away_team_id': int(away_team_id),
+        'arena_name': arena_name if arena_name else None,
+        'updated_at': datetime.now(pytz.UTC).isoformat()  # Current UTC time
+    }
+    
+    # Only include scores if they exist
+    if home_score is not None:
+        game_data['home_score'] = int(home_score)
+    if away_score is not None:
+        game_data['away_score'] = int(away_score)
+    
+    return game_data
+
+
+def sync_single_game(game_id: str) -> None:
+    """
+    Sync a single game by game ID.
+    
+    Syncs both:
+    - games table (game basic info)
+    - game_player_stats table (player statistics)
+    
+    Args:
+        game_id: NBA game ID (e.g., '0022500009')
+    """
+    try:
+        print(f"Starting single game sync for game {game_id}...")
+        
+        # Get current NBA season
+        season = get_current_nba_season()
+        print(f"Current NBA season: {season}")
+        
+        # Get Supabase client
+        supabase = get_db()
+        
+        # Build team maps
+        tricode_to_id, _ = _build_team_map()
+        if not tricode_to_id:
+            print("⚠️ Warning: No teams found in database. Please sync teams first.")
+            return
+        
+        # Fetch and sync game basic info
+        print(f"Fetching game {game_id} info...")
+        game_data = _fetch_single_game_by_id(game_id, tricode_to_id, season)
+        
+        if not game_data:
+            error_msg = f"Failed to fetch game {game_id} from NBA API. Game may not exist or may not have started yet."
+            print(f"❌ {error_msg}")
+            raise Exception(error_msg)
+        
+        # Upsert game to Supabase
+        print(f"Syncing game {game_id} to games table...")
+        try:
+            supabase.table('games').upsert(game_data, on_conflict='id').execute()
+            print(f"✅ Successfully synced game {game_id} to games table")
+        except Exception as e:
+            print(f"❌ Failed to sync game {game_id} to games table: {e}")
+            raise
+        
+        # Now sync player stats
+        print(f"Syncing player stats for game {game_id}...")
+        from services.game_player_stats_service import sync_game_details
+        sync_game_details(game_id=game_id)
+        
+        print(f"✅ Successfully completed sync for game {game_id}")
+        
+    except Exception as e:
+        error_msg = f"Error during single game sync for {game_id}: {str(e)}"
+        print(f"\n❌ {error_msg}")
+        import traceback
+        traceback.print_exc()
+        raise Exception(error_msg) from e
+
+
+def sync_games_for_date(date_str: str, sync_player_stats: bool = False) -> None:
+    """
+    Sync games for a specific date from NBA API to Supabase games table.
+    
+    Args:
+        date_str: Date string in 'YYYY-MM-DD' format (e.g., '2025-01-06')
+        sync_player_stats: If True, also sync player stats for completed games (status='Final')
+    
+    Extracts game info:
+    - id, season, game_date, status, home_team_id, away_team_id,
+      home_score, away_score, arena_name
+    """
+    try:
+        print(f"Starting game sync for date {date_str}...")
+        
+        # Get current NBA season
+        season = get_current_nba_season()
+        print(f"Current NBA season: {season}")
+        
+        # Get Supabase client
+        supabase = get_db()
+        
+        # Build team maps (tricode->id and team_id->tricode)
+        tricode_to_id, team_id_to_tricode = _build_team_map()
+        if not tricode_to_id:
+            print("⚠️ Warning: No teams found in database. Please sync teams first.")
+            return
+        
+        # Fetch games from NBA API for the specified date
+        games = _fetch_games_for_date(date_str=date_str, team_id_to_tricode=team_id_to_tricode)
+        
+        if games is None:
+            print(f"  ❌ Failed to fetch games for {date_str}. Exiting.")
+            raise Exception(f"Failed to fetch games for date {date_str}")
+        
+        if len(games) == 0:
+            print(f"  ℹ️ No games found for {date_str}")
+            return
+        
+        print(f"  Fetched {len(games)} games from NBA API")
+        
+        # Transform games data
+        games_data = []
+        skipped_count = 0
+        
+        for game in games:
+            game_data = _transform_game_data(game, tricode_to_id, season)
+            if game_data:
+                games_data.append(game_data)
+            else:
+                skipped_count += 1
+        
+        if skipped_count > 0:
+            print(f"  Skipped {skipped_count} games (missing team mapping or invalid data)")
+        
+        if len(games_data) == 0:
+            print(f"  ℹ️ No valid games to sync for {date_str}")
+            return
+        
+        # Upsert games to Supabase
+        print(f"  Syncing {len(games_data)} games to Supabase...")
+        synced_count = 0
+        failed_count = 0
+        
+        try:
+            # Try bulk upsert first
+            result = supabase.table('games').upsert(
+                games_data,
+                on_conflict='id'
+            ).execute()
+            synced_count = len(games_data)
+            print(f"  ✅ Successfully synced {synced_count} games")
+        except Exception as bulk_error:
+            print(f"  ⚠️ Bulk upsert failed, trying individual upserts...")
+            print(f"  Error: {bulk_error}")
+            
+            # Fallback to individual upserts
+            for game_data in games_data:
+                try:
+                    supabase.table('games').upsert(game_data, on_conflict='id').execute()
+                    synced_count += 1
+                except Exception as e:
+                    failed_count += 1
+                    if failed_count <= 3:
+                        print(f"  ❌ Failed to upsert game {game_data.get('id', 'unknown')}: {e}")
+        
+        # Verify
+        print("\nVerifying data insertion...")
+        # Note: game_date is now a date field, so we can compare directly with date string
+        verify_result = supabase.table('games').select('id, status').eq('game_date', date_str).limit(5).execute()
+        if verify_result.data:
+            print(f"  ✅ Verification successful! Found games in database for {date_str}")
+            print("  Sample games:")
+            for game in verify_result.data[:3]:
+                print(f"    - Game {game['id']}: {game['status']}")
+        
+        # Optionally sync player stats for completed games
+        stats_synced_count = 0
+        stats_failed_count = 0
+        
+        if sync_player_stats and synced_count > 0:
+            print(f"\n{'='*60}")
+            print(f"Syncing player stats for completed games...")
+            print(f"{'='*60}")
+            
+            from services.game_player_stats_service import sync_game_details
+            
+            # Get all synced game IDs
+            for game_data in games_data:
+                game_id = game_data.get('id')
+                game_status = game_data.get('status', '')
+                
+                # Only sync stats for completed games
+                if game_status == 'Final' and game_id:
+                    try:
+                        print(f"  Syncing player stats for game {game_id}...")
+                        sync_game_details(game_id=game_id)
+                        stats_synced_count += 1
+                    except Exception as e:
+                        stats_failed_count += 1
+                        print(f"  ⚠️ Failed to sync player stats for game {game_id}: {e}")
+                        # Continue with other games even if one fails
+                elif game_status != 'Final':
+                    print(f"  ℹ️ Skipping game {game_id} (status: {game_status}, not Final)")
+        
+        print(f"\n{'='*60}")
+        print(f"Game sync for {date_str} completed!")
+        print(f"  Total games synced: {synced_count}")
+        if failed_count > 0:
+            print(f"  Total games failed: {failed_count}")
+        if sync_player_stats:
+            print(f"  Player stats synced: {stats_synced_count}")
+            if stats_failed_count > 0:
+                print(f"  Player stats failed: {stats_failed_count}")
+        print(f"{'='*60}")
+        
+    except Exception as e:
+        print(f"\n❌ Error during game sync for {date_str}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def sync_games() -> None:
@@ -335,7 +758,7 @@ def sync_games() -> None:
             print(f"\nSyncing games for US {day_label} (Tokyo {tokyo_label})...")
             
             # Fetch games from NBA API (pass team_id_to_tricode for scheduled games)
-            games = _fetch_games_for_date(day_offset, team_id_to_tricode)
+            games = _fetch_games_for_date(day_offset=day_offset, team_id_to_tricode=team_id_to_tricode)
             
             if games is None:
                 print(f"  ⚠️ Failed to fetch games for US {day_label}. Skipping.")

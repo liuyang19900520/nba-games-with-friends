@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { createServerClient, hasSupabaseConfig } from "./supabase-server";
 import { DEFAULT_SEASON } from "@/config/constants";
 import { logger } from "@/config/env";
+import { getGameDate } from "@/lib/utils/game-date";
 import type { Player } from "@/types";
 import type { DatabasePlayerSeasonStats, Team } from "@/types/nba";
 import type { DbPlayerSeasonStats, DbPlayer } from "@/types/db";
@@ -364,14 +365,18 @@ export const fetchPlayerStats = unstable_cache(
 /**
  * 获取指定日期有比赛的球员列表
  * 
- * @param gameDate - 比赛日期，格式为 "YYYY-MM-DD" 或 Date 对象，默认为 "2025-12-25" (测试用)
+ * @param gameDate - 比赛日期，格式为 "YYYY-MM-DD" 或 Date 对象，如果不提供则使用配置的日期
  * @param season - 赛季，默认为 DEFAULT_SEASON
  * @returns Promise<Player[]> 球员列表
  */
 export async function fetchPlayersWithGames(
-  gameDate: string | Date = "2025-12-25",
+  gameDate?: string | Date,
   season: string = DEFAULT_SEASON
 ): Promise<Player[]> {
+  // If gameDate not provided, use configured date
+  if (!gameDate) {
+    gameDate = await getGameDate();
+  }
   if (!hasSupabaseConfig()) {
     throw new PlayerFetchError("Supabase 环境变量未配置", "MISSING_ENV_VARS");
   }

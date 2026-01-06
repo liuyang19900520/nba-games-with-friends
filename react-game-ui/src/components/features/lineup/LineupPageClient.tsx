@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { BasketballCourt } from '@/components/lineup/BasketballCourt';
 import { PlayerSearchSection } from '@/components/features/lineup/PlayerSearchSection';
 import { submitLineup } from '@/app/lineup/actions';
+import { useGameDate } from '@/hooks/useGameDate';
 import type { Player } from '@/types';
 import type { User } from '@supabase/supabase-js';
 
@@ -44,7 +45,7 @@ function buildInitialLineup(
   initialLineup: InitialLineup | null | undefined,
   players: Player[]
 ): LineupState {
-  if (!initialLineup || !initialLineup.items.length) {
+  if (!initialLineup || !initialLineup.items || initialLineup.items.length === 0) {
     return {};
   }
 
@@ -66,11 +67,17 @@ function buildInitialLineup(
       if (dbPosition === 'C') {
         result['C'] = player;
       } else if (dbPosition === 'F' && fIndex < fPositions.length) {
-        result[fPositions[fIndex]] = player;
-        fIndex++;
+        const fPos = fPositions[fIndex];
+        if (fPos) {
+          result[fPos] = player;
+          fIndex++;
+        }
       } else if (dbPosition === 'G' && gIndex < gPositions.length) {
-        result[gPositions[gIndex]] = player;
-        gIndex++;
+        const gPos = gPositions[gIndex];
+        if (gPos) {
+          result[gPos] = player;
+          gIndex++;
+        }
       }
     }
   }
@@ -92,6 +99,7 @@ function buildInitialLineup(
  */
 export function LineupPageClient({ players, user, initialLineup }: LineupPageClientProps) {
   const router = useRouter();
+  const { gameDate, isCustomDate } = useGameDate();
   const isReadOnly = !user;
 
   // Check if lineup is already submitted
@@ -240,6 +248,23 @@ export function LineupPageClient({ players, user, initialLineup }: LineupPageCli
 
   return (
     <>
+      {/* Custom Date Indicator */}
+      {isCustomDate && (
+        <section className="px-4 pt-4">
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-2">
+            <p className="text-sm text-yellow-400 text-center">
+              📅 Using custom date: {new Date(gameDate + 'T00:00:00').toLocaleDateString()}
+              <button
+                onClick={() => router.refresh()}
+                className="ml-2 underline font-medium"
+              >
+                Refresh Data
+              </button>
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* Basketball Court - using optimistic state */}
       <section className="px-4 pt-4">
         <div className="bg-brand-dark/60 backdrop-blur-sm rounded-xl p-3">
