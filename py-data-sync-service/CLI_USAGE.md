@@ -175,7 +175,7 @@ python cli.py team-standings
 
 ```bash
 # 同步某场比赛的球员统计数据（比赛结束后）
-python cli.py game-player-stats --game-id 0022500009
+python cli.py sync-game-stats --game-id 0022500009
 ```
 
 **使用场景：**
@@ -186,6 +186,40 @@ python cli.py game-player-stats --game-id 0022500009
 **获取 game_id：**
 - 可以从 `games` 表中查询已完成的比赛
 - 或者从 NBA 官网的比赛页面 URL 中获取
+
+### 场景 6: 同步球员热区数据（投篮热图）
+
+```bash
+# 同步球员当赛季的所有投篮数据（热区）
+python cli.py sync-player-shots 2544
+
+# 或者使用 --player-id 参数
+python cli.py sync-player-shots --player-id 2544
+
+# 同步特定赛季的投篮数据
+python cli.py sync-player-shots 2544 --season 2024-25
+
+# 同步特定比赛的投篮数据
+python cli.py sync-player-shots 2544 --game-id 0022400015
+```
+
+**使用场景：**
+- 获取球员的投篮热区数据，用于生成热图
+- 分析球员的投篮分布和命中率
+- 可以按赛季或按比赛获取数据
+
+**参数说明：**
+- `player_id` (必需): NBA 球员 ID，可以通过 `players` 表查询，例如：
+  - LeBron James: 2544
+  - Stephen Curry: 201939
+  - Kevin Durant: 201142
+- `--season` (可选): 赛季格式为 `YYYY-YY`，如 `2024-25`。如果不提供，默认使用当前赛季
+- `--game-id` (可选): 比赛 ID。如果提供，只同步该比赛的投篮数据；如果不提供，同步整个赛季的数据
+
+**数据说明：**
+- 同步的数据包括：投篮位置 (loc_x, loc_y)、是否命中、投篮距离、投篮类型、投篮区域等
+- 数据存储在 `player_shots` 表中
+- 每个投篮都有唯一的 `game_event_id`，与 `game_id` 一起构成唯一约束
 
 ## 错误处理
 

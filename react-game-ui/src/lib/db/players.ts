@@ -569,3 +569,105 @@ export async function fetchPlayersWithGames(
     throw unknownError;
   }
 }
+
+/**
+ * League average stats for comparison
+ */
+export interface LeagueAverages {
+  pts: number;
+  reb: number;
+  ast: number;
+  stl: number;
+  blk: number;
+  fantasy_avg: number;
+}
+
+/**
+ * Fetch league average stats from player_season_stats table
+ * 
+ * @param season - Season to calculate averages for
+ * @returns Promise<LeagueAverages> League average stats
+ */
+export async function fetchLeagueAverages(
+  season: string = DEFAULT_SEASON
+): Promise<LeagueAverages> {
+  // Default values if fetch fails
+  const defaultAverages: LeagueAverages = {
+    pts: 15,
+    reb: 5,
+    ast: 3,
+    stl: 1,
+    blk: 0.5,
+    fantasy_avg: 25,
+  };
+
+  if (!hasSupabaseConfig()) {
+    logger.warn("[fetchLeagueAverages] Supabase not configured, returning defaults");
+    return defaultAverages;
+  }
+
+  try {
+    const supabase = createServerClient();
+
+    // Use Supabase's aggregate functions to calculate averages
+    const { data, error } = await supabase
+      .from("player_season_stats")
+      .select("pts, reb, ast, stl, blk, fantasy_avg")
+      .eq("season", season);
+
+    if (error) {
+      logger.error("[fetchLeagueAverages] Query error:", {
+        message: error.message,
+        code: error.code,
+      });
+      return defaultAverages;
+    }
+
+    if (!data || data.length === 0) {
+      logger.warn("[fetchLeagueAverages] No data found for season:", season);
+      return defaultAverages;
+    }
+
+    // Calculate averages manually
+    const count = data.length;
+    const totals = data.reduce(
+      (acc, row) => ({
+        pts: acc.pts + (row.pts || 0),
+        reb: acc.reb + (row.reb || 0),
+        ast: acc.ast + (row.ast || 0),
+        stl: acc.stl + (row.stl || 0),
+        blk: acc.blk + (row.blk || 0),
+        fantasy_avg: acc.fantasy_avg + (row.fantasy_avg || 0),
+      }),
+      { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, fantasy_avg: 0 }
+    );
+
+    const averages: LeagueAverages = {
+      pts: Math.round((totals.pts / count) * 10) / 10,
+      reb: Math.round((totals.reb / count) * 10) / 10,
+      ast: Math.round((totals.ast / count) * 10) / 10,
+      stl: Math.round((totals.stl / count) * 10) / 10,
+      blk: Math.round((totals.blk / count) * 10) / 10,
+      fantasy_avg: Math.round((totals.fantasy_avg / count) * 10) / 10,
+    };
+
+    logger.info("[fetchLeagueAverages] Calculated averages from", count, "players:", averages);
+
+    return averages;
+  } catch (error) {
+    logger.error("[fetchLeagueAverages] Unexpected error:", error);
+    return defaultAverages;
+  }
+}
+
+/**
+ * Cached version of fetchLeagueAverages
+ */
+export const getLeagueAverages = unstable_cache(
+  fetchLeagueAverages,
+  ["league-averages"],
+  {
+    tags: ["league-averages"],
+    revalidate: 3600, // Cache for 1 hour
+  }
+);

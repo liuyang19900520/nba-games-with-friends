@@ -1,9 +1,11 @@
 """
 Utility functions for NBA data synchronization.
 """
+import json
+import os
 from datetime import datetime
 import time
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from requests import ConnectionError, HTTPError, ReadTimeout, Timeout
 
@@ -100,3 +102,111 @@ def safe_call_nba_api(
         f"Last error: {last_error}"
     )
     return None
+
+
+def load_fantasy_scoring_config(config_path: str = "fantasy-scoring.json") -> Dict[str, Any]:
+    """
+    Load fantasy scoring configuration from JSON file.
+    
+    Args:
+        config_path: Path to the fantasy scoring JSON configuration file.
+                    Defaults to "fantasy-scoring.json" in the project root.
+    
+    Returns:
+        Dictionary containing the fantasy scoring configuration.
+    
+    Raises:
+        FileNotFoundError: If the configuration file does not exist.
+        json.JSONDecodeError: If the JSON file is invalid.
+        ValueError: If the configuration structure is invalid.
+    """
+    # Get the project root directory (where this file is located)
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    full_path = os.path.join(project_root, config_path)
+    
+    if not os.path.exists(full_path):
+        raise FileNotFoundError(
+            f"Fantasy scoring configuration file not found: {full_path}"
+        )
+    
+    with open(full_path, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+    
+    # Validate configuration structure
+    if 'rules' not in config:
+        raise ValueError("Configuration file must contain 'rules' key")
+    
+    if 'calculation' not in config:
+        raise ValueError("Configuration file must contain 'calculation' key")
+    
+    return config
+
+
+def calculate_fantasy_score(
+    pts: float,
+    reb: float,
+    ast: float,
+    stl: float,
+    blk: float,
+    tov: float,
+    config: Optional[Dict[str, Any]] = None,
+) -> float:
+    """
+    Calculate fantasy score using rules from JSON configuration.
+    
+    Args:
+        pts: Points scored
+        reb: Rebounds
+        ast: Assists
+        stl: Steals
+        blk: Blocks
+        tov: Turnovers
+        config: Optional fantasy scoring configuration dictionary.
+                If not provided, loads from fantasy-scoring.json.
+    
+    Returns:
+        Fantasy score rounded according to configuration (default: 2 decimal places).
+        Minimum value is enforced according to configuration (default: 0).
+    """
+    # Load config if not provided
+    if config is None:
+        config = load_fantasy_scoring_config()
+    
+    rules = config.get('rules', {})
+    calculation = config.get('calculation', {})
+    
+    # Build stat map for easy lookup
+    stats_map = {
+        'pts': pts,
+        'reb': reb,
+        'ast': ast,
+        'stl': stl,
+        'blk': blk,
+        'tov': tov,
+    }
+    
+    # Calculate fantasy score using coefficients from rules
+    fantasy_score = 0.0
+    for rule_name, rule_config in rules.items():
+        stat_name = rule_config.get('stat')
+        coefficient = rule_config.get('coefficient', 0.0)
+        
+        if stat_name in stats_map:
+            stat_value = stats_map[stat_name]
+            fantasy_score += stat_value * coefficient
+    
+    # Apply minimum value if configured
+    minimum = calculation.get('minimum', 0)
+    if fantasy_score < minimum:
+        fantasy_score = minimum
+    
+    # Apply rounding if configured
+    rounding_config = calculation.get('rounding', {})
+    if rounding_config.get('enabled', True):
+        decimals = rounding_config.get('decimals', 2)
+        fantasy_score = round(fantasy_score, decimals)
+    else:
+        # Default to 1 decimal place for backward compatibility
+        fantasy_score = round(fantasy_score, 1)
+    
+    return fantasy_score

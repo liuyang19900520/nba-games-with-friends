@@ -8,6 +8,7 @@ Each service handles synchronization for a specific table:
 - stats_service: Syncs player_season_stats table
 - game_service: Syncs games table
 - game_player_stats_service: Syncs game_player_stats table
+- shot_service: Syncs player_shots table
 """
 from .team_service import sync_teams
 from .team_standings_service import sync_team_standings
@@ -15,6 +16,7 @@ from .player_service import sync_active_players
 from .stats_service import sync_player_season_stats
 from .game_service import sync_games, sync_single_game, sync_games_for_date
 from .game_player_stats_service import sync_game_details
+from .shot_service import sync_player_shots
 
 __all__ = [
     'sync_teams',
@@ -25,5 +27,6 @@ __all__ = [
     'sync_single_game',
     'sync_games_for_date',
     'sync_game_details',
+    'sync_player_shots',
 ]
 

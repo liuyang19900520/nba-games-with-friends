@@ -2,8 +2,8 @@
 import type { Metadata, ResolvingMetadata } from "next";
 import { notFound } from "next/navigation";
 import { PlayerPageClient } from "@/components/features/player/PlayerPageClient";
-import { fetchPlayerProfile, fetchPlayerStats } from "@/lib/db/players";
-// DbPlayerSeasonStats 导入暂时未使用，如后续需要可再打开
+import { fetchPlayerProfile, fetchPlayerStats, getLeagueAverages } from "@/lib/db/players";
+import { fetchPlayerShots } from "@/lib/db/player-shots";
 
 interface PlayerPageProps {
   params: Promise<{
@@ -41,9 +41,11 @@ export async function generateMetadata(
 export default async function PlayerPage({ params }: PlayerPageProps) {
   const { playerId } = await params;
 
-  const [profile, stats] = await Promise.all([
+  const [profile, stats, shots, leagueAverages] = await Promise.all([
     fetchPlayerProfile(playerId),
     fetchPlayerStats(playerId),
+    fetchPlayerShots(playerId),
+    getLeagueAverages(),
   ]);
 
   if (!profile) {
@@ -54,6 +56,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     <PlayerPageClient
       initialProfile={profile}
       initialStats={stats}
+      initialShots={shots}
+      leagueAverages={leagueAverages}
     />
   );
 }

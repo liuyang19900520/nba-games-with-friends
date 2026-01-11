@@ -27,7 +27,7 @@ export default async function ProfilePage() {
   if (error || !user) {
     return (
       <div className="flex flex-col h-full">
-        <Header title="My Profile" showSettings />
+        <Header title="My Profile" />
         <div className="flex-1 overflow-y-auto pt-[60px] pb-4">
           {/* Login panel - Ensure bottom menu is visible (layout.tsx already has pb-[90px], no additional handling needed here) */}
           <ProfileLoginPanel />

@@ -6,7 +6,7 @@ from typing import Optional
 import pandas as pd
 from nba_api.stats.endpoints import leaguedashplayerstats
 from db import get_db
-from utils import get_current_nba_season, safe_call_nba_api
+from utils import get_current_nba_season, safe_call_nba_api, calculate_fantasy_score
 
 
 def sync_player_season_stats(season: Optional[str] = None) -> None:
@@ -104,11 +104,14 @@ def sync_player_season_stats(season: Optional[str] = None) -> None:
             fg3_pct = safe_float(row.get('FG3_PCT'))
             ft_pct = safe_float(row.get('FT_PCT'))
             
-            # Calculate fantasy_avg
-            # Formula: (PTS * 1.0) + (REB * 1.2) + (AST * 1.5) + (STL * 3.0) + (BLK * 3.0) - (TOV * 1.0)
-            fantasy_avg = round(
-                (pts * 1.0) + (reb * 1.2) + (ast * 1.5) + (stl * 3.0) + (blk * 3.0) - (tov * 1.0),
-                1
+            # Calculate fantasy_avg using configuration from JSON
+            fantasy_avg = calculate_fantasy_score(
+                pts,
+                reb,
+                ast,
+                stl,
+                blk,
+                tov,
             )
             
             stat_record = {

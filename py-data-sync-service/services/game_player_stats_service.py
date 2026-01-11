@@ -6,37 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 from nba_api.stats.endpoints import boxscoretraditionalv3
 from db import get_db
-from utils import safe_call_nba_api
-
-
-def _calculate_fantasy_score(
-    pts: float,
-    reb: float,
-    ast: float,
-    stl: float,
-    blk: float,
-    tov: float,
-) -> float:
-    """
-    Calculate fantasy score using the standard formula.
-    
-    Formula: (PTS * 1.0) + (REB * 1.2) + (AST * 1.5) + (STL * 3.0) + (BLK * 3.0) - (TOV * 1.0)
-    
-    Args:
-        pts: Points scored
-        reb: Rebounds
-        ast: Assists
-        stl: Steals
-        blk: Blocks
-        tov: Turnovers
-    
-    Returns:
-        Fantasy score rounded to 1 decimal place
-    """
-    return round(
-        (pts * 1.0) + (reb * 1.2) + (ast * 1.5) + (stl * 3.0) + (blk * 3.0) - (tov * 1.0),
-        1
-    )
+from utils import safe_call_nba_api, calculate_fantasy_score
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -231,7 +201,7 @@ def _transform_player_stat(
     fta = _safe_int(stats.get('freeThrowsAttempted', 0))
     
     # Calculate fantasy score
-    fantasy_score = _calculate_fantasy_score(
+    fantasy_score = calculate_fantasy_score(
         float(pts),
         float(reb),
         float(ast),

@@ -1,136 +1,197 @@
-import type { PlayerDetail } from '@/types';
+'use client';
 
-interface LeagueComparisonRadarProps {
-  comparison: PlayerDetail['leagueComparison'];
+import type { LeagueAverages } from '@/lib/db/players';
+
+interface PlayerStats {
+  pts: number;
+  reb: number;
+  ast: number;
+  stl: number;
+  blk: number;
+  fantasy_avg: number;
 }
 
-export function LeagueComparisonRadar({ comparison }: LeagueComparisonRadarProps) {
-  const size = 200;
+interface LeagueComparisonRadarProps {
+  playerStats: PlayerStats;
+  leagueAverages: LeagueAverages;
+}
+
+// Stat configuration with labels and max values for scaling
+const STAT_CONFIG = [
+  { key: 'pts', label: 'PTS', maxValue: 35 },
+  { key: 'reb', label: 'REB', maxValue: 15 },
+  { key: 'ast', label: 'AST', maxValue: 12 },
+  { key: 'stl', label: 'STL', maxValue: 3 },
+  { key: 'blk', label: 'BLK', maxValue: 3 },
+  { key: 'fantasy_avg', label: 'FPTS', maxValue: 50 },
+] as const;
+
+/**
+ * Hexagon radar chart comparing player stats to league averages
+ */
+export function LeagueComparisonRadar({ playerStats, leagueAverages }: LeagueComparisonRadarProps) {
+  const size = 240;
   const center = size / 2;
-  const radius = size * 0.4;
+  const radius = size * 0.35;
+  const numAxes = 6;
 
-  const axes = [
-    { label: 'Scoring', angle: -Math.PI / 2 }, // Top
-    { label: 'Playmaking', angle: Math.PI / 10 }, // Top-right
-    { label: 'Rebounding', angle: (3 * Math.PI) / 5 }, // Bottom-right
-    { label: 'Defense', angle: (7 * Math.PI) / 5 }, // Bottom-left
-    { label: 'Efficiency', angle: -Math.PI / 10 }, // Top-left
-  ];
+  // Calculate angle for each axis (starting from top, going clockwise)
+  const getAngle = (index: number) => {
+    return (index * 2 * Math.PI) / numAxes - Math.PI / 2;
+  };
 
-  const getPoint = (value: number, angle: number) => {
-    const r = (value / 100) * radius;
+  // Get point coordinates based on value and angle
+  const getPoint = (value: number, maxValue: number, angle: number) => {
+    const normalizedValue = Math.min(value / maxValue, 1); // Cap at 100%
+    const r = normalizedValue * radius;
     const x = center + r * Math.cos(angle);
     const y = center + r * Math.sin(angle);
     return { x, y };
   };
 
-  // Player polygon
-  const playerValues = [
-    comparison.scoring,
-    comparison.playmaking,
-    comparison.rebounding,
-    comparison.defense,
-    comparison.efficiency,
-  ];
-  const playerPoints = axes.map((axis, index) => {
-    const value = playerValues[index] ?? 0;
-    return getPoint(value, axis.angle);
-  });
-  const playerPath = `M ${playerPoints.map((p) => `${p.x},${p.y}`).join(' L ')} Z`;
+  // Generate polygon path from stats
+  const getPolygonPath = (stats: PlayerStats | LeagueAverages) => {
+    const points = STAT_CONFIG.map((config, index) => {
+      const value = stats[config.key as keyof typeof stats] || 0;
+      const angle = getAngle(index);
+      return getPoint(value, config.maxValue, angle);
+    });
+    return `M ${points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' L ')} Z`;
+  };
 
-  // League mean polygon
-  const leagueValues = [
-    comparison.leagueMean.scoring,
-    comparison.leagueMean.playmaking,
-    comparison.leagueMean.rebounding,
-    comparison.leagueMean.defense,
-    comparison.leagueMean.efficiency,
-  ];
-  const leaguePoints = axes.map((axis, index) => {
-    const value = leagueValues[index] ?? 0;
-    return getPoint(value, axis.angle);
-  });
-  const leaguePath = `M ${leaguePoints.map((p) => `${p.x},${p.y}`).join(' L ')} Z`;
+  // Generate hexagon grid path
+  const getHexagonPath = (scale: number) => {
+    const points = Array.from({ length: numAxes }, (_, i) => {
+      const angle = getAngle(i);
+      const x = center + radius * scale * Math.cos(angle);
+      const y = center + radius * scale * Math.sin(angle);
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    });
+    return `M ${points.join(' L ')} Z`;
+  };
+
+  const playerPath = getPolygonPath(playerStats);
+  const leaguePath = getPolygonPath(leagueAverages);
 
   return (
     <div className="flex flex-col items-center">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="mb-4">
-        {/* Grid circles */}
-        {[1, 2, 3, 4].map((i) => (
-          <circle
-            key={i}
-            cx={center}
-            cy={center}
-            r={(radius * i) / 4}
+        {/* Hexagon grid */}
+        {[0.25, 0.5, 0.75, 1].map((scale) => (
+          <path
+            key={scale}
+            d={getHexagonPath(scale)}
             fill="none"
-            stroke="rgba(110, 226, 245, 0.1)"
+            stroke="rgba(110, 226, 245, 0.15)"
             strokeWidth="1"
           />
         ))}
 
         {/* Axis lines */}
-        {axes.map((axis) => {
-          const endX = center + radius * Math.cos(axis.angle);
-          const endY = center + radius * Math.sin(axis.angle);
+        {STAT_CONFIG.map((_, index) => {
+          const angle = getAngle(index);
+          const endX = center + radius * Math.cos(angle);
+          const endY = center + radius * Math.sin(angle);
           return (
             <line
-              key={axis.label}
+              key={index}
               x1={center}
               y1={center}
               x2={endX}
               y2={endY}
-              stroke="rgba(110, 226, 245, 0.1)"
+              stroke="rgba(110, 226, 245, 0.15)"
               strokeWidth="1"
             />
           );
         })}
 
-        {/* League mean (dashed) */}
+        {/* League average polygon (dashed, background) */}
         <path
           d={leaguePath}
-          fill="rgba(110, 226, 245, 0.2)"
-          stroke="rgba(110, 226, 245, 0.5)"
+          fill="rgba(245, 166, 35, 0.15)"
+          stroke="rgba(245, 166, 35, 0.6)"
           strokeWidth="2"
           strokeDasharray="4,4"
         />
 
-        {/* Player (solid) */}
+        {/* Player polygon (solid, foreground) */}
         <path
           d={playerPath}
-          fill="rgba(110, 226, 245, 0.4)"
+          fill="rgba(110, 226, 245, 0.3)"
           stroke="#6EE2F5"
           strokeWidth="2"
         />
 
-        {/* Labels */}
-        {axes.map((axis) => {
-          const labelRadius = radius + 15;
-          const x = center + labelRadius * Math.cos(axis.angle);
-          const y = center + labelRadius * Math.sin(axis.angle);
+        {/* Axis labels and values */}
+        {STAT_CONFIG.map((config, index) => {
+          const angle = getAngle(index);
+          const labelRadius = radius + 25;
+          const x = center + labelRadius * Math.cos(angle);
+          const y = center + labelRadius * Math.sin(angle);
+          const playerValue = playerStats[config.key as keyof PlayerStats] || 0;
+          
           return (
-            <text
-              key={axis.label}
-              x={x}
-              y={y}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              className="text-xs fill-brand-text-light"
-              fontSize="10"
-            >
-              {axis.label}
-            </text>
+            <g key={config.key}>
+              {/* Stat label */}
+              <text
+                x={x}
+                y={y - 8}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="fill-brand-text-dim"
+                fontSize="10"
+                fontWeight="500"
+              >
+                {config.label}
+              </text>
+              {/* Player value */}
+              <text
+                x={x}
+                y={y + 6}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="fill-brand-blue"
+                fontSize="11"
+                fontWeight="600"
+              >
+                {playerValue.toFixed(1)}
+              </text>
+            </g>
           );
         })}
       </svg>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs">
+      <div className="flex items-center gap-6 text-xs">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-brand-blue" />
-          <span className="text-brand-text-dim">— League Mean</span>
+          <div className="w-4 h-1 bg-brand-blue rounded" />
+          <span className="text-brand-text-dim">Player</span>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-1 bg-brand-orange rounded opacity-60" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 2px, #F5A623 2px, #F5A623 4px)' }} />
+          <span className="text-brand-text-dim">League Avg</span>
+        </div>
+      </div>
+
+      {/* Stats comparison table */}
+      <div className="mt-4 w-full grid grid-cols-3 gap-2 text-xs">
+        {STAT_CONFIG.map((config) => {
+          const playerValue = playerStats[config.key as keyof PlayerStats] || 0;
+          const leagueValue = leagueAverages[config.key as keyof LeagueAverages] || 0;
+          const diff = playerValue - leagueValue;
+          const isPositive = diff > 0;
+          
+          return (
+            <div key={config.key} className="flex flex-col items-center p-2 bg-brand-dark/50 rounded">
+              <span className="text-brand-text-dim mb-1">{config.label}</span>
+              <span className="text-white font-semibold">{playerValue.toFixed(1)}</span>
+              <span className={`text-[10px] ${isPositive ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-brand-text-dim'}`}>
+                {isPositive ? '+' : ''}{diff.toFixed(1)}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
-

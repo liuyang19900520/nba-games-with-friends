@@ -106,9 +106,15 @@ export async function fetchRecentGames(
       const dateEnd = new Date(dateStart);
       dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
       
+      logger.info(
+        `[fetchRecentGames] Date filter: dateStr=${dateStr}, dateStart=${dateStart.toISOString()}, dateEnd=${dateEnd.toISOString()}`
+      );
+      
       query = query
         .gte("game_date", dateStart.toISOString())
         .lt("game_date", dateEnd.toISOString());
+    } else {
+      logger.info("[fetchRecentGames] No date filter applied");
     }
 
     query = query
@@ -167,6 +173,24 @@ export async function fetchRecentGames(
         "  2. All game_date values are NULL (filtered out by nullsFirst: false)"
       );
       logger.warn("  3. Data doesn't match the query filters");
+      logger.warn(`  4. Date filter might be too restrictive (targetDate: ${targetDate})`);
+
+      // Try query without date filter to see if there's any data at all
+      logger.info("[fetchRecentGames] Trying query without date filter to check if data exists...");
+      const { data: noDateFilterData, error: noDateFilterError } = await supabase
+        .from("games")
+        .select("id, game_date, status")
+        .limit(10);
+      
+      if (noDateFilterError) {
+        logger.error("[fetchRecentGames] Query without date filter also failed:", noDateFilterError);
+      } else {
+        logger.info(
+          `[fetchRecentGames] Query without date filter returned ${noDateFilterData?.length || 0} rows. Sample dates: ${
+            noDateFilterData?.slice(0, 5).map(g => g.game_date).join(', ') || 'none'
+          }`
+        );
+      }
 
       // Try query without ordering to see if it's an ordering issue
       logger.info("[fetchRecentGames] Trying query without ordering...");

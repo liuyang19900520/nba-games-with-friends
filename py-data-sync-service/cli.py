@@ -14,6 +14,7 @@ from services import (
     sync_player_season_stats,
     sync_games,
     sync_game_details,
+    sync_player_shots,
 )
 from services.game_service import sync_single_game
 
@@ -94,6 +95,32 @@ def sync_game_cmd(logger: SyncLogger, game_id: str) -> None:
     except Exception as e:
         logger.error(f"Failed to sync game {game_id}: {str(e)}")
         logger.complete(status="failed", game_id=game_id, error=str(e))
+        raise
+
+
+def sync_player_shots_cmd(logger: SyncLogger, player_id: int, game_id: Optional[str] = None, season: Optional[str] = None) -> None:
+    """
+    Sync shot chart data (hot zones) for a player.
+    
+    Args:
+        logger: Logger instance
+        player_id: NBA player ID (e.g., 2544 for LeBron James)
+        game_id: Optional NBA game ID. If provided, syncs shots for that game only.
+        season: Optional NBA season in format 'YYYY-YY'. If None, uses current season.
+    """
+    logger.set_command("sync-player-shots")
+    try:
+        if game_id:
+            logger.info(f"Syncing shot chart for player {player_id}, game {game_id}")
+        else:
+            season_str = season or "current season"
+            logger.info(f"Syncing shot chart for player {player_id}, season {season_str}")
+        
+        sync_player_shots(player_id=player_id, game_id=game_id, season=season)
+        logger.complete(status="success", player_id=player_id, game_id=game_id, season=season)
+    except Exception as e:
+        logger.error(f"Failed to sync shot chart for player {player_id}: {str(e)}")
+        logger.complete(status="failed", player_id=player_id, error=str(e))
         raise
 
 
@@ -211,6 +238,34 @@ Available commands:
     stats_parser = subparsers.add_parser('sync-player-stats', help='Sync player_season_stats table')
     add_json_arg(stats_parser)
     
+    # sync-player-shots (shot chart / hot zones)
+    shots_parser = subparsers.add_parser('sync-player-shots', help='Sync player shot chart data (hot zones) for a player')
+    shots_parser.add_argument(
+        '--player-id',
+        type=int,
+        required=False,
+        help='NBA player ID (e.g., 2544 for LeBron James). Required if not provided as positional argument.'
+    )
+    shots_parser.add_argument(
+        '--game-id',
+        type=str,
+        required=False,
+        help='Optional NBA game ID. If provided, syncs shots for that game only. Otherwise syncs all shots for the season.'
+    )
+    shots_parser.add_argument(
+        '--season',
+        type=str,
+        required=False,
+        help='NBA season in format YYYY-YY (e.g., 2024-25). If not provided, uses current season.'
+    )
+    shots_parser.add_argument(
+        'player_id_pos',  # Positional argument as alternative
+        nargs='?',
+        type=int,
+        help='NBA player ID (alternative to --player-id)'
+    )
+    add_json_arg(shots_parser)
+    
     # sync-games
     games_parser = subparsers.add_parser('sync-games', help='Sync games table (yesterday + today)')
     add_json_arg(games_parser)
@@ -296,6 +351,15 @@ def main() -> int:
             sync_players_cmd(logger)
         elif args.command == 'sync-player-stats':
             sync_player_stats_cmd(logger)
+        elif args.command == 'sync-player-shots':
+            # Support both --player-id and positional argument
+            player_id = args.player_id or getattr(args, 'player_id_pos', None)
+            if not player_id:
+                logger.error("Player ID is required for sync-player-shots command. Use --player-id or provide as positional argument.")
+                return 1
+            game_id = getattr(args, 'game_id', None)
+            season = getattr(args, 'season', None)
+            sync_player_shots_cmd(logger, player_id, game_id, season)
         elif args.command == 'sync-games':
             sync_games_cmd(logger)
         elif args.command == 'sync-game':
@@ -303,6 +367,13 @@ def main() -> int:
             game_id = args.game_id or getattr(args, 'game_id_pos', None)
             date_str = getattr(args, 'date', None)
             with_stats = getattr(args, 'with_stats', False)
+            
+            # Check if user mistakenly used --with stats instead of --with-stats
+            if game_id and game_id.lower() == 'stats' and date_str:
+                logger.error("Invalid argument: 'stats' was interpreted as a game ID.")
+                logger.error("Did you mean to use '--with-stats' (with a hyphen)?")
+                logger.error("Correct usage: python cli.py sync-game --date 2025-12-26 --with-stats")
+                return 1
             
             # Validate that exactly one of game_id or date is provided
             if game_id and date_str:

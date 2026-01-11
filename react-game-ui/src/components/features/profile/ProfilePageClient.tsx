@@ -82,7 +82,7 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="My Profile" showSettings />
+      <Header title="My Profile" />
       <div className="flex-1 overflow-y-auto pt-[60px] px-4 pb-4">
         <div className="max-w-md mx-auto space-y-4">
           {/* User Info Card */}

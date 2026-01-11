@@ -47,10 +47,28 @@ export function createServerClient(): SupabaseClient {
     throw new Error(errorMsg);
   }
 
+  // Debug: Decode JWT to verify it's a service_role key
+  try {
+    const parts = supabaseServiceRoleKey.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      console.log(`[supabase-server] Key role: ${payload.role}`);
+      if (payload.role !== 'service_role') {
+        console.error(`[supabase-server] ⚠️ ERROR: SUPABASE_SERVICE_ROLE_KEY is NOT a service_role key! It's a "${payload.role}" key.`);
+        console.error(`[supabase-server] Please check your .env.local file and ensure SUPABASE_SERVICE_ROLE_KEY is set to the correct service role key from Supabase Dashboard -> Settings -> API -> service_role key`);
+      }
+    }
+  } catch (e) {
+    console.warn('[supabase-server] Could not decode JWT:', e);
+  }
+
+  // Create client with service role key
+  // The service role key should automatically bypass RLS when used as the API key
+  // No need for custom fetch or complex configuration
   return createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
-      persistSession: false, // 服务端不需要持久化会话
-      autoRefreshToken: false, // 服务端不需要自动刷新 token
+      persistSession: false,
+      autoRefreshToken: false,
     },
   });
 }

@@ -43,7 +43,7 @@ export function LeaderboardPage({
 
   return (
     <div className="flex flex-col h-full max-w-md mx-auto">
-      <Header title="Leaderboard" showSettings />
+      <Header title="Leaderboard" />
 
       <div className="flex-1 flex flex-col pt-[60px] pb-[90px] overflow-hidden">
         {/* Top Tabs */}

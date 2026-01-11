@@ -32,12 +32,12 @@ export default async function LineupPage() {
     // If user is not logged in, user is null, LineupPageClient will handle read-only mode
     let user = null;
     let initialLineup = null;
-    
+
     try {
       const supabase = await createClient();
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       user = currentUser;
-      
+
       // If user is logged in, fetch today's lineup
       if (user) {
         const lineupData = await getTodayLineup();
@@ -55,14 +55,14 @@ export default async function LineupPage() {
     return (
       <div className="flex flex-col h-full">
         {/* Static Header - rendered in RSC */}
-        <Header title="My Lineup Selection" showBack showSettings />
+        <Header title="My Lineup Selection" />
 
         {/* Content area - wrap client component with Suspense */}
         <div className="flex-1 overflow-y-auto pt-[60px]">
           <Suspense fallback={<LineupPageSkeleton />}>
-            <LineupPageClient 
-              players={players} 
-              user={user} 
+            <LineupPageClient
+              players={players}
+              user={user}
               initialLineup={initialLineup}
             />
           </Suspense>
@@ -73,7 +73,7 @@ export default async function LineupPage() {
     // Error boundary - handled in RSC
     return (
       <div className="flex flex-col h-full">
-        <Header title="My Lineup Selection" showBack showSettings />
+        <Header title="My Lineup Selection" />
         <div className="flex-1 overflow-y-auto pt-[60px]">
           <LineupErrorDisplay error={error} />
         </div>

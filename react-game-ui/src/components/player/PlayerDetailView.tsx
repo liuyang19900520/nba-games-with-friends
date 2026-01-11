@@ -1,13 +1,40 @@
 import type { PlayerDetail } from '@/types';
+import type { PlayerShot } from '@/lib/db/player-shots';
+import type { LeagueAverages } from '@/lib/db/players';
 
 import { LeagueComparisonRadar } from './LeagueComparisonRadar';
 import { RecentGamesTable } from './RecentGamesTable';
+import { ShotChart } from './ShotChart';
 
 interface PlayerDetailViewProps {
   player: PlayerDetail;
+  shots?: PlayerShot[];
+  leagueAverages?: LeagueAverages;
 }
 
-export function PlayerDetailView({ player }: PlayerDetailViewProps) {
+// Default league averages if not provided
+const DEFAULT_LEAGUE_AVERAGES: LeagueAverages = {
+  pts: 15,
+  reb: 5,
+  ast: 3,
+  stl: 1,
+  blk: 0.5,
+  fantasy_avg: 25,
+};
+
+export function PlayerDetailView({ player, shots = [], leagueAverages }: PlayerDetailViewProps) {
+  // Use provided league averages or defaults
+  const avgStats = leagueAverages || DEFAULT_LEAGUE_AVERAGES;
+
+  // Build player stats for radar chart
+  const playerStats = {
+    pts: player.ppg,
+    reb: player.rpg,
+    ast: player.apg,
+    stl: player.stl || 0,
+    blk: player.blk || 0,
+    fantasy_avg: player.fantasyScore || 0,
+  };
   const fantasyScore = player.fantasyScore || 0;
 
   const getFantasyScoreColor = (score: number) => {
@@ -89,6 +116,9 @@ export function PlayerDetailView({ player }: PlayerDetailViewProps) {
         </div>
       </div>
 
+      {/* Shot Chart */}
+      <ShotChart shots={shots} />
+
       {/* Recent 10 Games */}
       {player.recentGames && player.recentGames.length > 0 && (
         <RecentGamesTable games={player.recentGames} />
@@ -97,7 +127,7 @@ export function PlayerDetailView({ player }: PlayerDetailViewProps) {
       {/* Versus League Averages */}
       <div className="bg-brand-card border border-brand-card-border rounded-xl p-4">
         <h4 className="text-sm font-bold text-white uppercase mb-4">Versus League Averages</h4>
-        <LeagueComparisonRadar comparison={player.leagueComparison} />
+        <LeagueComparisonRadar playerStats={playerStats} leagueAverages={avgStats} />
       </div>
     </div>
   );

@@ -1,37 +1,18 @@
 'use client';
 
-import { ArrowLeft, Settings, Search, Share2, MoreVertical } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { ReactNode } from 'react';
 
 interface HeaderProps {
   title: string;
   showBack?: boolean;
-  showSettings?: boolean;
-  showSearch?: boolean;
-  showShare?: boolean;
-  showMore?: boolean;
-  rightActions?: ReactNode; // Custom right side actions
   onBack?: () => void;
-  onSettings?: () => void;
-  onSearch?: () => void;
-  onShare?: () => void;
-  onMore?: () => void;
 }
 
 export function Header({
   title,
   showBack = false,
-  showSettings = false,
-  showSearch = false,
-  showShare = false,
-  showMore = false,
-  rightActions,
   onBack,
-  onSettings,
-  onSearch,
-  onShare,
-  onMore,
 }: HeaderProps) {
   const router = useRouter();
 
@@ -42,50 +23,6 @@ export function Header({
       router.back();
     }
   };
-
-  // Build right side actions
-  const rightButtons: ReactNode[] = [];
-
-  if (showShare) {
-    rightButtons.push(
-      <button key="share" onClick={onShare} className="p-2" aria-label="Share">
-        <Share2 className="w-5 h-5 text-white" />
-      </button>
-    );
-  }
-
-  if (showMore) {
-    rightButtons.push(
-      <button key="more" onClick={onMore} className="p-2" aria-label="More">
-        <MoreVertical className="w-5 h-5 text-white" />
-      </button>
-    );
-  }
-
-  if (showSearch) {
-    rightButtons.push(
-      <button key="search" onClick={onSearch} className="p-2" aria-label="Search">
-        <Search className="w-6 h-6 text-white" />
-      </button>
-    );
-  }
-
-  if (showSettings) {
-    rightButtons.push(
-      <button key="settings" onClick={onSettings} className="p-2" aria-label="Settings">
-        <Settings className="w-6 h-6 text-white" />
-      </button>
-    );
-  }
-
-  // Use custom right actions if provided, otherwise use buttons
-  const rightContent = rightActions || (
-    rightButtons.length > 0 ? (
-      <div className="flex items-center gap-2">{rightButtons}</div>
-    ) : (
-      <div className="w-10" />
-    )
-  );
 
   return (
     <header className="fixed top-0 left-0 right-0 max-w-md mx-auto z-50 bg-brand-dark/80 backdrop-blur-sm">
@@ -104,8 +41,8 @@ export function Header({
           {title}
         </h1>
 
-        {/* Right Actions */}
-        {rightContent}
+        {/* Right side spacer (no buttons) */}
+        <div className="w-10" />
       </div>
     </header>
   );

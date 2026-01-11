@@ -5,10 +5,14 @@ import { Header } from "@/components/layout/Header";
 import { PlayerDetailView } from "@/components/player/PlayerDetailView";
 import type { DbPlayer, DbPlayerSeasonStats } from "@/types/db";
 import type { PlayerDetail } from "@/types";
+import type { PlayerShot } from "@/lib/db/player-shots";
+import type { LeagueAverages } from "@/lib/db/players";
 
 interface PlayerPageClientProps {
   initialProfile: DbPlayer;
   initialStats: DbPlayerSeasonStats | null;
+  initialShots?: PlayerShot[];
+  leagueAverages?: LeagueAverages;
 }
 
 /**
@@ -17,6 +21,8 @@ interface PlayerPageClientProps {
 export function PlayerPageClient({
   initialProfile,
   initialStats,
+  initialShots = [],
+  leagueAverages,
 }: PlayerPageClientProps) {
   const player: PlayerDetail = useMemo(() => {
     const teamName = initialStats?.team?.name ?? "Unknown Team";
@@ -67,9 +73,9 @@ export function PlayerPageClient({
 
   return (
     <div className="flex flex-col h-full max-w-md mx-auto">
-      <Header title="Player Profile" showBack showShare showMore />
+      <Header title="Player Profile" showBack />
       <div className="flex-1 overflow-y-auto pt-[60px] pb-4">
-        <PlayerDetailView player={player} />
+        <PlayerDetailView player={player} shots={initialShots} leagueAverages={leagueAverages} />
       </div>
     </div>
   );
