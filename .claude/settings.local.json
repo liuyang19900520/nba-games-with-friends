@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh:*)",
+      "Bash(aws lightsail download-default-key-pair:*)",
+      "Bash(~/.ssh/LightsailDefaultKey-ap-northeast-1.pem)",
+      "Bash(chmod:*)",
+      "Bash(claude mcp list)",
+      "mcp__n8n-mcp__n8n_list_workflows",
+      "mcp__n8n-mcp__n8n_get_workflow",
+      "mcp__n8n-mcp__n8n_update_partial_workflow",
+      "mcp__n8n-mcp__search_nodes",
+      "mcp__n8n-mcp__get_node",
+      "mcp__n8n-mcp__tools_documentation",
+      "Bash(tree:*)",
+      "Bash(ls:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "line-bot"
+  ]
+}

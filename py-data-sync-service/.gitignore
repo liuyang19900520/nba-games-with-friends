@@ -138,8 +138,22 @@ venv.bak/
 *.log
 .DS_Store
 
-# Note: .env.development is kept for local development
-# .env.production should be created from .env.production template
+# Environment files (contain secrets)
+.env
+.env.local
+.env.development
+.env.production
+
+# Checkpoint files (from backfill)
+backfill_checkpoint.json
+check-data/backfill_checkpoint.json
+
+# IDE/Editor specific
+.claude/
+.cursorrules
+
+# Sync logs
+sync_*.log
 
 # Spyder project settings
 .spyderproject

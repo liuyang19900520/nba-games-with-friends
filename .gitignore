@@ -10,3 +10,6 @@ Thumbs.db
 # 通用环境文件
 .env
 
+# MCP 配置（包含敏感凭证）
+.mcp.json
+

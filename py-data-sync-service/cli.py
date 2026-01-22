@@ -6,15 +6,21 @@ import argparse
 import sys
 from typing import Optional
 
-from app.utils.logger import SyncLogger
+from utils import SyncLogger
 from services import (
     sync_teams,
     sync_team_standings,
+    sync_team_season_advanced_stats,
     sync_active_players,
     sync_player_season_stats,
+    sync_player_season_advanced_stats,
     sync_games,
     sync_game_details,
+    sync_game_player_advanced_stats,
     sync_player_shots,
+    sync_schedule_for_date,
+    sync_schedule_for_date_range,
+    sync_schedule_for_season,
 )
 from services.game_service import sync_single_game
 
@@ -43,6 +49,18 @@ def sync_team_standings_cmd(logger: SyncLogger) -> None:
         raise
 
 
+def sync_team_advanced_stats_cmd(logger: SyncLogger) -> None:
+    """Sync team_season_advanced_stats table."""
+    logger.set_command("sync-team-advanced-stats")
+    try:
+        sync_team_season_advanced_stats()
+        logger.complete(status="success")
+    except Exception as e:
+        logger.error(f"Failed to sync team advanced stats: {str(e)}")
+        logger.complete(status="failed", error=str(e))
+        raise
+
+
 def sync_players_cmd(logger: SyncLogger) -> None:
     """Sync players table."""
     logger.set_command("sync-players")
@@ -63,6 +81,18 @@ def sync_player_stats_cmd(logger: SyncLogger) -> None:
         logger.complete(status="success")
     except Exception as e:
         logger.error(f"Failed to sync player stats: {str(e)}")
+        logger.complete(status="failed", error=str(e))
+        raise
+
+
+def sync_player_advanced_stats_cmd(logger: SyncLogger) -> None:
+    """Sync player_season_advanced_stats table."""
+    logger.set_command("sync-player-advanced-stats")
+    try:
+        sync_player_season_advanced_stats()
+        logger.complete(status="success")
+    except Exception as e:
+        logger.error(f"Failed to sync player advanced stats: {str(e)}")
         logger.complete(status="failed", error=str(e))
         raise
 
@@ -143,6 +173,61 @@ def sync_game_stats_cmd(logger: SyncLogger, game_id: str) -> None:
         raise
 
 
+def sync_game_advanced_stats_cmd(logger: SyncLogger, game_id: str) -> None:
+    """
+    Sync game_player_advanced_stats table for a specific game.
+    
+    Args:
+        logger: Logger instance
+        game_id: NBA game ID (e.g., '0022500009')
+    """
+    logger.set_command("sync-game-advanced-stats")
+    try:
+        logger.info(f"Syncing player advanced stats for game {game_id}")
+        sync_game_player_advanced_stats(game_id=game_id)
+        logger.complete(status="success", game_id=game_id)
+    except Exception as e:
+        logger.error(f"Failed to sync game advanced stats for {game_id}: {str(e)}")
+        logger.complete(status="failed", game_id=game_id, error=str(e))
+        raise
+
+
+def sync_schedule_cmd(logger: SyncLogger, date_str: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None, season: Optional[str] = None) -> None:
+    """
+    Sync game schedule information (pre-game data: date, time, arena, status).
+    
+    Args:
+        logger: Logger instance
+        date_str: Single date in YYYY-MM-DD format (syncs that date only)
+        start_date: Start date in YYYY-MM-DD format (for date range)
+        end_date: End date in YYYY-MM-DD format (for date range)
+        season: NBA season (e.g., '2024-25'). If None, uses current season.
+    """
+    logger.set_command("sync-schedule")
+    try:
+        if date_str:
+            logger.info(f"Syncing schedule for date {date_str}")
+            sync_schedule_for_date(date_str, season)
+            logger.complete(status="success", date=date_str)
+        elif start_date and end_date:
+            logger.info(f"Syncing schedule for date range {start_date} to {end_date}")
+            sync_schedule_for_date_range(start_date, end_date, season)
+            logger.complete(status="success", start_date=start_date, end_date=end_date)
+        elif season:
+            logger.info(f"Syncing schedule for season {season}")
+            sync_schedule_for_season(season)
+            logger.complete(status="success", season=season)
+        else:
+            # Default: sync current season
+            logger.info("Syncing schedule for current season")
+            sync_schedule_for_season(season)
+            logger.complete(status="success")
+    except Exception as e:
+        logger.error(f"Failed to sync schedule: {str(e)}")
+        logger.complete(status="failed", error=str(e))
+        raise
+
+
 def sync_game_date_cmd(logger: SyncLogger, date_str: str, with_stats: bool = False) -> None:
     """
     Sync all games for a specific date.
@@ -197,14 +282,20 @@ Examples:
   python cli.py sync-teams --json
 
 Available commands:
-  sync-teams          - Sync teams table
-  sync-team-standings - Sync team_standings table
-  sync-players        - Sync players table
-  sync-player-stats   - Sync player_season_stats table
-  sync-games          - Sync games table (yesterday + today)
-  sync-game           - Sync games: use --game-id for single game, or --date for all games on a date
-  sync-game-id        - Alias for sync-game (shortcut: sync-game-id <game_id>)
-  sync-game-stats     - Sync game_player_stats for a game (requires game-id)
+  sync-teams                 - Sync teams table
+  sync-team-standings        - Sync team_standings table
+  sync-team-advanced-stats   - Sync team_season_advanced_stats table (team advanced stats)
+  sync-players               - Sync players table
+  sync-player-stats          - Sync player_season_stats table (basic stats)
+  sync-player-advanced-stats - Sync player_season_advanced_stats table (advanced stats)
+  sync-player-shots          - Sync player_shots table (shot chart / hot zones)
+  sync-games                 - Sync games table (yesterday + today)
+  sync-game                  - Sync games: use --game-id for single game, or --date for all games on a date
+  sync-game-id               - Alias for sync-game (shortcut: sync-game-id <game_id>)
+  sync-game-stats            - Sync game_player_stats for a game (requires game-id)
+  sync-game-advanced-stats   - Sync game_player_advanced_stats for a game (requires game-id)
+  sync-schedule               - Sync game schedule (pre-game data: date, time, arena, status)
+                                Use --date for single date, --start-date/--end-date for range, or --season for entire season
         """
     )
     
@@ -230,6 +321,10 @@ Available commands:
     standings_parser = subparsers.add_parser('sync-team-standings', help='Sync team_standings table')
     add_json_arg(standings_parser)
     
+    # sync-team-advanced-stats
+    team_adv_stats_parser = subparsers.add_parser('sync-team-advanced-stats', help='Sync team_season_advanced_stats table')
+    add_json_arg(team_adv_stats_parser)
+    
     # sync-players
     players_parser = subparsers.add_parser('sync-players', help='Sync players table')
     add_json_arg(players_parser)
@@ -237,6 +332,10 @@ Available commands:
     # sync-player-stats
     stats_parser = subparsers.add_parser('sync-player-stats', help='Sync player_season_stats table')
     add_json_arg(stats_parser)
+    
+    # sync-player-advanced-stats
+    advanced_stats_parser = subparsers.add_parser('sync-player-advanced-stats', help='Sync player_season_advanced_stats table')
+    add_json_arg(advanced_stats_parser)
     
     # sync-player-shots (shot chart / hot zones)
     shots_parser = subparsers.add_parser('sync-player-shots', help='Sync player shot chart data (hot zones) for a player')
@@ -311,6 +410,22 @@ Available commands:
         help='NBA game ID (alternative to --game-id)'
     )
     
+    # sync-game-advanced-stats (requires --game-id)
+    sync_game_adv_stats_parser = subparsers.add_parser('sync-game-advanced-stats', help='Sync game_player_advanced_stats for a game')
+    sync_game_adv_stats_parser.add_argument(
+        '--game-id',
+        type=str,
+        required=False,  # Made optional to support positional argument
+        help='NBA game ID (e.g., 0022500009)'
+    )
+    sync_game_adv_stats_parser.add_argument(
+        'game_id_pos',  # Positional argument as alternative
+        nargs='?',
+        type=str,
+        help='NBA game ID (alternative to --game-id)'
+    )
+    add_json_arg(sync_game_adv_stats_parser)
+    
     # Add alias: sync-game-id (shortcut for sync-game)
     sync_game_id_parser = subparsers.add_parser('sync-game-id', help='Alias for sync-game (sync a single game)')
     sync_game_id_parser.add_argument(
@@ -322,6 +437,34 @@ Available commands:
     add_json_arg(sync_game_parser)
     add_json_arg(sync_game_stats_parser)
     add_json_arg(sync_game_id_parser)
+    
+    # sync-schedule (for pre-game schedule information)
+    schedule_parser = subparsers.add_parser('sync-schedule', help='Sync game schedule (pre-game data: date, time, arena, status)')
+    schedule_parser.add_argument(
+        '--date',
+        type=str,
+        required=False,
+        help='Single date in YYYY-MM-DD format (syncs that date only)'
+    )
+    schedule_parser.add_argument(
+        '--start-date',
+        type=str,
+        required=False,
+        help='Start date in YYYY-MM-DD format (for date range, requires --end-date)'
+    )
+    schedule_parser.add_argument(
+        '--end-date',
+        type=str,
+        required=False,
+        help='End date in YYYY-MM-DD format (for date range, requires --start-date)'
+    )
+    schedule_parser.add_argument(
+        '--season',
+        type=str,
+        required=False,
+        help='NBA season in format YYYY-YY (e.g., 2024-25). If not provided, uses current season. If no date options provided, syncs entire season.'
+    )
+    add_json_arg(schedule_parser)
     
     args = parser.parse_args()
     
@@ -347,10 +490,14 @@ def main() -> int:
             sync_teams_cmd(logger)
         elif args.command == 'sync-team-standings':
             sync_team_standings_cmd(logger)
+        elif args.command == 'sync-team-advanced-stats':
+            sync_team_advanced_stats_cmd(logger)
         elif args.command == 'sync-players':
             sync_players_cmd(logger)
         elif args.command == 'sync-player-stats':
             sync_player_stats_cmd(logger)
+        elif args.command == 'sync-player-advanced-stats':
+            sync_player_advanced_stats_cmd(logger)
         elif args.command == 'sync-player-shots':
             # Support both --player-id and positional argument
             player_id = args.player_id or getattr(args, 'player_id_pos', None)
@@ -401,6 +548,13 @@ def main() -> int:
                 logger.error("Game ID is required for sync-game-stats command. Use --game-id or provide as positional argument.")
                 return 1
             sync_game_stats_cmd(logger, game_id)
+        elif args.command == 'sync-game-advanced-stats':
+            # Support both --game-id and positional argument
+            game_id = args.game_id or getattr(args, 'game_id_pos', None)
+            if not game_id:
+                logger.error("Game ID is required for sync-game-advanced-stats command. Use --game-id or provide as positional argument.")
+                return 1
+            sync_game_advanced_stats_cmd(logger, game_id)
         elif args.command == 'sync-game-id':
             # Alias for sync-game
             game_id = getattr(args, 'game_id', None)
@@ -408,6 +562,22 @@ def main() -> int:
                 logger.error("Game ID is required for sync-game-id command")
                 return 1
             sync_game_cmd(logger, game_id)
+        elif args.command == 'sync-schedule':
+            date_str = getattr(args, 'date', None)
+            start_date = getattr(args, 'start_date', None)
+            end_date = getattr(args, 'end_date', None)
+            season = getattr(args, 'season', None)
+            
+            # Validate arguments
+            if date_str and (start_date or end_date):
+                logger.error("Cannot specify both --date and --start-date/--end-date. Use one or the other.")
+                return 1
+            
+            if (start_date and not end_date) or (end_date and not start_date):
+                logger.error("Both --start-date and --end-date are required for date range.")
+                return 1
+            
+            sync_schedule_cmd(logger, date_str, start_date, end_date, season)
         else:
             logger.error(f"Unknown command: {args.command}")
             return 1

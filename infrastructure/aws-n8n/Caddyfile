@@ -1,0 +1,19 @@
+# n8n reverse proxy with auto-HTTPS via nip.io
+# Replace YOUR_IP with your Lightsail static IP
+
+57.182.161.64.nip.io {
+    reverse_proxy n8n:5678 {
+        flush_interval -1
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}

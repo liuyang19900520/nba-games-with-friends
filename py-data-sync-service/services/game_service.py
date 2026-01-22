@@ -312,13 +312,28 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
         game_type = game_id[:2]
         is_playoff = (game_type == '01')  # 01 = Playoffs
     
-    # Get status
+    # Get status from API
     status_code = game.get('gameStatus', 1)
     status = _map_game_status(status_code)
     
     # Get scores (only if available)
     home_score = game.get('homeTeam', {}).get('score')
     away_score = game.get('awayTeam', {}).get('score')
+    
+    # IMPORTANT: Smart status correction for past games
+    # If game_date is in the past and we have scores, it should be 'Final'
+    # ScoreboardV2 sometimes returns incorrect status for past games
+    today = datetime.now(pytz.UTC).date()
+    if game_date < today:
+        if home_score is not None and away_score is not None:
+            # Has scores = game is finished
+            if status != 'Final':
+                print(f"  ℹ️ Auto-correcting game {game_id} status: {status} -> Final (past game with scores)")
+            status = 'Final'
+        elif status == 'Scheduled':
+            # Past game without scores but marked as Scheduled - needs investigation
+            # Mark for re-fetch with BoxScoreTraditionalV3
+            game['_needs_refetch'] = True
     
     # Get arena name
     arena_name = game.get('arena', {}).get('name', '')
@@ -619,12 +634,16 @@ def sync_games_for_date(date_str: str, sync_player_stats: bool = False) -> None:
         
         # Transform games data
         games_data = []
+        games_needing_refetch = []  # Games that need BoxScoreTraditionalV3 to get correct status
         skipped_count = 0
         
         for game in games:
             game_data = _transform_game_data(game, tricode_to_id, season)
             if game_data:
                 games_data.append(game_data)
+                # Check if this game was marked for re-fetch
+                if game.get('_needs_refetch'):
+                    games_needing_refetch.append(game_data['id'])
             else:
                 skipped_count += 1
         
@@ -634,6 +653,23 @@ def sync_games_for_date(date_str: str, sync_player_stats: bool = False) -> None:
         if len(games_data) == 0:
             print(f"  ℹ️ No valid games to sync for {date_str}")
             return
+        
+        # Re-fetch games that have status='Scheduled' but are in the past
+        # This happens when ScoreboardV2 returns incorrect status
+        if games_needing_refetch:
+            print(f"  📡 Re-fetching {len(games_needing_refetch)} games with BoxScoreTraditionalV3 for accurate status...")
+            for game_id in games_needing_refetch:
+                try:
+                    refetched_data = _fetch_single_game_by_id(game_id, tricode_to_id, season)
+                    if refetched_data:
+                        # Replace the game data with the re-fetched data
+                        for i, gd in enumerate(games_data):
+                            if gd['id'] == game_id:
+                                games_data[i] = refetched_data
+                                print(f"    ✅ Game {game_id}: status={refetched_data.get('status')}, home_score={refetched_data.get('home_score')}, away_score={refetched_data.get('away_score')}")
+                                break
+                except Exception as e:
+                    print(f"    ⚠️ Failed to re-fetch game {game_id}: {e}")
         
         # Upsert games to Supabase
         print(f"  Syncing {len(games_data)} games to Supabase...")
@@ -675,6 +711,7 @@ def sync_games_for_date(date_str: str, sync_player_stats: bool = False) -> None:
         # Optionally sync player stats for completed games
         stats_synced_count = 0
         stats_failed_count = 0
+        stats_skipped_count = 0
         
         if sync_player_stats and synced_count > 0:
             print(f"\n{'='*60}")
@@ -683,23 +720,39 @@ def sync_games_for_date(date_str: str, sync_player_stats: bool = False) -> None:
             
             from services.game_player_stats_service import sync_game_details
             
+            # Check if the date is in the past
+            try:
+                sync_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                today = datetime.now(pytz.UTC).date()
+                is_past_date = sync_date < today
+            except:
+                is_past_date = False
+            
             # Get all synced game IDs
             for game_data in games_data:
                 game_id = game_data.get('id')
                 game_status = game_data.get('status', '')
                 
-                # Only sync stats for completed games
-                if game_status == 'Final' and game_id:
+                # Sync stats for:
+                # 1. Games with status='Final'
+                # 2. OR past games (even if status is wrong, they should have been played)
+                should_sync = game_status == 'Final' or is_past_date
+                
+                if should_sync and game_id:
                     try:
-                        print(f"  Syncing player stats for game {game_id}...")
+                        if game_status != 'Final' and is_past_date:
+                            print(f"  Syncing player stats for game {game_id} (past game, status={game_status})...")
+                        else:
+                            print(f"  Syncing player stats for game {game_id}...")
                         sync_game_details(game_id=game_id)
                         stats_synced_count += 1
                     except Exception as e:
                         stats_failed_count += 1
                         print(f"  ⚠️ Failed to sync player stats for game {game_id}: {e}")
                         # Continue with other games even if one fails
-                elif game_status != 'Final':
-                    print(f"  ℹ️ Skipping game {game_id} (status: {game_status}, not Final)")
+                elif game_status != 'Final' and not is_past_date:
+                    stats_skipped_count += 1
+                    print(f"  ℹ️ Skipping game {game_id} (status: {game_status}, not Final, future game)")
         
         print(f"\n{'='*60}")
         print(f"Game sync for {date_str} completed!")
@@ -710,6 +763,8 @@ def sync_games_for_date(date_str: str, sync_player_stats: bool = False) -> None:
             print(f"  Player stats synced: {stats_synced_count}")
             if stats_failed_count > 0:
                 print(f"  Player stats failed: {stats_failed_count}")
+            if stats_skipped_count > 0:
+                print(f"  Player stats skipped (future games): {stats_skipped_count}")
         print(f"{'='*60}")
         
     except Exception as e:
