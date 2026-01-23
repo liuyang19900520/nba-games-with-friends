@@ -1,3 +1,0 @@
-[submodule "nest-auth-service"]
-	path = nest-auth-service
-	url = https://github.com/liuyang19900520/nest-auth-service.git

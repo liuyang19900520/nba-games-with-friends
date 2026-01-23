@@ -13,7 +13,16 @@
       "mcp__n8n-mcp__get_node",
       "mcp__n8n-mcp__tools_documentation",
       "Bash(tree:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "mcp__n8n-mcp__n8n_health_check",
+      "mcp__n8n-mcp__n8n_executions",
+      "mcp__line-bot__push_text_message",
+      "mcp__n8n-mcp__n8n_validate_workflow",
+      "mcp__n8n-mcp__n8n_workflow_versions",
+      "mcp__n8n-mcp__n8n_update_full_workflow",
+      "Bash(aws lightsail get-instances:*)",
+      "Bash(curl:*)",
+      "mcp__n8n-mcp__n8n_test_workflow"
     ]
   },
   "enableAllProjectMcpServers": true,
