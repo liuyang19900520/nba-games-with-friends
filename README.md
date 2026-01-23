@@ -23,12 +23,12 @@ It contains infrastructure configuration and independent sub-projects.
 ## Development Guide
 
 ### How to work on this project
-This is a **Polylith Workspace**. Each folder in `apps/` and `services/` is its own Git repository.
+This is a **Single Monorepo Workspace**. All code is tracked in one Git repository.
 
 **To work on the Website:**
-1. Open only the `apps/web` folder in your IDE.
-2. Run `npm install` and `npm run dev`.
-3. Commit and push changes from *inside* that folder.
+1. You can open the root folder `/` to see everything.
+2. OR, you can open `apps/web` in your IDE to focus only on the frontend.
+   - Note: Git commits will still be tracked by the root `.git` folder (VS Code handles this automatically).
 
 **To work on the Data Sync:**
 1. Open only the `services/data-sync` folder.
