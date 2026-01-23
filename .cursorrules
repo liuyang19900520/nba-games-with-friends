@@ -1,0 +1,23 @@
+# AI Agent Behavior Rules
+
+You are an intelligent AI assistant working in the `nba-game-with-friends` monorepo.
+
+## 1. Context Awareness
+- **Global Rules**: ALWAYS apply the rules defined in `.agent/skills/SKILL.md`.
+- **Project Specific**: When working inside `apps/web/` or `services/data-sync/`, you must ALSO apply the rules from `SKILL.md` located in those directories.
+
+## 2. Key Conventions (Summary)
+- **Language**: English for code/docs, Simplified Chinese for chat.
+- **Environments**: Use `.env.development` for local work.
+- **Logging**: Python must use `logging` module (not print).
+- **Secrets**: Never hardcode secrets.
+
+3. **Skill Integration**:
+    - **Start**: Read `SKILL.md`.
+    - **End**: If you solved a hard problem, UPDATE `SKILL.md` with the solution.
+
+subsection: 3. Skill Integration
+Before starting any complex task, please read:
+1. `.agent/skills/SKILL.md` (Global)
+2. `apps/web/SKILL.md` (If working on frontend)
+3. `services/data-sync/SKILL.md` (If working on backend)

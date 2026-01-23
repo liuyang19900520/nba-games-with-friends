@@ -8,14 +8,14 @@ services:
     ports:
       - "5678:5678"
     environment:
-      # 基本配置
-      - N8N_HOST=57.182.161.64.nip.io
+      # Basic Configuration
+      - N8N_HOST=${N8N_DOMAIN:-localhost}
       - N8N_PORT=5678
       - N8N_PROTOCOL=https
-      - WEBHOOK_URL=https://57.182.161.64.nip.io/
+      - WEBHOOK_URL=https://${N8N_DOMAIN:-localhost}/
       - GENERIC_TIMEZONE=Asia/Tokyo
 
-      # 数据库配置 (使用外部Postgres)
+      # Database Configuration (Using external Postgres)
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=${DB_HOST}
       - DB_POSTGRESDB_PORT=${DB_PORT:-5432}
@@ -23,14 +23,14 @@ services:
       - DB_POSTGRESDB_USER=${DB_USER}
       - DB_POSTGRESDB_PASSWORD=${DB_PASSWORD}
 
-      # 执行日志自动清理配置 (解决内存问题)
+      # Execution log pruning (Fix memory issues)
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168
       - EXECUTIONS_DATA_SAVE_ON_ERROR=all
       - EXECUTIONS_DATA_SAVE_ON_SUCCESS=none
       - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
 
-      # 安全配置
+      # Security Configuration
       - N8N_BASIC_AUTH_ACTIVE=false
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
 
@@ -39,7 +39,7 @@ services:
     networks:
       - n8n-network
 
-  # Nginx反向代理 (处理HTTPS)
+  # Nginx Reverse Proxy (Handles HTTPS)
   nginx:
     image: nginx:alpine
     container_name: n8n-nginx
