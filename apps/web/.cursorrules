@@ -1,0 +1,8 @@
+# Web App Rules (Standalone)
+
+You are working in the `apps/web` Next.js project.
+
+## Critical Instructions
+1. **Read Rules**: You MUST read `./SKILL.md` in this directory for component and architectural rules.
+2. **Language**: Code/Comments in English. Chat in Simplified Chinese.
+3. **Environment**: Use `.env.development` for local work.

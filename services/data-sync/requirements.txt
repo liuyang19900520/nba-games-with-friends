@@ -1,0 +1,20 @@
+# NBA Data Sync Service - Python Dependencies
+# Python 3.11+ required
+
+# NBA API client
+nba_api>=1.4.1
+
+# Supabase client
+supabase>=2.0.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Data processing
+pandas>=2.0.0
+
+# HTTP requests (used by nba_api internally, explicit for version control)
+requests>=2.31.0
+
+# Timezone support
+pytz>=2024.1
