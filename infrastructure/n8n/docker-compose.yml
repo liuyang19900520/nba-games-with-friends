@@ -24,10 +24,11 @@ services:
       - DB_POSTGRESDB_PASSWORD=${DB_PASSWORD}
 
       # Execution log pruning (Fix memory issues)
+      # Keep 2 hours of data to save space (User requested)
       - EXECUTIONS_DATA_PRUNE=true
-      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_MAX_AGE=2
       - EXECUTIONS_DATA_SAVE_ON_ERROR=all
-      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=none
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
       - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
 
       # Security Configuration
