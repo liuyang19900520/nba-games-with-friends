@@ -176,7 +176,9 @@ CREATE TABLE task_queue (
     status VARCHAR(20) DEFAULT 'PENDING',
     error_message TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+    started_at TIMESTAMP,
+    ended_at TIMESTAMP
 );
 
 -- 示例：插入同步任务

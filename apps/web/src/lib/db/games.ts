@@ -64,8 +64,7 @@ export async function fetchRecentGames(
       });
     } else {
       logger.info(
-        `[fetchRecentGames] Simple SELECT * succeeded. Found ${
-          testData?.length || 0
+        `[fetchRecentGames] Simple SELECT * succeeded. Found ${testData?.length || 0
         } rows.`
       );
       if (testData && testData.length > 0) {
@@ -105,11 +104,11 @@ export async function fetchRecentGames(
       const dateStart = new Date(dateStr + 'T00:00:00Z');
       const dateEnd = new Date(dateStart);
       dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
-      
+
       logger.info(
         `[fetchRecentGames] Date filter: dateStr=${dateStr}, dateStart=${dateStart.toISOString()}, dateEnd=${dateEnd.toISOString()}`
       );
-      
+
       query = query
         .gte("game_date", dateStart.toISOString())
         .lt("game_date", dateEnd.toISOString());
@@ -159,8 +158,7 @@ export async function fetchRecentGames(
     }
 
     logger.info(
-      `[fetchRecentGames] Query succeeded. Returned ${
-        simpleData?.length || 0
+      `[fetchRecentGames] Query succeeded. Returned ${simpleData?.length || 0
       } rows.`
     );
 
@@ -181,13 +179,12 @@ export async function fetchRecentGames(
         .from("games")
         .select("id, game_date, status")
         .limit(10);
-      
+
       if (noDateFilterError) {
         logger.error("[fetchRecentGames] Query without date filter also failed:", noDateFilterError);
       } else {
         logger.info(
-          `[fetchRecentGames] Query without date filter returned ${noDateFilterData?.length || 0} rows. Sample dates: ${
-            noDateFilterData?.slice(0, 5).map(g => g.game_date).join(', ') || 'none'
+          `[fetchRecentGames] Query without date filter returned ${noDateFilterData?.length || 0} rows. Sample dates: ${noDateFilterData?.slice(0, 5).map(g => g.game_date).join(', ') || 'none'
           }`
         );
       }
@@ -208,8 +205,7 @@ export async function fetchRecentGames(
         );
       } else {
         logger.info(
-          `[fetchRecentGames] Query without ordering returned ${
-            noOrderData?.length || 0
+          `[fetchRecentGames] Query without ordering returned ${noOrderData?.length || 0
           } rows`
         );
         if (noOrderData && noOrderData.length > 0) {
@@ -354,7 +350,7 @@ export const getRecentGames = unstable_cache(
   },
   ["recent-games"],
   {
-    revalidate: 300, // 5 minutes
+    revalidate: 10, // 10 seconds for live updates
     tags: ["games"],
   }
 );

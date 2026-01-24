@@ -436,7 +436,8 @@ def fetch_pending_task(db) -> Optional[Dict[str, Any]]:
         db.table("task_queue") \
             .update({
                 "status": "PROCESSING",
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.utcnow().isoformat(),
+                "started_at": datetime.utcnow().isoformat()
             }) \
             .eq("id", task["id"]) \
             .eq("status", "PENDING") \
@@ -453,7 +454,8 @@ def update_task_status(db, task_id: int, status: str, error: Optional[str] = Non
     try:
         update_data = {
             "status": status,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
+            "ended_at": datetime.utcnow().isoformat()
         }
         if error:
             # Store error in payload if there's an error

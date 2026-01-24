@@ -191,23 +191,45 @@ def _fetch_games_for_date(day_offset: Optional[int] = None, team_id_to_tricode: 
         
         # Parse game date and convert to UTC format
         game_date_est = game_dict.get('GAME_DATE_EST', '')
-        # GAME_DATE_EST is in format "2024-12-24T20:00:00"
-        # We need to convert EST to UTC (EST is UTC-5, EDT is UTC-4)
+        game_status_text = game_dict.get('GAME_STATUS_TEXT', '').strip()
+        
+        # GAME_DATE_EST is often just midnight, e.g. "2026-01-24T00:00:00"
+        # We try to extract the time from GAME_STATUS_TEXT if it looks like "7:00 pm ET"
         game_time_utc = game_date_est
-        if game_date_est:
-            try:
-                # Parse EST date
+        
+        try:
+            # 1. Base date from GAME_DATE_EST
+            if game_date_est:
                 dt_est = datetime.strptime(game_date_est, '%Y-%m-%dT%H:%M:%S')
-                # Localize to EST (we'll treat as EST, not EDT for simplicity)
-                # In practice, NBA games are scheduled in local time, so this is approximate
-                est_tz = pytz.timezone('US/Eastern')
-                dt_est = est_tz.localize(dt_est)
-                # Convert to UTC
-                dt_utc = dt_est.astimezone(pytz.UTC)
-                game_time_utc = dt_utc.isoformat()
-            except Exception:
-                # If parsing fails, use as-is
-                pass
+            else:
+                dt_est = datetime.now()
+
+            # 2. Try to parse specific time from GAME_STATUS_TEXT (e.g. "7:30 pm ET")
+            # Only for Scheduled games (Status 1)
+            time_found = False
+            if game_dict.get('GAME_STATUS_ID') == 1 and 'pm' in game_status_text.lower() and 'ET' in game_status_text:
+                try:
+                    # Format: "7:30 pm ET"
+                    time_part = game_status_text.replace('ET', '').strip()
+                    # Parse "7:30 pm"
+                    t = datetime.strptime(time_part, '%I:%M %p').time()
+                    dt_est = dt_est.replace(hour=t.hour, minute=t.minute, second=0)
+                    time_found = True
+                except ValueError:
+                    pass
+            
+            # If no time found in status text, and GAME_DATE_EST was midnight, 
+            # we effectively default to 00:00:00 (which is wrong but better than crash)
+            
+            # 3. Timezone Conversion (EST -> UTC)
+            est_tz = pytz.timezone('US/Eastern')
+            dt_est = est_tz.localize(dt_est)
+            dt_utc = dt_est.astimezone(pytz.UTC)
+            game_time_utc = dt_utc.isoformat()
+            
+        except Exception as e:
+            print(f"Error parsing time for game {game_id}: {e}")
+            pass
         
         # Transform to match live endpoint structure
         game = {
@@ -503,6 +525,41 @@ def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str
     home_score = home_team_stats.get('points') if home_team_stats else None
     away_score = away_team_stats.get('points') if away_team_stats else None
     
+    # FALLBACK: If scores are missing, try BoxScoreSummaryV3 (for Live games where TraditionalV3 lags)
+    if home_score is None or away_score is None:
+        print(f"[game_service] Scores missing in TraditionalV3 for {game_id}, trying BoxScoreSummaryV3...")
+        try:
+            from nba_api.stats.endpoints import boxscoresummaryv3
+            summary_obj = safe_call_nba_api(
+                name=f"BoxScoreSummaryV3({game_id})",
+                call_fn=lambda: boxscoresummaryv3.BoxScoreSummaryV3(game_id=game_id),
+                max_retries=2
+            )
+            if summary_obj:
+                sum_data = summary_obj.get_dict().get('boxScoreSummary', {})
+                sum_home = sum_data.get('homeTeam', {})
+                sum_away = sum_data.get('awayTeam', {})
+                
+                # Extract new scores
+                new_home_score = sum_home.get('score')
+                new_away_score = sum_away.get('score')
+                
+                if new_home_score is not None:
+                    home_score = new_home_score
+                if new_away_score is not None:
+                    away_score = new_away_score
+                
+                # If we have scores now, ensure status is at least Live
+                if home_score is not None and status == 'Scheduled':
+                    status = 'Live'
+                    status_text = sum_data.get('gameStatusText', '')
+                    print(f"  ℹ️  Upgraded status to Live based on SummaryV3 scores (Status: {status_text})")
+
+        except ImportError:
+            print("[game_service] BoxScoreSummaryV3 not available in this nba_api version")
+        except Exception as e:
+            print(f"  ⚠️ BoxScoreSummaryV3 fallback failed: {e}")
+    
     # Get arena name
     arena_name = ''
     if game_info:
@@ -641,8 +698,9 @@ def sync_games_for_date(date_str: str, sync_player_stats: bool = False) -> None:
             game_data = _transform_game_data(game, tricode_to_id, season)
             if game_data:
                 games_data.append(game_data)
-                # Check if this game was marked for re-fetch
-                if game.get('_needs_refetch'):
+                # Check if this game was marked for re-fetch OR is Live
+                # ScoreboardV2 can be laggy for Live games, so we force a Deep Sync (BoxScoreV3)
+                if game.get('_needs_refetch') or game_data['status'] == 'Live':
                     games_needing_refetch.append(game_data['id'])
             else:
                 skipped_count += 1

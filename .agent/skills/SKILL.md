@@ -4,7 +4,7 @@ description: Global development guidelines and project structure content.
 
 # Global Project Skills & Guidelines
 
-This project uses a Monorepo structure with standalone modules.
+This project is a **Single Monorepo**. All code is in one Git repository.
 - **Root**: `/Users/lijiao/nba-game-with-friends`
 - **Apps**: `apps/` (User Facing, e.g., Next.js)
 - **Services**: `services/` (Backend workers, e.g., Python Data Sync)
@@ -52,6 +52,31 @@ This project uses a Monorepo structure with standalone modules.
     - If yes, **YOU MUST** record the "Pitfall" and "Solution" in the relevant `SKILL.md`.
     - Format: `> [!TIP] Lesson Learned: [Context] - [Solution]`
     - This saves tokens and time for the next agent.
+
+
+## Deployment & Infrastructure (CRITICAL)
+
+### Architecture Overview
+The system is split into two environments to avoid IP blocking issues:
+1.  **Local Environment (macOS)**: Runs the **Python Data Sync Worker**.
+    -   **Why?**: The AWS Lightsail IP is blocked/throttled by the NBA API (`stats.nba.com`).
+    -   **Responsibility**: Execute `worker.py` to sync data to Supabase.
+    -   **Trigger**: Polls `task_queue` table in Supabase.
+2.  **Remote Environment (AWS Lightsail)**: Runs **n8n**.
+    -   **Why?**: Hosting long-running workflows and webhooks.
+    -   **Responsibility**: Insert tasks into Supabase `task_queue`.
+    -   **Access**: Use `deploy.sh` to update n8n configuration ONLY.
+
+### Deployment Rules
+> [!WARNING]
+> **DO NOT DEPLOY THE PYTHON WORKER TO LIGHTSAIL.**
+-   The worker must run LOCALLY on the user's machine (Docker: `nba-worker-dev`).
+-   `deploy.sh` is solely for deploying n8n configuration to the remote server.
+
+### Remote Access
+-   **Host**: `57.182.161.64`
+-   **User**: `ubuntu`
+-   **Key**: `~/infrastructure/deploy.sh` handles auth automatically.
 
 ## AI Agent Behavior
 - **Context**: Always check the local `SKILL.md` of the directory you are working in.

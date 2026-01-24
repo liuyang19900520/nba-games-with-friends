@@ -92,11 +92,53 @@ def _fetch_player_stats_from_api(game_id: str) -> Tuple[Optional[List[Dict]], Op
     home_score = home_team_stats.get('points') if home_team_stats else None
     away_score = away_team_stats.get('points') if away_team_stats else None
     
+    game_status = 'Final' # Default heuristic
+    
+    # FALLBACK: If scores are missing/zero, try BoxScoreSummaryV3
+    # Check if scores are effectively zero (which implies missing for live games)
+    is_score_missing = (home_score is None or int(home_score) == 0) and (away_score is None or int(away_score) == 0)
+    
+    if is_score_missing:
+        print(f"[game_player_stats_service] Scores missing/zero in TraditionalV3 for {game_id}, trying BoxScoreSummaryV3...")
+        try:
+            from nba_api.stats.endpoints import boxscoresummaryv3
+            summary_obj = safe_call_nba_api(
+                name=f"BoxScoreSummaryV3({game_id})",
+                call_fn=lambda: boxscoresummaryv3.BoxScoreSummaryV3(game_id=game_id),
+                max_retries=2
+            )
+            if summary_obj:
+                sum_data = summary_obj.get_dict().get('boxScoreSummary', {})
+                sum_home = sum_data.get('homeTeam', {})
+                sum_away = sum_data.get('awayTeam', {})
+                
+                # Extract new scores
+                new_home_score = sum_home.get('score')
+                new_away_score = sum_away.get('score')
+                
+                if new_home_score is not None:
+                    home_score = new_home_score
+                if new_away_score is not None:
+                    away_score = new_away_score
+                
+                # Check status
+                status_text = sum_data.get('gameStatusText', '')
+                if status_text and 'Final' not in status_text:
+                     game_status = 'Live'
+                     print(f"  ℹ️  Set status to Live based on SummaryV3 (Status: {status_text})")
+                elif status_text and 'Final' in status_text:
+                     game_status = 'Final'
+
+        except ImportError:
+            pass
+        except Exception as e:
+            print(f"  ⚠️ BoxScoreSummaryV3 fallback failed: {e}")
+            
     # Build game info dict for updating games table
     game_info = {
         'home_score': int(home_score) if home_score is not None else None,
         'away_score': int(away_score) if away_score is not None else None,
-        'status': 'Final'  # If we have player stats, game is likely finished
+        'status': game_status
     }
     
     home_players = home_team.get('players', [])
@@ -135,9 +177,120 @@ def _fetch_player_stats_from_api(game_id: str) -> Tuple[Optional[List[Dict]], Op
         return None, None
     
     print(f"Fetched {len(all_player_stats)} player stats from NBA API for game {game_id}")
+    
+    # Check if stats are empty (all zeros) which indicates V3 failure
+    has_valid_stats = False
+    for p in all_player_stats:
+        stats = p.get('statistics', {})
+        if _safe_int(stats.get('points')) > 0 or _safe_int(stats.get('minutes')) > 0: # minutes might be string "00:00"
+             has_valid_stats = True
+             break
+    
+    if not has_valid_stats:
+        print(f"[game_player_stats_service] V3 returned zero stats. Attempting Live CDN fallback...")
+        try:
+             live_stats, live_game_info = _fetch_player_stats_from_live_cdn(game_id)
+             if live_stats:
+                 print(f"  ✅ Live CDN fallback successful! Found {len(live_stats)} players.")
+                 all_player_stats = live_stats
+                 # Update game info with live scores if available
+                 if live_game_info:
+                     game_info.update(live_game_info)
+                     home_score = live_game_info.get('home_score')
+                     away_score = live_game_info.get('away_score')
+        except Exception as e:
+             print(f"  ⚠️ Live CDN fallback failed: {e}")
+
     if home_score is not None and away_score is not None:
         print(f"  Game score: {away_score} - {home_score} (Away - Home)")
     
+    return all_player_stats, game_info
+
+
+def _parse_iso_duration(duration_str: str) -> str:
+    """Convert ISO 8601 duration (PT15M54.70S) to MM:SS"""
+    if not duration_str:
+        return "00:00"
+    try:
+        import re
+        # Match PT{M}M{S}.{ms}S
+        match = re.search(r'PT(\d+)M(\d+)(\.\d+)?S', duration_str)
+        if match:
+            m = int(match.group(1))
+            s = int(match.group(2))
+            return f"{m}:{s:02d}"
+        
+        # Match PT{S}.{ms}S (seconds only)
+        match_sec = re.search(r'PT(\d+)(\.\d+)?S', duration_str)
+        if match_sec:
+             return f"0:{int(match_sec.group(1)):02d}"
+
+        return duration_str # Return original if regex fails
+    except:
+        return duration_str
+
+
+def _fetch_player_stats_from_live_cdn(game_id: str) -> Tuple[Optional[List[Dict]], Optional[Dict]]:
+    """Fallback: Fetch stats from nba_api.live endpoint"""
+    from nba_api.live.nba.endpoints import boxscore
+    
+    box = boxscore.BoxScore(game_id=game_id)
+    data = box.get_dict()
+    game = data.get('game', {})
+    
+    home_team = game.get('homeTeam', {})
+    away_team = game.get('awayTeam', {})
+    
+    # Get scores
+    game_info = {
+        'home_score': _safe_int(home_team.get('score')),
+        'away_score': _safe_int(away_team.get('score')),
+        'status': 'Live' # If we are using this, it's likely live
+    }
+    
+    all_player_stats = []
+    
+    # Process teams
+    for team_data, team_type in [(home_team, 'home'), (away_team, 'away')]:
+        team_id = team_data.get('teamId')
+        players = team_data.get('players', [])
+        
+        for p in players:
+            # Live CDN structure: player -> statistics -> points
+            stats = p.get('statistics', {})
+            
+            # Map Live CDN keys to V3/DB keys
+            # DB expects: points, reboundsTotal, assists, etc.
+            
+            # Convert ISO duration to MM:SS
+            min_str = _parse_iso_duration(stats.get('minutes', ''))
+            
+            mapped_stats = {
+                'minutes': min_str,
+                'points': stats.get('points'),
+                'reboundsTotal': stats.get('reboundsTotal'),
+                'assists': stats.get('assists'),
+                'steals': stats.get('steals'),
+                'blocks': stats.get('blocks'),
+                'turnovers': stats.get('turnovers'),
+                'foulsPersonal': stats.get('foulsPersonal'),
+                'plusMinusPoints': stats.get('plusMinusPoints'),
+                'fieldGoalsMade': stats.get('fieldGoalsMade'),
+                'fieldGoalsAttempted': stats.get('fieldGoalsAttempted'),
+                'fieldGoalsPercentage': stats.get('fieldGoalsPercentage'),
+                'threePointersMade': stats.get('threePointersMade'),
+                'threePointersAttempted': stats.get('threePointersAttempted'),
+                'freeThrowsMade': stats.get('freeThrowsMade'),
+                'freeThrowsAttempted': stats.get('freeThrowsAttempted'),
+            }
+            
+            player_stat = {
+                'PLAYER_ID': p.get('personId'),
+                'TEAM_ID': team_id,
+                'statistics': mapped_stats
+            }
+            all_player_stats.append(player_stat)
+            
     return all_player_stats, game_info
 
 
