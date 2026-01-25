@@ -7,20 +7,18 @@ const TOKYO_TIMEZONE = 'Asia/Tokyo';
 
 /**
  * Get current date in Tokyo timezone (YYYY-MM-DD format)
+ *
+ * NOTE (2026-01): The "-1 day hack" was removed because the database now uses
+ * TIMESTAMPTZ (game_datetime) and the games_tokyo view handles timezone conversion.
+ * Query directly with Tokyo date against the games_tokyo view.
  */
 export function getTokyoDate(): string {
   const now = new Date();
   const tokyoDate = new Date(now.toLocaleString('en-US', { timeZone: TOKYO_TIMEZONE }));
 
-  // IMPORTANT for NBA: Tokyo "Today" corresponds to US "Yesterday" games
-  // So if it is Jan 24 in Tokyo, we want to show Jan 23 US games
-  // We subtract 1 day from the Tokyo date to get the "NBA Game Date"
-  const nbaDate = new Date(tokyoDate);
-  nbaDate.setDate(nbaDate.getDate() - 1);
-
-  const year = nbaDate.getFullYear();
-  const month = String(nbaDate.getMonth() + 1).padStart(2, '0');
-  const day = String(nbaDate.getDate()).padStart(2, '0');
+  const year = tokyoDate.getFullYear();
+  const month = String(tokyoDate.getMonth() + 1).padStart(2, '0');
+  const day = String(tokyoDate.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
 }

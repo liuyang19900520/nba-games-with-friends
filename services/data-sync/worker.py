@@ -256,14 +256,16 @@ def handle_data_audit(payload: Dict[str, Any], logger: SyncLogger) -> bool:
     issues_found = []
 
     try:
-        # Check 1: Orphaned games (Scheduled but past date)
+        # Check 1: Orphaned games (Scheduled but past datetime)
+        # Use Tokyo timezone boundary for today
+        today_start = f"{today_str}T00:00:00+09:00"  # Tokyo timezone
         result = db.table("games") \
-            .select("id, game_date, status") \
+            .select("id, game_datetime, status") \
             .eq("season", season) \
             .eq("status", "Scheduled") \
-            .lt("game_date", today_str) \
+            .lt("game_datetime", today_start) \
             .execute()
-        
+
         orphaned_games = result.data
         if orphaned_games:
             issues_found.append({
@@ -275,7 +277,7 @@ def handle_data_audit(payload: Dict[str, Any], logger: SyncLogger) -> bool:
 
         # Check 2: Final games without scores
         result = db.table("games") \
-            .select("id, game_date") \
+            .select("id, game_datetime") \
             .eq("season", season) \
             .eq("status", "Final") \
             .is_("home_score", "null") \
@@ -314,8 +316,11 @@ def handle_data_audit(payload: Dict[str, Any], logger: SyncLogger) -> bool:
         if auto_fix and orphaned_games:
             logger.info("Attempting to fix orphaned games...")
             from services.game_service import sync_games_for_date
-            
-            dates_to_fix = sorted(set(g['game_date'] for g in orphaned_games))
+
+            # Extract dates from game_datetime (TIMESTAMPTZ)
+            dates_to_fix = sorted(set(
+                g['game_datetime'][:10] for g in orphaned_games if g.get('game_datetime')
+            ))
             fixed_count = 0
             for date_str in dates_to_fix[:10]:  # Limit to 10 dates
                 try:
@@ -324,7 +329,7 @@ def handle_data_audit(payload: Dict[str, Any], logger: SyncLogger) -> bool:
                     time.sleep(3)  # Rate limiting
                 except Exception as e:
                     logger.error(f"Failed to fix games for {date_str}: {e}")
-            
+
             logger.info(f"Fixed games for {fixed_count}/{len(dates_to_fix)} dates")
 
         # Summary
@@ -390,51 +395,56 @@ def handle_backfill_data(payload: Dict[str, Any], logger: SyncLogger) -> bool:
 def handle_check_schedule(payload: Dict[str, Any], logger: SyncLogger) -> bool:
     """
     Handle CHECK_SCHEDULE task (Heartbeat from n8n).
-    
+
     Logic:
     1. Check DB for active games (Live) or games starting soon.
     2. If found, trigger sync for those games.
     3. Detect status changes and queue notifications.
     """
     logger.info("Processing CHECK_SCHEDULE...")
-    
+
     db = get_db()
     current_time = datetime.now(pytz.UTC)
-    
+
     # 1. Find relevant games
     # - Status is 'Live'
-    # - OR Status is 'Scheduled' and game_time is within next 20 minutes (or past due)
-    
-    # Since Supabase PostgREST filtering on timestamps can be tricky with complex ORs,
-    # we might fetch 'Live' and 'Scheduled' separately or just fetch relevant date's games.
-    # Simpler: Fetch today's games and filter in python (dataset is small, ~15 games/day)
-    
+    # - OR Status is 'Scheduled' and game_datetime is within next 30 minutes (or past due)
+
+    # Fetch today's games using Tokyo timezone date range
     today_str = datetime.now(TOKYO_TZ).strftime("%Y-%m-%d")
-    
-    # Fetch games for today (and maybe yesterday for spillover)
+    today_start = f"{today_str}T00:00:00+09:00"  # Tokyo timezone start
+    today_end = f"{today_str}T23:59:59+09:00"  # Tokyo timezone end
+
+    # Fetch games for today
     result = db.table("games") \
-        .select("id, status, game_time, home_team_id, away_team_id") \
-        .eq("game_date", today_str) \
+        .select("id, status, game_datetime, is_time_tbd, home_team_id, away_team_id") \
+        .gte("game_datetime", today_start) \
+        .lte("game_datetime", today_end) \
         .execute()
-        
+
     games = result.data
     games_to_sync = []
-    
+
     for game in games:
         g_status = game.get('status')
-        g_time_str = game.get('game_time') # ISO string
+        g_datetime_str = game.get('game_datetime')
         g_id = game.get('id')
-        
+        is_tbd = game.get('is_time_tbd', False)
+
         if g_status == 'Live':
             games_to_sync.append(g_id)
             continue
-            
-        if g_status == 'Scheduled' and g_time_str:
+
+        # Skip TBD games for auto-sync (they can't be "starting soon")
+        if is_tbd:
+            continue
+
+        if g_status == 'Scheduled' and g_datetime_str:
             try:
-                g_time = datetime.fromisoformat(g_time_str.replace('Z', '+00:00'))
+                g_datetime = datetime.fromisoformat(g_datetime_str.replace('Z', '+00:00'))
                 # If game is within 30 mins or has passed
-                diff = (g_time - current_time).total_seconds() / 60
-                if diff <= 30: # Starts within 30 mins or already started
+                diff = (g_datetime - current_time).total_seconds() / 60
+                if diff <= 30:  # Starts within 30 mins or already started
                     games_to_sync.append(g_id)
             except Exception:
                 pass

@@ -77,9 +77,9 @@ def audit_schedule_coverage(client) -> dict:
 
     # Get all games for the season
     result = client.table("games") \
-        .select("id, game_date, status") \
+        .select("id, game_datetime, status") \
         .eq("season", SEASON) \
-        .order("game_date") \
+        .order("game_datetime") \
         .execute()
 
     games = result.data
@@ -91,8 +91,8 @@ def audit_schedule_coverage(client) -> dict:
         print("Status: FAIL - No games found for season 2025-26")
         return {"status": "FAIL", "total_games": 0, "gaps": []}
 
-    # Parse dates and check coverage
-    game_dates = sorted(set(g['game_date'] for g in games))
+    # Parse dates and check coverage (extract date from game_datetime)
+    game_dates = sorted(set(g['game_datetime'][:10] for g in games if g.get('game_datetime')))
     first_date = game_dates[0]
     last_date = game_dates[-1]
 
@@ -155,7 +155,7 @@ def audit_game_integrity(client) -> dict:
     print_subheader("Final games missing scores")
 
     result = client.table("games") \
-        .select("id, game_date, status, home_score, away_score, home_team_id, away_team_id") \
+        .select("id, game_datetime, status, home_score, away_score, home_team_id, away_team_id") \
         .eq("status", "Final") \
         .eq("season", SEASON) \
         .execute()
@@ -166,7 +166,8 @@ def audit_game_integrity(client) -> dict:
     if missing_scores:
         print(f"WARNING: {len(missing_scores)} Final games have missing scores!")
         for g in missing_scores[:5]:
-            print(f"  Game {g['id']} on {g['game_date']}: home={g['home_score']}, away={g['away_score']}")
+            game_date = g['game_datetime'][:10] if g.get('game_datetime') else 'N/A'
+            print(f"  Game {g['id']} on {game_date}: home={g['home_score']}, away={g['away_score']}")
         issues.append({"type": "final_no_score", "count": len(missing_scores), "examples": missing_scores[:5]})
     else:
         print(f"PASS: All {len(final_games)} Final games have scores")
@@ -175,24 +176,26 @@ def audit_game_integrity(client) -> dict:
     # All games before today should have status='Final' (not 'Scheduled')
     print_subheader("Orphaned/stuck scheduled games (past dates) - CRITICAL")
 
-    today_str = TODAY.strftime("%Y-%m-%d")
+    # Use Tokyo timezone for today boundary
+    today_start = TODAY.strftime("%Y-%m-%d") + "T00:00:00+09:00"
 
     result = client.table("games") \
-        .select("id, game_date, status, home_team_id, away_team_id") \
+        .select("id, game_datetime, status, home_team_id, away_team_id") \
         .eq("status", "Scheduled") \
         .eq("season", SEASON) \
-        .lt("game_date", today_str) \
-        .order("game_date") \
+        .lt("game_datetime", today_start) \
+        .order("game_datetime") \
         .execute()
 
     orphaned_games = result.data
 
     if orphaned_games:
-        print(f"⚠️  CRITICAL: {len(orphaned_games)} games are 'Scheduled' but game_date is in the past!")
+        print(f"⚠️  CRITICAL: {len(orphaned_games)} games are 'Scheduled' but game_datetime is in the past!")
         print(f"   All past games should have status='Final'.")
         print(f"\n   Sample orphaned games:")
         for g in orphaned_games[:10]:
-            print(f"     Game {g['id']} on {g['game_date']}")
+            game_date = g['game_datetime'][:10] if g.get('game_datetime') else 'N/A'
+            print(f"     Game {g['id']} on {game_date}")
         if len(orphaned_games) > 10:
             print(f"     ... and {len(orphaned_games) - 10} more")
         print(f"\n   → Fix: python check-data/backfill_data.py --phase1")
@@ -202,7 +205,7 @@ def audit_game_integrity(client) -> dict:
 
     # Check 3: In Progress games (should be rare unless during live games)
     result = client.table("games") \
-        .select("id, game_date, status") \
+        .select("id, game_datetime, status") \
         .eq("status", "In Progress") \
         .eq("season", SEASON) \
         .execute()
@@ -212,7 +215,8 @@ def audit_game_integrity(client) -> dict:
         print_subheader("Games currently 'In Progress'")
         print(f"Found {len(in_progress)} games in progress:")
         for g in in_progress:
-            print(f"  Game {g['id']} on {g['game_date']}")
+            game_date = g['game_datetime'][:10] if g.get('game_datetime') else 'N/A'
+            print(f"  Game {g['id']} on {game_date}")
 
     return {
         "status": "FAIL" if issues else "PASS",
@@ -228,13 +232,14 @@ def audit_stats_coverage(client) -> dict:
 
     # Get all Final games
     result = client.table("games") \
-        .select("id, game_date") \
+        .select("id, game_datetime") \
         .eq("status", "Final") \
         .eq("season", SEASON) \
-        .order("game_date") \
+        .order("game_datetime") \
         .execute()
 
-    final_games = {g['id']: g['game_date'] for g in result.data}
+    # Extract date from game_datetime for display
+    final_games = {g['id']: g['game_datetime'][:10] if g.get('game_datetime') else 'N/A' for g in result.data}
     final_game_count = len(final_games)
 
     print(f"Total Final games: {final_game_count}")

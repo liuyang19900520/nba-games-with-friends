@@ -24,7 +24,7 @@ export async function fetchMatchDetail(
     const { data: gameData, error: gameError } = await supabase
       .from("games")
       .select(
-        "id, season, game_date, status, is_playoff, home_score, away_score, home_team_id, away_team_id, arena_name"
+        "id, season, game_datetime, is_time_tbd, status, is_playoff, home_score, away_score, home_team_id, away_team_id, arena_name"
       )
       .eq("id", matchId)
       .single();
@@ -116,7 +116,7 @@ export async function fetchMatchDetail(
       id: String(gameData.id),
       status:
         (gameData.status as "Scheduled" | "Live" | "Final") || "Scheduled",
-      gameDate: gameData.game_date || new Date().toISOString(),
+      gameDate: gameData.game_datetime || new Date().toISOString(),
       gameType,
       arenaName: gameData.arena_name || undefined,
       awayTeam: {

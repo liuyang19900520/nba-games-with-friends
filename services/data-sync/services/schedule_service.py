@@ -1,11 +1,15 @@
 """
 Game schedule synchronization service.
-Fetches NBA game schedule information (pre-game data: date, time, arena, status)
+Fetches NBA game schedule information (pre-game data: datetime, arena, status)
 and syncs to Supabase games table.
 
 This service is separate from game stats synchronization:
 - sync_schedule: Maintains games table with schedule information (pre-game data)
 - sync_stats: Maintains game_player_stats table with post-game statistics
+
+Key data model (2026-01):
+- game_datetime: TIMESTAMPTZ - Combined date+time in UTC
+- is_time_tbd: BOOLEAN - True when game time is not yet announced
 
 API: ScoreboardV2 (to get game IDs) + BoxScoreSummaryV3 (to get detailed schedule info)
 Table: games
@@ -164,6 +168,7 @@ def _fetch_game_schedule_info(game_id: str, nba_team_id_to_db_id: Dict[str, int]
         return None
     
     # Parse and convert to UTC
+    is_time_tbd = False
     try:
         # gameEt format: "2026-01-14T19:00:00Z" or "2026-01-14T19:00:00"
         dt_str = game_time_str.replace('Z', '')
@@ -173,26 +178,32 @@ def _fetch_game_schedule_info(game_id: str, nba_team_id_to_db_id: Dict[str, int]
                 dt = datetime.strptime(dt_str, '%Y-%m-%dT%H:%M:%S')
                 est_tz = pytz.timezone('US/Eastern')
                 dt = est_tz.localize(dt)
+                # Check if time is midnight (indicates TBD)
+                if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+                    is_time_tbd = True
             else:
                 # Parse as UTC (gameTimeUTC)
                 dt = datetime.strptime(dt_str, '%Y-%m-%dT%H:%M:%S')
                 dt = pytz.UTC.localize(dt)
+                # Check if time is midnight (indicates TBD)
+                if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+                    is_time_tbd = True
         else:
-            # Date only
+            # Date only - means TBD
             dt = datetime.strptime(dt_str, '%Y-%m-%d')
             dt = dt.replace(hour=12, minute=0, second=0)
             est_tz = pytz.timezone('US/Eastern')
             dt = est_tz.localize(dt)
-        
+            is_time_tbd = True
+
         # Convert to UTC
         if dt.tzinfo is None:
             dt = pytz.UTC.localize(dt)
         else:
             dt = dt.astimezone(pytz.UTC)
-        
-        # Extract date and time separately
-        game_date = dt.date()  # date object (YYYY-MM-DD)
-        game_time = dt.time()  # time object (HH:MM:SS)
+
+        # Store as TIMESTAMPTZ (full datetime with timezone)
+        game_datetime = dt
     except Exception as e:
         print(f"  ⚠️ Error parsing game time for {game_id}: {e}")
         return None
@@ -214,12 +225,17 @@ def _fetch_game_schedule_info(game_id: str, nba_team_id_to_db_id: Dict[str, int]
     
     # Map status
     status = _map_game_status(game_status_code)
-    
+
     # Build schedule data (only pre-game information, no scores)
+    # NOTE: During migration period, output BOTH old (game_date/game_time) and new (game_datetime/is_time_tbd)
     schedule_data = {
         'id': str(game_id),
-        'game_date': game_date.isoformat(),  # YYYY-MM-DD format
-        'game_time': game_time.isoformat(),  # HH:MM:SS format (UTC)
+        # New columns (TIMESTAMPTZ unified)
+        'game_datetime': game_datetime.isoformat(),  # TIMESTAMPTZ (ISO format with timezone)
+        'is_time_tbd': is_time_tbd,  # True if game time is not yet announced
+        # Legacy columns (for backward compatibility during migration)
+        'game_date': game_datetime.date().isoformat(),  # YYYY-MM-DD
+        'game_time': game_datetime.time().isoformat(),  # HH:MM:SS
         'status': status,
         'is_playoff': is_playoff,
         'arena_name': arena_name if arena_name else None,
@@ -341,17 +357,21 @@ def sync_schedule_for_date_range(start_date_str: str, end_date_str: str, season:
         
         # Verify
         print("\nVerifying data insertion...")
+        date_start = f"{start_date_str}T00:00:00+00:00"
+        date_end = f"{end_date_str}T23:59:59+00:00"
         verify_result = supabase.table('games').select(
-            'id, game_date, game_time, status, arena_name'
-        ).gte('game_date', start_date_str).lte('game_date', end_date_str).limit(5).execute()
-        
+            'id, game_datetime, is_time_tbd, status, arena_name'
+        ).gte('game_datetime', date_start).lte('game_datetime', date_end).limit(5).execute()
+
         if verify_result.data:
             print(f"✅ Verification successful! Found games in database")
             print("Sample games:")
             for game in verify_result.data[:3]:
-                game_time = game.get('game_time', '00:00:00')
+                game_dt = game.get('game_datetime', 'N/A')
+                is_tbd = game.get('is_time_tbd', False)
                 arena = game.get('arena_name', 'N/A')
-                print(f"  - Game {game['id']}: {game['game_date']} {game_time} UTC, {game['status']}, Arena: {arena}")
+                tbd_str = " (TBD)" if is_tbd else ""
+                print(f"  - Game {game['id']}: {game_dt}{tbd_str}, {game['status']}, Arena: {arena}")
         
         print(f"\n✅ Schedule sync completed!")
         print(f"  Total games synced: {synced_count}")

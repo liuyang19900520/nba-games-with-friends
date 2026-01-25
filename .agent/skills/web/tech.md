@@ -59,6 +59,26 @@ src/
 └── types/             # TypeScript interfaces
 ```
 
+## 5. Game Datetime Queries (2026-01 Update)
+
+### Using the `games_tokyo` View
+```typescript
+// Query games by Tokyo date directly
+const { data } = await supabase
+  .from("games_tokyo")
+  .select("id, game_datetime, game_date_tokyo, is_time_tbd, status")
+  .eq("game_date_tokyo", "2026-01-26")  // Direct comparison!
+  .order("game_datetime");
+```
+
+### Key Files Updated
+| File | Change |
+|------|--------|
+| `lib/utils/timezone.ts` | Removed "-1 day hack" from `getTokyoDate()` |
+| `lib/db/games.ts` | Uses `games_tokyo` view instead of complex filtering |
+| `lib/db/players.ts` | Uses `games_tokyo` view for team queries |
+| `lib/db/matchups.ts` | Uses `games_tokyo` view for game queries |
+
 ## Lessons Learned
 
 > [!TIP]
@@ -66,3 +86,6 @@ src/
 
 > [!TIP]
 > **Supabase Auth Callback**: The `/auth/callback` route must use `createRouteHandlerClient` not the regular server client.
+
+> [!TIP]
+> **Game Datetime Migration**: When querying games by date, use the `games_tokyo` view with `game_date_tokyo` column instead of manual timezone conversion. The view handles all timezone logic.

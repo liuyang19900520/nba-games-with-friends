@@ -45,9 +45,9 @@ def check_games_table(client) -> dict:
 
     # Get all games
     result = client.table("games") \
-        .select("id, game_date, status, home_score, away_score, updated_at") \
+        .select("id, game_datetime, status, home_score, away_score, updated_at") \
         .eq("season", SEASON) \
-        .order("game_date", desc=True) \
+        .order("game_datetime", desc=True) \
         .execute()
 
     games = result.data
@@ -60,13 +60,14 @@ def check_games_table(client) -> dict:
     in_progress = []
 
     for g in games:
+        game_date = g['game_datetime'][:10] if g.get('game_datetime') else ''
         if g['status'] == 'Final':
             if g['home_score'] is not None and g['away_score'] is not None:
                 final_with_scores.append(g)
             else:
                 final_no_scores.append(g)
         elif g['status'] == 'Scheduled':
-            if g['game_date'] < TODAY_STR:
+            if game_date < TODAY_STR:
                 scheduled_past.append(g)
             else:
                 scheduled_future.append(g)
@@ -84,8 +85,9 @@ def check_games_table(client) -> dict:
     # Sample of games without scores
     if final_no_scores:
         print(f"\nSample Final games missing scores (most recent 5):")
-        for g in sorted(final_no_scores, key=lambda x: x['game_date'], reverse=True)[:5]:
-            print(f"    {g['id']} | {g['game_date']} | updated: {g['updated_at'][:10] if g['updated_at'] else 'N/A'}")
+        for g in sorted(final_no_scores, key=lambda x: x.get('game_datetime', ''), reverse=True)[:5]:
+            game_date = g['game_datetime'][:10] if g.get('game_datetime') else 'N/A'
+            print(f"    {g['id']} | {game_date} | updated: {g['updated_at'][:10] if g['updated_at'] else 'N/A'}")
 
     return {
         "total": len(games),
@@ -130,14 +132,15 @@ def check_game_player_stats(client, games_info: dict) -> dict:
     if games_missing_stats:
         # Get dates for missing games
         result = client.table("games") \
-            .select("id, game_date") \
+            .select("id, game_datetime") \
             .in_("id", list(games_missing_stats)[:100]) \
-            .order("game_date") \
+            .order("game_datetime") \
             .execute()
 
         missing_by_date = defaultdict(list)
         for g in result.data:
-            missing_by_date[g['game_date']].append(g['id'])
+            game_date = g['game_datetime'][:10] if g.get('game_datetime') else 'N/A'
+            missing_by_date[game_date].append(g['id'])
 
         print(f"\nMissing stats by date (first 10 dates):")
         for date in sorted(missing_by_date.keys())[:10]:

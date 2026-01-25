@@ -549,16 +549,11 @@ export async function fetchMatchupLineup(
     }
 
     // 4. Fetch game_player_stats for these players on the target date
-    // First, get game IDs for the target date
-    const dateStart = new Date(targetDate + "T00:00:00Z");
-    const dateEnd = new Date(dateStart);
-    dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
-
+    // Use games_tokyo view for direct Tokyo date filtering
     const { data: gamesData, error: gamesError } = await supabase
-      .from("games")
+      .from("games_tokyo")
       .select("id, status")
-      .gte("game_date", dateStart.toISOString())
-      .lt("game_date", dateEnd.toISOString());
+      .eq("game_date_tokyo", targetDate);
 
     if (gamesError) {
       logger.error("[fetchMatchupLineup] Error fetching games:", gamesError);

@@ -87,6 +87,25 @@ aws lightsail open-instance-public-ports \
 
 ---
 
+### [2026-01-25] Game Datetime Unification - Timezone Handling
+**Context**: Unified `game_date` + `game_time` into single `game_datetime` (TIMESTAMPTZ) column
+**Problem**: Multiple issues with separate date/time columns:
+1. Frontend had "-1 day hack" in `getTokyoDate()` to map US dates to Tokyo dates
+2. Complex timezone conversion logic scattered across frontend/backend
+3. TBD games had dummy "00:00:00" times causing confusion
+**Root Cause**: Storing date and time separately loses timezone information. Each consumer had to implement their own timezone conversion logic.
+**Solution**:
+1. Added `game_datetime` (TIMESTAMPTZ) - stores full datetime in UTC
+2. Added `is_time_tbd` (BOOLEAN) - explicitly marks TBD games
+3. Created `games_tokyo` view - pre-computes Tokyo date/time
+4. Migration outputs BOTH old and new columns for backward compatibility
+**Prevention**:
+- Always use TIMESTAMPTZ for datetime storage, not separate DATE + TIME
+- Use database views for timezone conversions instead of application logic
+- During migrations, output both old and new columns until all consumers are updated
+
+---
+
 ## Archive
 
 > Move old entries here after 30 days to keep the active section focused.

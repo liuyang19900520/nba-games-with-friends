@@ -2,12 +2,16 @@
 Game synchronization service.
 Fetches NBA game data and syncs to Supabase games table.
 Handles US "Yesterday" (Tokyo "Today") and US "Today" (Tokyo "Tomorrow") games.
+
+Key data model change (2026-01):
+- game_datetime: TIMESTAMPTZ - Combined date+time in UTC
+- is_time_tbd: BOOLEAN - True when game time is not yet announced
 """
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
 import pytz
 
-from nba_api.stats.endpoints import scoreboardv2
+from nba_api.stats.endpoints import scoreboardv2, boxscoresummaryv3
 from db import get_db
 from utils import get_current_nba_season, safe_call_nba_api
 
@@ -303,26 +307,30 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
     
     # Parse and format UTC datetime
     # The API might return different formats, handle both
+    is_time_tbd = False
     try:
         if 'T' in game_time_utc:
             # ISO format: "2024-12-24T20:00:00Z" or "2024-12-24T20:00:00"
             dt = datetime.fromisoformat(game_time_utc.replace('Z', '+00:00'))
+            # Check if time is midnight (indicates TBD)
+            if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+                is_time_tbd = True
         else:
             # Date only: "2024-12-24"
             dt = datetime.strptime(game_time_utc, '%Y-%m-%d')
             # Set to noon UTC if no time provided
             dt = dt.replace(hour=12, minute=0, second=0)
             dt = pytz.UTC.localize(dt)
-        
+            is_time_tbd = True  # No time means TBD
+
         # Ensure it's timezone-aware (UTC)
         if dt.tzinfo is None:
             dt = pytz.UTC.localize(dt)
         else:
             dt = dt.astimezone(pytz.UTC)
-        
-        # Extract date and time separately
-        game_date = dt.date()  # date object (YYYY-MM-DD)
-        game_time = dt.time()  # time object (HH:MM:SS)
+
+        # Store as TIMESTAMPTZ (full datetime with timezone)
+        game_datetime = dt
     except Exception:
         return None  # Skip games with invalid dates
     
@@ -343,10 +351,10 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
     away_score = game.get('awayTeam', {}).get('score')
     
     # IMPORTANT: Smart status correction for past games
-    # If game_date is in the past and we have scores, it should be 'Final'
+    # If game_datetime is in the past and we have scores, it should be 'Final'
     # ScoreboardV2 sometimes returns incorrect status for past games
-    today = datetime.now(pytz.UTC).date()
-    if game_date < today:
+    now_utc = datetime.now(pytz.UTC)
+    if game_datetime < now_utc:
         if home_score is not None and away_score is not None:
             # Has scores = game is finished
             if status != 'Final':
@@ -356,16 +364,21 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
             # Past game without scores but marked as Scheduled - needs investigation
             # Mark for re-fetch with BoxScoreTraditionalV3
             game['_needs_refetch'] = True
-    
+
     # Get arena name
     arena_name = game.get('arena', {}).get('name', '')
-    
+
     # Build game data
+    # NOTE: During migration period, output BOTH old (game_date/game_time) and new (game_datetime/is_time_tbd)
     game_data = {
         'id': str(game_id),
         'season': season,
-        'game_date': game_date.isoformat(),  # YYYY-MM-DD format
-        'game_time': game_time.isoformat(),  # HH:MM:SS format
+        # New columns (TIMESTAMPTZ unified)
+        'game_datetime': game_datetime.isoformat(),  # TIMESTAMPTZ (ISO format with timezone)
+        'is_time_tbd': is_time_tbd,  # True if game time is not yet announced
+        # Legacy columns (for backward compatibility during migration)
+        'game_date': game_datetime.date().isoformat(),  # YYYY-MM-DD
+        'game_time': game_datetime.time().isoformat(),  # HH:MM:SS
         'status': status,
         'is_playoff': is_playoff,
         'home_team_id': int(home_team_id),
@@ -373,13 +386,13 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
         'arena_name': arena_name if arena_name else None,
         'updated_at': datetime.now(pytz.UTC).isoformat()  # Current UTC time
     }
-    
+
     # Only include scores if they exist
     if home_score is not None:
         game_data['home_score'] = int(home_score)
     if away_score is not None:
         game_data['away_score'] = int(away_score)
-    
+
     return game_data
 
 
@@ -467,38 +480,40 @@ def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str
     # If no game info, try to get from database (game might already exist)
     if not game_time_utc:
         supabase = get_db()
-        existing_game = supabase.table('games').select('game_date, game_time').eq('id', game_id).execute()
+        existing_game = supabase.table('games').select('game_datetime').eq('id', game_id).execute()
         if existing_game.data:
             existing_data = existing_game.data[0]
-            game_date_str = existing_data.get('game_date', '')
-            game_time_str = existing_data.get('game_time', '00:00:00')
-            if game_date_str:
-                # Reconstruct ISO format from date and time
-                game_time_utc = f"{game_date_str}T{game_time_str}Z"
-    
+            game_datetime_str = existing_data.get('game_datetime', '')
+            if game_datetime_str:
+                game_time_utc = game_datetime_str
+
         # If still no game time, use current date as fallback
         if not game_time_utc:
             print(f"[game_service] Warning: No game time found for game {game_id}, using current date")
             dt = datetime.now(pytz.UTC)
             game_time_utc = dt.isoformat()
-    
+
     # Parse and format UTC datetime
+    is_time_tbd = False
     try:
         if 'T' in game_time_utc:
             dt = datetime.fromisoformat(game_time_utc.replace('Z', '+00:00'))
+            # Check if time is midnight (indicates TBD)
+            if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+                is_time_tbd = True
         else:
             dt = datetime.strptime(game_time_utc, '%Y-%m-%d')
             dt = dt.replace(hour=12, minute=0, second=0)
             dt = pytz.UTC.localize(dt)
-        
+            is_time_tbd = True  # No time means TBD
+
         if dt.tzinfo is None:
             dt = pytz.UTC.localize(dt)
         else:
             dt = dt.astimezone(pytz.UTC)
-        
-        # Extract date and time separately
-        game_date = dt.date()  # date object (YYYY-MM-DD)
-        game_time = dt.time()  # time object (HH:MM:SS)
+
+        # Store as TIMESTAMPTZ (full datetime with timezone)
+        game_datetime = dt
     except Exception as e:
         print(f"[game_service] Error parsing game time for game {game_id}: {e}")
         return None
@@ -564,13 +579,19 @@ def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str
     arena_name = ''
     if game_info:
         arena_name = game_info.get('arenaName', '')
-    
+
     # Build game data
+    # NOTE: During migration period, output BOTH old (game_date/game_time) and new (game_datetime/is_time_tbd)
+    # This allows gradual migration. After all consumers are updated, remove old columns.
     game_data = {
         'id': str(game_id),
         'season': season,
-        'game_date': game_date.isoformat(),  # YYYY-MM-DD format
-        'game_time': game_time.isoformat(),  # HH:MM:SS format
+        # New columns (TIMESTAMPTZ unified)
+        'game_datetime': game_datetime.isoformat(),  # TIMESTAMPTZ (ISO format with timezone)
+        'is_time_tbd': is_time_tbd,  # True if game time is not yet announced
+        # Legacy columns (for backward compatibility during migration)
+        'game_date': game_datetime.date().isoformat(),  # YYYY-MM-DD
+        'game_time': game_datetime.time().isoformat(),  # HH:MM:SS
         'status': status,
         'is_playoff': is_playoff,
         'home_team_id': int(home_team_id),
@@ -578,13 +599,13 @@ def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str
         'arena_name': arena_name if arena_name else None,
         'updated_at': datetime.now(pytz.UTC).isoformat()  # Current UTC time
     }
-    
+
     # Only include scores if they exist
     if home_score is not None:
         game_data['home_score'] = int(home_score)
     if away_score is not None:
         game_data['away_score'] = int(away_score)
-    
+
     return game_data
 
 
@@ -686,7 +707,7 @@ def sync_games_for_date(date_str: str, sync_player_stats: bool = False) -> None:
         sync_player_stats: If True, also sync player stats for completed games (status='Final')
     
     Extracts game info:
-    - id, season, game_date, status, home_team_id, away_team_id,
+    - id, season, game_datetime, is_time_tbd, status, home_team_id, away_team_id,
       home_score, away_score, arena_name
     """
     try:
@@ -787,8 +808,10 @@ def sync_games_for_date(date_str: str, sync_player_stats: bool = False) -> None:
         
         # Verify
         print("\nVerifying data insertion...")
-        # Note: game_date is now a date field, so we can compare directly with date string
-        verify_result = supabase.table('games').select('id, status').eq('game_date', date_str).limit(5).execute()
+        # Use date range query on game_datetime (TIMESTAMPTZ)
+        date_start = f"{date_str}T00:00:00+00:00"
+        date_end = f"{date_str}T23:59:59+00:00"
+        verify_result = supabase.table('games').select('id, status, game_datetime').gte('game_datetime', date_start).lte('game_datetime', date_end).limit(5).execute()
         if verify_result.data:
             print(f"  ✅ Verification successful! Found games in database for {date_str}")
             print("  Sample games:")
@@ -868,9 +891,9 @@ def sync_games() -> None:
     Fetches games for:
     - US "Yesterday" (Tokyo "Today") - mostly Final games
     - US "Today" (Tokyo "Tomorrow") - mostly Scheduled games
-    
+
     Extracts game info:
-    - id, season, game_date, status, home_team_id, away_team_id,
+    - id, season, game_datetime, is_time_tbd, status, home_team_id, away_team_id,
       home_score, away_score, arena_name
     """
     try:
@@ -981,14 +1004,14 @@ def sync_games() -> None:
         # Verify data insertion
         print("\nVerifying data insertion...")
         verify_result = supabase.table('games').select(
-            'id, season, game_date, status, home_team_id, away_team_id'
+            'id, season, game_datetime, status, home_team_id, away_team_id'
         ).eq('season', season).limit(5).execute()
-        
+
         if verify_result.data:
             print(f"✅ Verification successful! Found games in database")
             print("Sample games:")
             for game in verify_result.data[:3]:
-                print(f"  - Game {game['id']}: {game['status']} on {game['game_date']}")
+                print(f"  - Game {game['id']}: {game['status']} on {game['game_datetime']}")
         else:
             print("⚠️ Warning: No games found in database after insertion")
         

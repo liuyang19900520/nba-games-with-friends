@@ -8,10 +8,11 @@ import type { GameResult } from "@/types";
 /**
  * Fetch recent game results
  *
- * Table structure (from DDL):
+ * Table structure (updated 2026-01):
  * - id (text, primary key)
  * - season (text)
- * - game_date (timestamptz)
+ * - game_datetime (timestamptz) - Combined date+time in UTC
+ * - is_time_tbd (boolean) - True if game time is not yet announced
  * - status (text, default 'Scheduled')
  * - arena_name (text, optional)
  * - is_playoff (boolean, default false)
@@ -22,8 +23,12 @@ import type { GameResult } from "@/types";
  * - created_at (timestamptz)
  * - updated_at (timestamptz)
  *
+ * View: games_tokyo - Provides pre-computed Tokyo date/time columns
+ * - game_date_tokyo (date) - Date in Tokyo timezone
+ * - game_time_tokyo (time) - Time in Tokyo timezone
+ *
  * @param limit - Maximum number of games to return
- * @param gameDate - Optional game date to filter by. If not provided, uses configured date
+ * @param gameDate - Optional game date (Tokyo timezone) to filter by. If not provided, uses configured date
  * @returns Promise<GameResult[]> Array of game results
  */
 export async function fetchRecentGames(
@@ -77,14 +82,17 @@ export async function fetchRecentGames(
     }
 
     // Step 2: Fetch games data with specific fields
+    // Using games_tokyo view for direct Tokyo date filtering
     logger.info(
       "[fetchRecentGames] Step 2: Fetching with specific fields and ordering..."
     );
     type GameRow = {
       id: string;
       season?: string;
-      game_date?: string;
-      game_time?: string;
+      game_datetime?: string;
+      game_date_tokyo?: string;
+      game_time_tokyo?: string;
+      is_time_tbd?: boolean;
       status?: string;
       is_playoff?: boolean;
       home_score?: number | null;
@@ -94,40 +102,32 @@ export async function fetchRecentGames(
     };
 
     // Build query with optional date filter
+    // Use games_tokyo view for pre-computed Tokyo timezone columns
     let query = supabase
-      .from("games")
+      .from("games_tokyo")
       .select(
-        "id, season, game_date, game_time, status, is_playoff, home_score, away_score, home_team_id, away_team_id"
+        "id, season, game_datetime, game_date_tokyo, game_time_tokyo, is_time_tbd, status, is_playoff, home_score, away_score, home_team_id, away_team_id"
       );
 
-    // If gameDate is provided, filter by date
+    // If gameDate is provided, filter by Tokyo date directly
     if (targetDate) {
       const dateStr = typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0];
-      // Widen the search window: [Target - 1 day, Target + 2 days] (UTC)
-      // This ensures we catch all games that could possibly fall into the JST target date
-      const dateStart = new Date(dateStr + 'T00:00:00Z');
-      dateStart.setUTCDate(dateStart.getUTCDate() - 1); // Look back 1 day
-
-      const dateEnd = new Date(dateStr + 'T00:00:00Z');
-      dateEnd.setUTCDate(dateEnd.getUTCDate() + 2);   // Look forward 2 days
-
       logger.info(
-        `[fetchRecentGames] Date filter (Broad): target=${dateStr}, range=[${dateStart.toISOString()}, ${dateEnd.toISOString()})`
+        `[fetchRecentGames] Date filter (Tokyo): target=${dateStr}`
       );
 
-      query = query
-        .gte("game_date", dateStart.toISOString())
-        .lt("game_date", dateEnd.toISOString());
+      // Direct comparison with game_date_tokyo from the view
+      query = query.eq("game_date_tokyo", dateStr);
     } else {
       logger.info("[fetchRecentGames] No date filter applied");
     }
 
     query = query
-      .order("game_date", { ascending: false, nullsFirst: false })
-      .limit(limit * 3); // Fetch more to allow for filtering
+      .order("game_datetime", { ascending: true, nullsFirst: false })
+      .limit(limit);
 
     logger.info(
-      `[fetchRecentGames] Executing query with expanded limit=${limit * 3}${targetDate ? `, date=${typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0]}` : ''}`
+      `[fetchRecentGames] Executing query with limit=${limit}${targetDate ? `, date=${typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0]}` : ''}`
     );
 
     const { data: simpleData, error: simpleError } = await query;
@@ -182,15 +182,15 @@ export async function fetchRecentGames(
       // Try query without date filter to see if there's any data at all
       logger.info("[fetchRecentGames] Trying query without date filter to check if data exists...");
       const { data: noDateFilterData, error: noDateFilterError } = await supabase
-        .from("games")
-        .select("id, game_date, status")
+        .from("games_tokyo")
+        .select("id, game_datetime, game_date_tokyo, status")
         .limit(10);
 
       if (noDateFilterError) {
         logger.error("[fetchRecentGames] Query without date filter also failed:", noDateFilterError);
       } else {
         logger.info(
-          `[fetchRecentGames] Query without date filter returned ${noDateFilterData?.length || 0} rows. Sample dates: ${noDateFilterData?.slice(0, 5).map(g => g.game_date).join(', ') || 'none'
+          `[fetchRecentGames] Query without date filter returned ${noDateFilterData?.length || 0} rows. Sample dates: ${noDateFilterData?.slice(0, 5).map(g => g.game_date_tokyo).join(', ') || 'none'
           }`
         );
       }
@@ -198,9 +198,9 @@ export async function fetchRecentGames(
       // Try query without ordering to see if it's an ordering issue
       logger.info("[fetchRecentGames] Trying query without ordering...");
       const { data: noOrderData, error: noOrderError } = await supabase
-        .from("games")
+        .from("games_tokyo")
         .select(
-          "id, season, game_date, status, is_playoff, home_score, away_score, home_team_id, away_team_id"
+          "id, season, game_datetime, status, is_playoff, home_score, away_score, home_team_id, away_team_id"
         )
         .limit(limit);
 
@@ -307,21 +307,14 @@ export async function fetchRecentGames(
         gameType = `${game.season} Regular Season`;
       }
 
-      // Construct full ISO timestamp for correct JST conversion
-      let fullIsoString = undefined;
-      if (game.game_date) {
-        // If game_time is present, combine them: "YYYY-MM-DD" + "THH:mm:ss" + "Z" (assuming stored time is UTC)
-        if (game.game_time) {
-          fullIsoString = `${game.game_date}T${game.game_time}Z`;
-        } else {
-          fullIsoString = `${game.game_date}T00:00:00Z`;
-        }
-      }
+      // game_datetime is already a full ISO timestamp (TIMESTAMPTZ)
+      const fullIsoString = game.game_datetime || undefined;
 
       return {
         id: String(game.id),
         gameType,
         status: game.status || undefined,
+        isTimeTbd: game.is_time_tbd || false,
         homeTeam: {
           id: String(homeTeam?.id || game.home_team_id || ""),
           name: homeTeam?.name || "Unknown",
@@ -337,39 +330,15 @@ export async function fetchRecentGames(
           score: game.away_score ?? 0,
         },
         ratingCount: undefined, // Not available in current schema
-        gameDate: fullIsoString, // Pass full ISO string for UI formatting
+        gameDate: fullIsoString, // game_datetime is already ISO format
       };
     });
 
-    // Strict Filter: Only keep games that match the requested JST Date
-    const filteredData = targetDate
-      ? data.filter(game => {
-        if (!game.gameDate) return false;
-
-        // Perform strict JST check
-        const targetDateStr = typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0];
-
-        // Convert gameDate (ISO) to JST YYYY-MM-DD
-        const date = new Date(game.gameDate);
-        // Use formatTokyoDate behavior but reimplemented for pure string comparison safety
-        // (Since formatTokyoDate returns localized string by default, we use custom logic here for safety)
-        const jstDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
-        const year = jstDate.getFullYear();
-        const month = String(jstDate.getMonth() + 1).padStart(2, '0');
-        const day = String(jstDate.getDate()).padStart(2, '0');
-        const gameJstDateStr = `${year}-${month}-${day}`;
-
-        return gameJstDateStr === targetDateStr;
-      })
-      : data;
-
-    // Slice to original limit
-    const finalData = filteredData.slice(0, limit);
-
+    // No client-side filtering needed - the view already filtered by Tokyo date
     logger.info(
-      `[fetchRecentGames] Successfully transformed ${data.length} games, filtered to ${filteredData.length} matching JST date, returning ${finalData.length}`
+      `[fetchRecentGames] Successfully transformed ${data.length} games`
     );
-    return finalData;
+    return data;
   } catch (err) {
     logger.error("[fetchRecentGames] Unexpected error:", err);
     return [];

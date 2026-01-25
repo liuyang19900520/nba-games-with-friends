@@ -31,7 +31,14 @@
       "mcp__filesystem__directory_tree",
       "Bash(openssl s_client:*)",
       "Bash(openssl x509:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(head:*)",
+      "Bash(grep:*)",
+      "mcp__filesystem__read_text_file",
+      "mcp__filesystem__list_directory",
+      "Bash(source .venv/bin/activate)",
+      "Bash(python cli.py:*)",
+      "Bash(pip3 install:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -54,5 +54,30 @@ docker logs caddy --tail 100 -f
 3.  **"Connect ECONNREFUSED"**:
     -   Check if n8n is trying to connect to a nonexistent Postgres. Ensure SQLite is used.
 
-## 6. History & Deprecations
+## 6. Game Datetime SQL (2026-01 Update)
+
+### Tokyo Timezone Queries
+The workflow SQL uses Tokyo timezone for date comparisons:
+
+```sql
+-- Define Tokyo "today"
+WITH tokyo_today AS (
+  SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date AS today_tokyo
+)
+
+-- Query games by Tokyo date
+SELECT id FROM games, tokyo_today
+WHERE (game_datetime AT TIME ZONE 'Asia/Tokyo')::date = tokyo_today.today_tokyo
+
+-- Check if game should sync (within 30 min or live)
+AND game_datetime <= CURRENT_TIMESTAMP + INTERVAL '30 minutes'
+AND NOT COALESCE(is_time_tbd, false)  -- Skip TBD games
+```
+
+### Key SQL Pattern
+- **Old**: `WHERE game_date = CURRENT_DATE` (wrong timezone)
+- **New**: `WHERE (game_datetime AT TIME ZONE 'Asia/Tokyo')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date`
+
+## 7. History & Deprecations
 -   **Nginx**: REMOVED. Superseded by Caddy. Do not use `nginx` confs.
+-   **game_date/game_time**: Legacy columns. Use `game_datetime` + `is_time_tbd` for new queries.

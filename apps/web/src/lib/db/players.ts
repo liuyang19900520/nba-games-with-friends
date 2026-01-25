@@ -384,33 +384,21 @@ export async function fetchPlayersWithGames(
   try {
     const supabase = createServerClient();
 
-    // 1. 将日期转换为 Date 对象并计算日期范围（UTC）
-    let dateStart: Date;
-    let dateEnd: Date;
-
-    if (typeof gameDate === "string") {
-      // 解析日期字符串 "YYYY-MM-DD"
-      const date = new Date(gameDate + "T00:00:00Z");
-      dateStart = new Date(date);
-      dateEnd = new Date(date);
-      dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
-    } else {
-      dateStart = new Date(gameDate);
-      dateStart.setUTCHours(0, 0, 0, 0);
-      dateEnd = new Date(dateStart);
-      dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
-    }
+    // 1. Get the target date string for Tokyo timezone query
+    const targetDateStr = typeof gameDate === "string"
+      ? gameDate
+      : gameDate.toISOString().split("T")[0];
 
     logger.info(
-      `[fetchPlayersWithGames] Fetching players for games on ${dateStart.toISOString()} (season: ${season})`
+      `[fetchPlayersWithGames] Fetching players for games on ${targetDateStr} (Tokyo timezone, season: ${season})`
     );
 
     // 2. 查询指定日期的比赛，获取所有涉及的 team_id
+    // Use games_tokyo view for pre-computed Tokyo date column
     const { data: gamesData, error: gamesError } = await supabase
-      .from("games")
+      .from("games_tokyo")
       .select("home_team_id, away_team_id")
-      .gte("game_date", dateStart.toISOString())
-      .lt("game_date", dateEnd.toISOString())
+      .eq("game_date_tokyo", targetDateStr)
       .eq("season", season);
 
     if (gamesError) {
@@ -422,7 +410,7 @@ export async function fetchPlayersWithGames(
           details: gamesError.details,
           hint: gamesError.hint,
           code: gamesError.code,
-          gameDate: dateStart.toISOString(),
+          gameDate: targetDateStr,
           season,
         }
       );
@@ -430,7 +418,7 @@ export async function fetchPlayersWithGames(
 
     if (!gamesData || gamesData.length === 0) {
       logger.warn(
-        `[fetchPlayersWithGames] No games found for date ${dateStart.toISOString()}`
+        `[fetchPlayersWithGames] No games found for date ${targetDateStr} (Tokyo timezone)`
       );
       return [];
     }

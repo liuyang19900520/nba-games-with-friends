@@ -218,10 +218,10 @@ def get_games_needing_stats(client, progress: BackfillProgress) -> List[Dict]:
     """Get Final games that need player stats sync."""
     # Get all Final games
     result = client.table("games") \
-        .select("id, game_date") \
+        .select("id, game_datetime") \
         .eq("season", SEASON) \
         .eq("status", "Final") \
-        .order("game_date") \
+        .order("game_datetime") \
         .execute()
 
     final_games = result.data
@@ -243,10 +243,10 @@ def get_games_needing_advanced_stats(client, progress: BackfillProgress) -> List
     """Get Final games that need advanced stats sync."""
     # Get all Final games
     result = client.table("games") \
-        .select("id, game_date") \
+        .select("id, game_datetime") \
         .eq("season", SEASON) \
         .eq("status", "Final") \
-        .order("game_date") \
+        .order("game_datetime") \
         .execute()
 
     final_games = result.data
@@ -266,21 +266,22 @@ def get_games_needing_advanced_stats(client, progress: BackfillProgress) -> List
 
 def get_orphaned_scheduled_games(client) -> List[Dict]:
     """
-    Get games that are stuck in 'Scheduled' status but game_date is in the past.
+    Get games that are stuck in 'Scheduled' status but game_datetime is in the past.
     These games should have been played and need to be re-synced to get correct status.
-    
+
     IMPORTANT: All games before today should be 'Final' (or 'Postponed'/'Cancelled').
     """
-    today_str = datetime.now(TOKYO_TZ).strftime("%Y-%m-%d")
-    
+    # Use Tokyo timezone for today boundary
+    today_start = datetime.now(TOKYO_TZ).strftime("%Y-%m-%d") + "T00:00:00+09:00"
+
     result = client.table("games") \
-        .select("id, game_date, status") \
+        .select("id, game_datetime, status") \
         .eq("season", SEASON) \
         .eq("status", "Scheduled") \
-        .lt("game_date", today_str) \
-        .order("game_date") \
+        .lt("game_datetime", today_start) \
+        .order("game_datetime") \
         .execute()
-    
+
     return result.data
 
 
@@ -291,12 +292,14 @@ def fix_orphaned_games(client, progress: BackfillProgress, orphaned_games: List[
     """
     if not orphaned_games:
         return
-    
+
     print(f"\n[Step 0] Fixing {len(orphaned_games)} orphaned games (Scheduled but past date)...")
     print("         These games should have status='Final'. Re-syncing from NBA API...")
-    
-    # Group by date for efficient syncing
-    dates_to_sync = sorted(set(g['game_date'] for g in orphaned_games))
+
+    # Group by date for efficient syncing (extract date from game_datetime)
+    dates_to_sync = sorted(set(
+        g['game_datetime'][:10] for g in orphaned_games if g.get('game_datetime')
+    ))
     
     progress.start_time = time.time()
     
@@ -335,11 +338,12 @@ def run_check_mode(client, progress: BackfillProgress):
     orphaned_games = get_orphaned_scheduled_games(client)
     if orphaned_games:
         print(f"\n⚠️  CRITICAL: {len(orphaned_games)} orphaned games found!")
-        print(f"   These games have status='Scheduled' but game_date is in the past.")
+        print(f"   These games have status='Scheduled' but game_datetime is in the past.")
         print(f"   All past games should have status='Final'.")
         print(f"\n   Sample orphaned games:")
         for g in orphaned_games[:5]:
-            print(f"     {g['id']} | {g['game_date']} | status={g['status']}")
+            game_date = g['game_datetime'][:10] if g.get('game_datetime') else 'N/A'
+            print(f"     {g['id']} | {game_date} | status={g['status']}")
         if len(orphaned_games) > 5:
             print(f"     ... and {len(orphaned_games) - 5} more")
         print(f"\n   → Run --phase1 or --all to fix these games")
@@ -377,7 +381,9 @@ def run_check_mode(client, progress: BackfillProgress):
         print(f"Team standings last updated: {last_update}")
 
     # Estimate time (include orphaned games fix)
-    orphaned_dates = len(set(g['game_date'] for g in orphaned_games)) if orphaned_games else 0
+    orphaned_dates = len(set(
+        g['game_datetime'][:10] for g in orphaned_games if g.get('game_datetime')
+    )) if orphaned_games else 0
     total_dates = len(dates_needed) + orphaned_dates
     est_time = (total_dates * DELAY_BETWEEN_DATES +
                 len(games_needing_stats) * DELAY_BETWEEN_GAMES +
