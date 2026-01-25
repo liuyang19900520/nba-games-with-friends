@@ -307,6 +307,12 @@ class SyncLogger:
         self.logs: List[Dict[str, Any]] = []
         self.command: Optional[str] = None
         self.start_time: Optional[datetime] = None
+        
+        # Determine log file path
+        # Assume we are in services/data-sync or project root
+        self.log_file = "sync_2026.log"
+        if os.path.exists("services/data-sync"):
+            self.log_file = "services/data-sync/sync_2026.log"
     
     def set_command(self, command: str) -> None:
         """Set the current command name."""
@@ -341,17 +347,29 @@ class SyncLogger:
         # Store log entry
         self.logs.append(log_entry)
         
+        log_line = ""
         if self.json_mode:
             # JSON output mode
-            print(json.dumps(log_entry, ensure_ascii=False))
+            log_line = json.dumps(log_entry, ensure_ascii=False)
+            print(log_line)
         else:
             # Human-readable output mode
-            print(f"[{local_time}] [{level}] {message}")
+            log_line = f"[{local_time}] [{level}] {message}"
+            print(log_line)
             # Print additional fields if present (non-JSON mode)
             if kwargs:
                 for key, value in kwargs.items():
                     if key not in ["command", "timestamp"]:
-                        print(f"  {key}: {value}")
+                        extra_line = f"  {key}: {value}"
+                        print(extra_line)
+                        log_line += f"\n{extra_line}"
+        
+        # Append to log file
+        try:
+            with open(self.log_file, "a", encoding="utf-8") as f:
+                f.write(log_line + "\n")
+        except Exception:
+            pass # Fail silently if cannot write to file
     
     def info(self, message: str, **kwargs) -> None:
         """Log an info message."""

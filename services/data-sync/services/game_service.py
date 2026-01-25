@@ -624,6 +624,15 @@ def sync_single_game(game_id: str) -> None:
             print(f"❌ {error_msg}")
             raise Exception(error_msg)
         
+    # Fetch old status to detect changes
+        old_status = 'Unknown'
+        try:
+            old_game = supabase.table('games').select('status').eq('id', game_id).maybe_single().execute()
+            if old_game.data:
+                old_status = old_game.data.get('status')
+        except Exception:
+            pass # Ignore read errors, just assume Unknown
+
         # Upsert game to Supabase
         print(f"Syncing game {game_id} to games table...")
         try:
@@ -639,6 +648,26 @@ def sync_single_game(game_id: str) -> None:
         sync_game_details(game_id=game_id)
         
         print(f"✅ Successfully completed sync for game {game_id}")
+        
+        # Re-fetch final status to ensure we return the most accurate state
+        # (in case sync_game_details updated it via fallback)
+        final_status = game_data.get("status")
+        try:
+            final_game = supabase.table('games').select('status').eq('id', game_id).maybe_single().execute()
+            if final_game.data:
+                final_status = final_game.data.get('status')
+        except Exception:
+            pass
+
+        return {
+            "game_id": game_id,
+            "old_status": old_status,
+            "new_status": final_status,
+            "home_score": game_data.get("home_score"),
+            "away_score": game_data.get("away_score"),
+            "home_team_id": game_data.get("home_team_id"),
+            "away_team_id": game_data.get("away_team_id")
+        }
         
     except Exception as e:
         error_msg = f"Error during single game sync for {game_id}: {str(e)}"

@@ -386,6 +386,117 @@ def handle_backfill_data(payload: Dict[str, Any], logger: SyncLogger) -> bool:
         return False
 
 
+
+def handle_check_schedule(payload: Dict[str, Any], logger: SyncLogger) -> bool:
+    """
+    Handle CHECK_SCHEDULE task (Heartbeat from n8n).
+    
+    Logic:
+    1. Check DB for active games (Live) or games starting soon.
+    2. If found, trigger sync for those games.
+    3. Detect status changes and queue notifications.
+    """
+    logger.info("Processing CHECK_SCHEDULE...")
+    
+    db = get_db()
+    current_time = datetime.now(pytz.UTC)
+    
+    # 1. Find relevant games
+    # - Status is 'Live'
+    # - OR Status is 'Scheduled' and game_time is within next 20 minutes (or past due)
+    
+    # Since Supabase PostgREST filtering on timestamps can be tricky with complex ORs,
+    # we might fetch 'Live' and 'Scheduled' separately or just fetch relevant date's games.
+    # Simpler: Fetch today's games and filter in python (dataset is small, ~15 games/day)
+    
+    today_str = datetime.now(TOKYO_TZ).strftime("%Y-%m-%d")
+    
+    # Fetch games for today (and maybe yesterday for spillover)
+    result = db.table("games") \
+        .select("id, status, game_time, home_team_id, away_team_id") \
+        .eq("game_date", today_str) \
+        .execute()
+        
+    games = result.data
+    games_to_sync = []
+    
+    for game in games:
+        g_status = game.get('status')
+        g_time_str = game.get('game_time') # ISO string
+        g_id = game.get('id')
+        
+        if g_status == 'Live':
+            games_to_sync.append(g_id)
+            continue
+            
+        if g_status == 'Scheduled' and g_time_str:
+            try:
+                g_time = datetime.fromisoformat(g_time_str.replace('Z', '+00:00'))
+                # If game is within 30 mins or has passed
+                diff = (g_time - current_time).total_seconds() / 60
+                if diff <= 30: # Starts within 30 mins or already started
+                    games_to_sync.append(g_id)
+            except Exception:
+                pass
+
+    if not games_to_sync:
+        logger.info("CHECK_SCHEDULE: No active/upcoming games found. Sleeping.")
+        return True
+
+    logger.info(f"CHECK_SCHEDULE: Found {len(games_to_sync)} active/upcoming games: {games_to_sync}")
+    
+    from services.game_service import sync_single_game
+    
+    notifications = []
+    
+    for game_id in games_to_sync:
+        try:
+            logger.info(f"Smart Syncing game {game_id}...")
+            # sync_single_game returns comparison dict
+            result = sync_single_game(game_id)
+            
+            if result:
+                old = result.get('old_status')
+                new = result.get('new_status')
+                
+                # Check for status changes
+                if old != new:
+                    logger.info(f"ℹ️ Status change detected for {game_id}: {old} -> {new}")
+                    
+                    # Detect Game Start
+                    if old == 'Scheduled' and new == 'Live':
+                        notifications.append({
+                            "type": "GAME_START",
+                            "payload": result
+                        })
+                    
+                    # Detect Game End
+                    elif (old == 'Live' or old == 'Scheduled') and new == 'Final':
+                        notifications.append({
+                            "type": "GAME_END",
+                            "payload": result
+                        })
+                        
+        except Exception as e:
+            logger.error(f"Failed to sync game {game_id} in check_schedule: {e}")
+
+    # Insert notifications
+    if notifications:
+        logger.info(f"Queueing {len(notifications)} notifications...")
+        for n in notifications:
+            try:
+                db.table("notifications").insert({
+                    "type": n["type"],
+                    "payload": n["payload"],
+                    "status": "PENDING"
+                }).execute()
+            except Exception as e:
+                logger.error(f"Failed to insert notification: {e}")
+
+    logger.info("CHECK_SCHEDULE completed")
+    return True
+
+
 def handle_first_game_notified(payload: Dict[str, Any], logger: SyncLogger) -> bool:
     """
     Handle FIRST_GAME_NOTIFIED task.
@@ -410,6 +521,7 @@ TASK_HANDLERS = {
     "DATA_AUDIT": handle_data_audit,
     "BACKFILL_DATA": handle_backfill_data,
     "FIRST_GAME_NOTIFIED": handle_first_game_notified,
+    "CHECK_SCHEDULE": handle_check_schedule,
 }
 
 
@@ -455,11 +567,11 @@ def update_task_status(db, task_id: int, status: str, error: Optional[str] = Non
         update_data = {
             "status": status,
             "updated_at": datetime.utcnow().isoformat(),
-            "ended_at": datetime.utcnow().isoformat()
+            "completed_at": datetime.utcnow().isoformat()
         }
         if error:
             # Store error in payload if there's an error
-            update_data["error_message"] = error[:1000]  # Truncate if too long
+            update_data["error_log"] = error[:1000]  # Truncate if too long
 
         db.table("task_queue") \
             .update(update_data) \
