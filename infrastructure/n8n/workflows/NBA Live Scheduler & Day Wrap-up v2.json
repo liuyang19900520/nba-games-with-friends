@@ -1,0 +1,435 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH live_games AS (\n  SELECT id as game_id\n  FROM public.games\n  WHERE game_date = CURRENT_DATE\n    AND (status = 'Live' \n         OR (status = 'Scheduled' AND game_time <= CURRENT_TIME))\n),\npending_sync_tasks AS (\n  SELECT DISTINCT (payload->>'game_id')::text as game_id\n  FROM public.task_queue\n  WHERE task_type = 'SYNC_LIVE_GAME'\n    AND status = 'PENDING'\n),\ngames_needing_sync AS (\n  SELECT lg.game_id\n  FROM live_games lg\n  LEFT JOIN pending_sync_tasks pt ON lg.game_id = pt.game_id\n  WHERE pt.game_id IS NULL\n),\ntoday_summary AS (\n  SELECT \n    COUNT(*) as total_games,\n    SUM(CASE WHEN status = 'Final' THEN 1 ELSE 0 END) as finished_games,\n    SUM(CASE WHEN status = 'Live' THEN 1 ELSE 0 END) as live_games,\n    SUM(CASE WHEN status IN ('Live', 'Scheduled') AND status != 'Final' THEN 1 ELSE 0 END) as active_games\n  FROM public.games\n  WHERE game_date = CURRENT_DATE\n),\nwrap_up_check AS (\n  SELECT EXISTS(\n    SELECT 1 \n    FROM public.task_queue \n    WHERE task_type = 'DAILY_WRAP_UP' \n      AND created_at::date = CURRENT_DATE\n  ) as wrap_up_exists\n),\nfirst_game_notified AS (\n  SELECT EXISTS(\n    SELECT 1 \n    FROM public.task_queue \n    WHERE task_type = 'FIRST_GAME_NOTIFIED' \n      AND created_at::date = CURRENT_DATE\n  ) as already_notified\n),\nhas_started_games AS (\n  SELECT EXISTS(\n    SELECT 1 \n    FROM public.games \n    WHERE game_date = CURRENT_DATE \n      AND (status IN ('Live', 'Final')\n           OR (status = 'Scheduled' AND game_time <= CURRENT_TIME))\n  ) as has_started\n)\nSELECT \n  COALESCE((SELECT json_agg(game_id) FROM games_needing_sync), '[]'::json) as games_to_sync,\n  (SELECT total_games FROM today_summary) as total_games,\n  (SELECT finished_games FROM today_summary) as finished_games,\n  (SELECT live_games FROM today_summary) as live_games,\n  -- New field: has active games (Live or not yet finished)\n  CASE \n    WHEN (SELECT live_games FROM today_summary) > 0 \n         OR ((SELECT total_games FROM today_summary) > 0 \n             AND (SELECT finished_games FROM today_summary) < (SELECT total_games FROM today_summary)\n             AND (SELECT has_started FROM has_started_games))\n    THEN true\n    ELSE false\n  END as has_active_games,\n  CASE \n    WHEN (SELECT total_games FROM today_summary) > 0 \n         AND (SELECT total_games FROM today_summary) = (SELECT finished_games FROM today_summary)\n         AND NOT (SELECT wrap_up_exists FROM wrap_up_check)\n    THEN true\n    ELSE false\n  END as should_wrap_up,\n  CASE \n    WHEN (SELECT has_started FROM has_started_games)\n         AND NOT (SELECT already_notified FROM first_game_notified)\n    THEN true\n    ELSE false\n  END as should_notify_first_game;",
+        "options": {}
+      },
+      "id": "25be98f2-b639-45cc-beb9-e6339adf8f80",
+      "name": "Get Games & Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        320,
+        656
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Vqe4fob0iM49fbzN",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-has-games",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{ ($json.games_to_sync || []).length }}",
+              "rightValue": 0
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fca7ae79-17ca-4473-a1c1-3b41e9b7e5cd",
+      "name": "Has Games To Sync?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        560,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO public.task_queue (task_type, status, payload, created_at)\nSELECT \n  'SYNC_LIVE_GAME',\n  'PENDING',\n  jsonb_build_object('game_id', game_id::text),\n  NOW()\nFROM jsonb_array_elements_text('{{ JSON.stringify($('Get Games & Status').item.json.games_to_sync) }}'::jsonb) as game_id\nRETURNING id, payload->>'game_id' as game_id;",
+        "options": {}
+      },
+      "id": "48ae206b-b884-43b8-85d4-b8ccc9da05d4",
+      "name": "Insert Sync Tasks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        832,
+        560
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Vqe4fob0iM49fbzN",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-wrap-up",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.should_wrap_up }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "10ccae81-b816-4ec8-9e4d-56ae1c73ca61",
+      "name": "Should Wrap Up?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        560,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.task_queue (task_type, status, payload, created_at)\nVALUES (\n  'DAILY_WRAP_UP',\n  'PENDING',\n  jsonb_build_object('date', CURRENT_DATE::text),\n  NOW()\n)\nRETURNING id;",
+        "options": {}
+      },
+      "id": "95fd5a02-075f-418e-8e82-b2a40e10e3b8",
+      "name": "Insert Wrap Up Task",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        832,
+        784
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Vqe4fob0iM49fbzN",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-first-game",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.should_notify_first_game }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a18d069e-4884-4d39-a51b-551e15441077",
+      "name": "First Game Starting?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        560,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.LINE_CHANNEL_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"U39c581a7f6f9947e2d1061920173d95e\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"🏀 NBA比赛日开始！\\n\\n今日共有 {{ $('Get Games & Status').item.json.total_games }} 场比赛\\n当前进行中: {{ $('Get Games & Status').item.json.live_games }} 场\\n\\n祝观赛愉快！\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "a5438f28-126c-440b-bae9-17b6898f01d2",
+      "name": "LINE: Games Started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        832,
+        976
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evjTvllP34iRY10U",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.task_queue (task_type, status, payload, created_at)\nVALUES (\n  'FIRST_GAME_NOTIFIED',\n  'COMPLETED',\n  jsonb_build_object('date', CURRENT_DATE::text),\n  NOW()\n)\nRETURNING id;",
+        "options": {}
+      },
+      "id": "728d1e9c-a2ce-4b4d-8b40-617953e7efe0",
+      "name": "Record First Game Notified",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1072,
+        976
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Vqe4fob0iM49fbzN",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.LINE_CHANNEL_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"U39c581a7f6f9947e2d1061920173d95e\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"🏁 今日NBA比赛全部结束！\\n\\n共完成 {{ $('Get Games & Status').item.json.total_games }} 场比赛\\n数据同步任务已创建\\n\\n明天见！\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "09c0e823-f155-47ab-8fb7-98078823da2d",
+      "name": "LINE: Day Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1072,
+        784
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evjTvllP34iRY10U",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "id": "condition-active-games",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.has_active_games }}",
+              "rightValue": ""
+            },
+            {
+              "id": "condition-20min-interval",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ new Date().getMinutes() % 20 === 0 }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a17a6618-9c31-44d1-933b-ccc06bf17797",
+      "name": "Should Continue?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        128,
+        656
+      ],
+      "id": "fc69ce39-7924-4b3b-9ecc-9403cfec5a69",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "connections": {
+    "Get Games & Status": {
+      "main": [
+        [
+          {
+            "node": "Should Continue?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Games To Sync?": {
+      "main": [
+        [
+          {
+            "node": "Insert Sync Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Wrap Up?": {
+      "main": [
+        [
+          {
+            "node": "Insert Wrap Up Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Wrap Up Task": {
+      "main": [
+        [
+          {
+            "node": "LINE: Day Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "First Game Starting?": {
+      "main": [
+        [
+          {
+            "node": "LINE: Games Started",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LINE: Games Started": {
+      "main": [
+        [
+          {
+            "node": "Record First Game Notified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Continue?": {
+      "main": [
+        [
+          {
+            "node": "Has Games To Sync?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Should Wrap Up?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "First Game Starting?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Games & Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "7f95bd96e0e5c727811995ef51d9e1ffdabcc354b062795fa9a6d32568c6a432"
+  }
+}

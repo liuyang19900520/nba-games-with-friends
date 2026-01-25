@@ -22,7 +22,16 @@
       "mcp__n8n-mcp__n8n_update_full_workflow",
       "Bash(aws lightsail get-instances:*)",
       "Bash(curl:*)",
-      "mcp__n8n-mcp__n8n_test_workflow"
+      "mcp__n8n-mcp__n8n_test_workflow",
+      "mcp__n8n-mcp__n8n_autofix_workflow",
+      "Bash(ping:*)",
+      "Bash(nc:*)",
+      "Bash(aws lightsail get-instance:*)",
+      "Bash(aws lightsail open-instance-public-ports:*)",
+      "mcp__filesystem__directory_tree",
+      "Bash(openssl s_client:*)",
+      "Bash(openssl x509:*)",
+      "Bash(python3:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

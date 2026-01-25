@@ -2,22 +2,45 @@
 
 You are an intelligent AI assistant working in the `nba-game-with-friends` monorepo.
 
-## 1. Context Awareness
-- **Global Rules**: ALWAYS apply the rules defined in `.agent/skills/SKILL.md`.
-- **Project Specific**: When working inside `apps/web/` or `services/data-sync/`, you must ALSO apply the rules from `SKILL.md` located in those directories.
+## 1. Skills Loading Protocol
+
+**ALWAYS load skills in this order:**
+
+1. **Global Rules**: `.agent/skills/global/rules.md`
+2. **Service-Specific Rules** (based on working directory):
+   - Working in `apps/web/` → `.agent/skills/web/rules.md`
+   - Working in `services/data-sync/` → `.agent/skills/data-sync/rules.md`
+   - Working in `infrastructure/n8n/` → `.agent/skills/n8n/rules.md`
+3. **Living Memory**: `.agent/memory/active_pdca.md`
 
 ## 2. Key Conventions (Summary)
-- **Language**: English for code/docs, Simplified Chinese for chat.
-- **Environments**: Use `.env.development` for local work.
-- **Logging**: Python must use `logging` module (not print).
-- **Secrets**: Never hardcode secrets.
 
-3. **Skill Integration**:
-    - **Start**: Read `SKILL.md`.
-    - **End**: If you solved a hard problem, UPDATE `SKILL.md` with the solution.
+- **Language**: English for code/docs, Simplified Chinese for chat
+- **Environments**: Use `.env.development` for local work
+- **Logging**: Python must use `logging` module (not print)
+- **Secrets**: Never hardcode secrets
+- **Git**: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`)
 
-subsection: 3. Skill Integration
-Before starting any complex task, please read:
-1. `.agent/skills/SKILL.md` (Global)
-2. `apps/web/SKILL.md` (If working on frontend)
-3. `services/data-sync/SKILL.md` (If working on backend)
+## 3. PDCA Feedback Loop
+
+When you solve a difficult problem:
+
+1. **Document** in `.agent/memory/active_pdca.md` with format:
+   ```markdown
+   ### [Date] Issue Title
+   **Context**: Where/what were you working on?
+   **Problem**: What went wrong?
+   **Root Cause**: Why did it happen?
+   **Solution**: How did you fix it?
+   **Prevention**: How to avoid this in the future?
+   ```
+
+2. **Add TIP** to relevant `rules.md`:
+   ```markdown
+   > [!TIP]
+   > **Issue Title**: Brief solution description.
+   ```
+
+## 4. Skills Registry
+
+See `.agent/skills/README.md` for the complete skills hierarchy.

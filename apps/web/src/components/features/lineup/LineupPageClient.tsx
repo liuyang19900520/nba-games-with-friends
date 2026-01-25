@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { BasketballCourt } from '@/components/lineup/BasketballCourt';
 import { PlayerSearchSection } from '@/components/features/lineup/PlayerSearchSection';
 import { submitLineup } from '@/app/lineup/actions';
-import { useGameDate } from '@/hooks/useGameDate';
+
+import { formatTokyoDate } from '@/lib/utils/timezone';
 import type { Player } from '@/types';
 import type { User } from '@supabase/supabase-js';
 
@@ -99,7 +100,6 @@ function buildInitialLineup(
  */
 export function LineupPageClient({ players, user, initialLineup }: LineupPageClientProps) {
   const router = useRouter();
-  const { gameDate, isCustomDate } = useGameDate();
   const isReadOnly = !user;
 
   // Check if lineup is already submitted
@@ -248,22 +248,7 @@ export function LineupPageClient({ players, user, initialLineup }: LineupPageCli
 
   return (
     <>
-      {/* Custom Date Indicator */}
-      {isCustomDate && (
-        <section className="px-4 pt-4">
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-2">
-            <p className="text-sm text-yellow-400 text-center">
-              📅 Using custom date: {new Date(gameDate + 'T00:00:00').toLocaleDateString()}
-              <button
-                onClick={() => router.refresh()}
-                className="ml-2 underline font-medium"
-              >
-                Refresh Data
-              </button>
-            </p>
-          </div>
-        </section>
-      )}
+
 
       {/* Basketball Court - using optimistic state */}
       <section className="px-4 pt-4">
@@ -285,7 +270,7 @@ export function LineupPageClient({ players, user, initialLineup }: LineupPageCli
             </p>
             {initialLineup && (
               <p className="text-xs text-green-400/70 text-center mt-1">
-                Submitted for: {new Date(initialLineup.gameDate).toLocaleDateString()}
+                Submitted for: {formatTokyoDate(initialLineup.gameDate)}
               </p>
             )}
           </div>

@@ -1,0 +1,144 @@
+{
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "error-trigger",
+            "name": "Error Trigger",
+            "type": "n8n-nodes-base.errorTrigger",
+            "typeVersion": 1,
+            "position": [
+                256,
+                304
+            ]
+        },
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "workflowName",
+                            "name": "workflowName",
+                            "value": "={{ $json.workflow.name }}",
+                            "type": "string"
+                        },
+                        {
+                            "id": "workflowId",
+                            "name": "workflowId",
+                            "value": "={{ $json.workflow.id }}",
+                            "type": "string"
+                        },
+                        {
+                            "id": "executionId",
+                            "name": "executionId",
+                            "value": "={{ $json.execution.id }}",
+                            "type": "string"
+                        },
+                        {
+                            "id": "executionUrl",
+                            "name": "executionUrl",
+                            "value": "={{ $json.execution.url }}",
+                            "type": "string"
+                        },
+                        {
+                            "id": "errorMessage",
+                            "name": "errorMessage",
+                            "value": "={{ $json.execution.error.message }}",
+                            "type": "string"
+                        },
+                        {
+                            "id": "errorNode",
+                            "name": "errorNode",
+                            "value": "={{ $json.execution.lastNodeExecuted }}",
+                            "type": "string"
+                        },
+                        {
+                            "id": "timestamp",
+                            "name": "timestamp",
+                            "value": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "format-error-message",
+            "name": "Format Error Message",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                480,
+                304
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://api.line.me/v2/bot/message/push",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"to\": \"U39c581a7f6f9947e2d1061920173d95e\",\n  \"messages\": [\n    {\n      \"type\": \"text\", \n      \"text\": \"🚨 n8n Workflow Error 🚨\\n\\n📌 Workflow: {{ $json.workflowName }}\\n🔗 Execution: {{ $json.executionUrl }}\\n❌ Error: {{ $json.errorMessage }}\\n📍 Node: {{ $json.errorNode }}\\n⏰ Time: {{ $json.timestamp }}\\n\\n⚠️ 工作流已自动停用，请修复后重新启用\"\n    }\n  ]\n}",
+                "options": {}
+            },
+            "id": "send-line-notification",
+            "name": "Send LINE Notification",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                720,
+                304
+            ],
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "evjTvllP34iRY10U",
+                    "name": "Header Auth account"
+                }
+            },
+            "onError": "continueRegularOutput"
+        }
+    ],
+    "connections": {
+        "Error Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Format Error Message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format Error Message": {
+            "main": [
+                [
+                    {
+                        "node": "Send LINE Notification",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send LINE Notification": {
+            "main": [
+                []
+            ]
+        }
+    },
+    "pinData": {},
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "7f95bd96e0e5c727811995ef51d9e1ffdabcc354b062795fa9a6d32568c6a432"
+    }
+}

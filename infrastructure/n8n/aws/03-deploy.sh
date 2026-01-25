@@ -62,6 +62,25 @@ EOF
     echo ""
 fi
 
+# Check for required secrets
+REQUIRED_VARS=("SUPABASE_URL" "SUPABASE_SERVICE_KEY" "SUPABASE_ANON_KEY" "LINE_CHANNEL_TOKEN")
+MISSING_VARS=()
+
+for VAR in "${REQUIRED_VARS[@]}"; do
+    if ! grep -q "^${VAR}=" .env; then
+        MISSING_VARS+=("$VAR")
+    fi
+done
+
+if [ ${#MISSING_VARS[@]} -ne 0 ]; then
+    echo -e "${YELLOW}Missing required environment variables in .env:${NC}"
+    for VAR in "${MISSING_VARS[@]}"; do
+        read -p "${VAR}: " VALUE
+        echo "${VAR}=${VALUE}" >> .env
+    done
+    echo -e "${GREEN}Secrets added to .env${NC}"
+fi
+
 # Verify SSH key exists
 if [ ! -f "${SSH_KEY}" ]; then
     echo -e "${RED}Error: SSH key not found at ${SSH_KEY}${NC}"
@@ -69,15 +88,18 @@ if [ ! -f "${SSH_KEY}" ]; then
     exit 1
 fi
 
+# Get script directory for static files
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 echo "[1/4] Creating remote directory..."
 ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no "${REMOTE_HOST}" "mkdir -p ${REMOTE_DIR}"
 
 echo "[2/4] Copying configuration files..."
 scp -i "${SSH_KEY}" \
-    docker-compose.yml \
-    Caddyfile \
+    "${SCRIPT_DIR}/docker-compose.yml" \
+    "${SCRIPT_DIR}/Caddyfile" \
     .env \
-    02-init-server.sh \
+    "${SCRIPT_DIR}/02-init-server.sh" \
     "${REMOTE_HOST}:${REMOTE_DIR}/"
 
 echo "[3/4] Running server initialization..."

@@ -1,154 +1,99 @@
-# n8n Docker 部署指南
+# n8n Deployment Guide
 
-## 迁移步骤
+## Architecture
 
-### 步骤1: SSH连接到Lightsail
-
-```bash
-ssh -i your-key.pem ubuntu@57.182.161.64
+```
+AWS Lightsail (57.182.161.64)
+├── Docker
+│   ├── n8n (Workflow Engine) - Port 5678 internal
+│   └── Caddy (Reverse Proxy) - Port 80/443 external
+└── Data: SQLite in Docker volume (n8n_n8n_data)
 ```
 
-### 步骤2: 上传配置文件
+## Quick Access
 
-在本地终端运行 (将文件上传到服务器):
+| Resource | Value |
+|----------|-------|
+| URL | https://57.182.161.64.nip.io |
+| SSH | `ssh -i ~/.ssh/LightsailDefaultKey-ap-northeast-1.pem ubuntu@57.182.161.64` |
+| Config Dir (Server) | `/home/ubuntu/n8n/` |
+| Config Dir (Local) | `infrastructure/n8n/aws/` |
 
-```bash
-# 创建目录
-ssh -i your-key.pem ubuntu@57.182.161.64 "mkdir -p ~/n8n-docker/ssl"
+## Deployment
 
-# 上传配置文件
-scp -i your-key.pem docker-compose.yml ubuntu@57.182.161.64:~/n8n-docker/
-scp -i your-key.pem nginx.conf ubuntu@57.182.161.64:~/n8n-docker/
-scp -i your-key.pem migrate-to-docker.sh ubuntu@57.182.161.64:~/n8n-docker/
-scp -i your-key.pem .env.example ubuntu@57.182.161.64:~/n8n-docker/
-```
-
-### 步骤3: 在服务器上运行迁移脚本
+### First Time Setup
 
 ```bash
-# SSH到服务器
-ssh -i your-key.pem ubuntu@57.182.161.64
+cd infrastructure/n8n/aws
 
-# 进入目录并运行脚本
-cd ~/n8n-docker
-chmod +x migrate-to-docker.sh
-./migrate-to-docker.sh
-```
-
-### 步骤4: 创建.env配置文件
-
-```bash
-# 复制示例文件
+# 1. Create .env from example
 cp .env.example .env
+# Edit .env with your values
 
-# 编辑配置
-nano .env
+# 2. Run deployment script
+./03-deploy.sh 57.182.161.64
 ```
 
-填写以下信息:
-- `DB_HOST`: 你的Postgres数据库地址
-- `DB_USER`: 数据库用户名
-- `DB_PASSWORD`: 数据库密码
-- `N8N_ENCRYPTION_KEY`: 从现有n8n获取 (脚本会自动提取)
-
-### 步骤5: 启动Docker容器
+### Redeploy/Update
 
 ```bash
-# 启动服务
-docker-compose up -d
+# SSH to server
+ssh -i ~/.ssh/LightsailDefaultKey-ap-northeast-1.pem ubuntu@57.182.161.64
 
-# 查看日志
-docker-compose logs -f
-
-# 查看容器状态
-docker-compose ps
+# Update and restart
+cd ~/n8n
+docker compose pull
+docker compose up -d
 ```
 
-### 步骤6: 验证
-
-访问 https://57.182.161.64.nip.io 确认n8n正常运行
-
----
-
-## 关键配置说明
-
-### 执行日志自动清理 (已配置)
-
-```yaml
-EXECUTIONS_DATA_PRUNE=true           # 启用自动清理
-EXECUTIONS_DATA_MAX_AGE=168          # 保留7天 (168小时)
-EXECUTIONS_DATA_SAVE_ON_ERROR=all    # 保存所有错误执行
-EXECUTIONS_DATA_SAVE_ON_SUCCESS=none # 不保存成功执行 (节省内存)
-```
-
-### 工作流错误自动停用 (已配置)
-
-Error Notifier工作流已配置为:
-1. 捕获工作流错误
-2. 发送LINE通知
-3. 自动停用出错的工作流
-
----
-
-## 常用命令
+## Common Operations
 
 ```bash
-# 启动
-docker-compose up -d
+# View logs
+docker logs n8n --tail 50
+docker logs caddy --tail 50
 
-# 停止
-docker-compose down
+# Restart services
+docker compose restart
 
-# 查看日志
-docker-compose logs -f n8n
-
-# 重启
-docker-compose restart
-
-# 更新n8n版本
-docker-compose pull
-docker-compose up -d
-
-# 进入容器
-docker exec -it n8n sh
+# Check health
+curl https://57.182.161.64.nip.io/healthz
 ```
 
----
+## Important Files
 
-## 故障排除
+| File | Purpose |
+|------|---------|
+| `aws/docker-compose.yml` | Production Docker config (Caddy + n8n) |
+| `aws/Caddyfile` | Caddy reverse proxy with auto-HTTPS |
+| `aws/.env.example` | Environment variables template |
+| `aws/03-deploy.sh` | Deployment script |
+| `workflows/*.json` | Workflow definitions (backup) |
 
-### 1. SSL证书问题
+## Troubleshooting
 
-如果没有现有证书，可以使用Let's Encrypt:
-
+### SSL Certificate Issues
+Caddy auto-manages Let's Encrypt certificates. If issues occur:
 ```bash
-# 安装certbot
-sudo apt install certbot
-
-# 获取证书 (先停止nginx)
-docker-compose stop nginx
-sudo certbot certonly --standalone -d 57.182.161.64.nip.io
-
-# 复制证书
-sudo cp /etc/letsencrypt/live/57.182.161.64.nip.io/fullchain.pem ~/n8n-docker/ssl/
-sudo cp /etc/letsencrypt/live/57.182.161.64.nip.io/privkey.pem ~/n8n-docker/ssl/
-
-# 重启nginx
-docker-compose start nginx
+docker logs caddy | grep -i cert
+docker compose restart caddy
 ```
 
-### 2. 凭证无法解密
-
-确保 `N8N_ENCRYPTION_KEY` 与原来的n8n一致。
-
-获取原始密钥:
+### n8n Won't Start
+Check encryption key matches existing data:
 ```bash
-cat ~/.n8n/config | grep encryptionKey
+cat /var/lib/docker/volumes/n8n_n8n_data/_data/config
 ```
 
-### 3. 数据库连接失败
-
-检查数据库配置和网络:
+### Port 443 Not Accessible
+Verify Lightsail firewall:
 ```bash
-docker exec -it n8n ping your-db-host
+aws lightsail get-instance --instance-name nba-cloud-hub-1gb --query 'instance.networking.ports'
+```
+
+## Data Backup
+
+Workflow data is in Docker volume. To backup:
+```bash
+docker run --rm -v n8n_n8n_data:/data -v $(pwd):/backup alpine tar czf /backup/n8n-backup.tar.gz /data
 ```

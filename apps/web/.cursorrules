@@ -1,8 +1,24 @@
-# Web App Rules (Standalone)
+# Web App Rules (Standalone Mode)
 
 You are working in the `apps/web` Next.js project.
 
-## Critical Instructions
-1. **Read Rules**: You MUST read `./SKILL.md` in this directory for component and architectural rules.
-2. **Language**: Code/Comments in English. Chat in Simplified Chinese.
-3. **Environment**: Use `.env.development` for local work.
+## Skills Loading Protocol
+
+**BEFORE any task, you MUST read these files in order:**
+
+1. **Global Rules**: `../../.agent/skills/global/rules.md`
+2. **Web-Specific Rules**: `../../.agent/skills/web/rules.md`
+3. **Living Memory**: `../../.agent/memory/active_pdca.md`
+
+## Quick Reference (Summary)
+
+- **Tech Stack**: Next.js 15, React, Supabase, TailwindCSS
+- **Language**: Code/Comments in English, Chat in Chinese
+- **Environment**: Use `.env.development` for local work
+- **Components**: Server Components by default, `'use client'` only when needed
+
+## PDCA Feedback
+
+After solving a difficult problem, update:
+- `../../.agent/memory/active_pdca.md`
+- `../../.agent/skills/web/rules.md` with `> [!TIP]` block

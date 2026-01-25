@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { createServerClient, hasSupabaseConfig } from "./supabase-server";
 import { logger } from "@/config/env";
 import { getGameDate } from "@/lib/utils/game-date";
+
 import type { GameResult } from "@/types";
 
 /**
@@ -83,6 +84,7 @@ export async function fetchRecentGames(
       id: string;
       season?: string;
       game_date?: string;
+      game_time?: string;
       status?: string;
       is_playoff?: boolean;
       home_score?: number | null;
@@ -95,18 +97,22 @@ export async function fetchRecentGames(
     let query = supabase
       .from("games")
       .select(
-        "id, season, game_date, status, is_playoff, home_score, away_score, home_team_id, away_team_id"
+        "id, season, game_date, game_time, status, is_playoff, home_score, away_score, home_team_id, away_team_id"
       );
 
     // If gameDate is provided, filter by date
     if (targetDate) {
       const dateStr = typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0];
+      // Widen the search window: [Target - 1 day, Target + 2 days] (UTC)
+      // This ensures we catch all games that could possibly fall into the JST target date
       const dateStart = new Date(dateStr + 'T00:00:00Z');
-      const dateEnd = new Date(dateStart);
-      dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
+      dateStart.setUTCDate(dateStart.getUTCDate() - 1); // Look back 1 day
+
+      const dateEnd = new Date(dateStr + 'T00:00:00Z');
+      dateEnd.setUTCDate(dateEnd.getUTCDate() + 2);   // Look forward 2 days
 
       logger.info(
-        `[fetchRecentGames] Date filter: dateStr=${dateStr}, dateStart=${dateStart.toISOString()}, dateEnd=${dateEnd.toISOString()}`
+        `[fetchRecentGames] Date filter (Broad): target=${dateStr}, range=[${dateStart.toISOString()}, ${dateEnd.toISOString()})`
       );
 
       query = query
@@ -118,10 +124,10 @@ export async function fetchRecentGames(
 
     query = query
       .order("game_date", { ascending: false, nullsFirst: false })
-      .limit(limit);
+      .limit(limit * 3); // Fetch more to allow for filtering
 
     logger.info(
-      `[fetchRecentGames] Executing query with limit=${limit}${targetDate ? `, date=${typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0]}` : ''}`
+      `[fetchRecentGames] Executing query with expanded limit=${limit * 3}${targetDate ? `, date=${typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0]}` : ''}`
     );
 
     const { data: simpleData, error: simpleError } = await query;
@@ -301,6 +307,17 @@ export async function fetchRecentGames(
         gameType = `${game.season} Regular Season`;
       }
 
+      // Construct full ISO timestamp for correct JST conversion
+      let fullIsoString = undefined;
+      if (game.game_date) {
+        // If game_time is present, combine them: "YYYY-MM-DD" + "THH:mm:ss" + "Z" (assuming stored time is UTC)
+        if (game.game_time) {
+          fullIsoString = `${game.game_date}T${game.game_time}Z`;
+        } else {
+          fullIsoString = `${game.game_date}T00:00:00Z`;
+        }
+      }
+
       return {
         id: String(game.id),
         gameType,
@@ -320,14 +337,39 @@ export async function fetchRecentGames(
           score: game.away_score ?? 0,
         },
         ratingCount: undefined, // Not available in current schema
-        gameDate: game.game_date || undefined,
+        gameDate: fullIsoString, // Pass full ISO string for UI formatting
       };
     });
 
+    // Strict Filter: Only keep games that match the requested JST Date
+    const filteredData = targetDate
+      ? data.filter(game => {
+        if (!game.gameDate) return false;
+
+        // Perform strict JST check
+        const targetDateStr = typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0];
+
+        // Convert gameDate (ISO) to JST YYYY-MM-DD
+        const date = new Date(game.gameDate);
+        // Use formatTokyoDate behavior but reimplemented for pure string comparison safety
+        // (Since formatTokyoDate returns localized string by default, we use custom logic here for safety)
+        const jstDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+        const year = jstDate.getFullYear();
+        const month = String(jstDate.getMonth() + 1).padStart(2, '0');
+        const day = String(jstDate.getDate()).padStart(2, '0');
+        const gameJstDateStr = `${year}-${month}-${day}`;
+
+        return gameJstDateStr === targetDateStr;
+      })
+      : data;
+
+    // Slice to original limit
+    const finalData = filteredData.slice(0, limit);
+
     logger.info(
-      `[fetchRecentGames] Successfully transformed ${data.length} games`
+      `[fetchRecentGames] Successfully transformed ${data.length} games, filtered to ${filteredData.length} matching JST date, returning ${finalData.length}`
     );
-    return data;
+    return finalData;
   } catch (err) {
     logger.error("[fetchRecentGames] Unexpected error:", err);
     return [];

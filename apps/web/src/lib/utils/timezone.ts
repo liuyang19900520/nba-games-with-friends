@@ -61,18 +61,38 @@ export function getTokyoDateTime(): string {
 
 /**
  * Format a date string for display in Tokyo timezone
+ * defaults to showing Date in JST
  */
 export function formatTokyoDate(dateStr: string, options?: Intl.DateTimeFormatOptions): string {
   if (!dateStr) return '';
 
   try {
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', {
+    const date = new Date(dateStr);
+    // Use toLocaleString to support time options if provided, otherwise default to date
+    return date.toLocaleString('en-US', {
       timeZone: TOKYO_TIMEZONE,
       ...options,
     });
   } catch {
     return dateStr;
+  }
+}
+
+/**
+ * Format a date string to show ONLY Time in Tokyo Timezone (HH:mm)
+ */
+export function formatTokyoTime(dateStr: string): string {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+      timeZone: TOKYO_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  } catch {
+    return '';
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { GameResult } from "@/types";
+import { formatTokyoTime } from "@/lib/utils/timezone";
 
 interface GameResultCardProps {
   game: GameResult;
@@ -31,15 +32,7 @@ export function GameResultCard({ game }: GameResultCardProps) {
 
   const formatGameTime = (dateString?: string): string => {
     if (!dateString) return "";
-    try {
-      const date = new Date(dateString);
-      // Format as "HH:mm" (24-hour format, time only)
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      return `${hours}:${minutes}`;
-    } catch {
-      return "";
-    }
+    return formatTokyoTime(dateString);
   };
 
   const isScheduled = game.status === "Scheduled" || game.status === "scheduled";
