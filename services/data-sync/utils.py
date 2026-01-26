@@ -144,7 +144,13 @@ def safe_call_nba_api(
                 rate_limited = True
             else:
                 # For truly unexpected errors, don't retry
-                break
+                # EXCEPTION: 'NoneType' object has no attribute 'get' is a common nba_api error
+                # when the response is empty/None but the library tries to access headers.
+                # We should retry this as it's likely a transient upstream issue.
+                if isinstance(e, AttributeError) and "'NoneType' object has no attribute 'get'" in error_str:
+                     print(f"[nba_api] ⚠️ Known nba_api error (empty response?) - retrying")
+                else:
+                    break
 
         # Decide whether to retry with exponential backoff
         if attempt < max_retries:

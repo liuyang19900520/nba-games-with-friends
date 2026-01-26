@@ -410,31 +410,66 @@ def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str
     Returns:
         Transformed game dictionary, or None if fetch failed
     """
-    from nba_api.stats.endpoints import boxscoretraditionalv3
+    from nba_api.stats.endpoints import boxscoretraditionalv3, boxscoresummaryv3
     
     print(f"Fetching game {game_id} from NBA API...")
     
-    # Use BoxScoreTraditionalV3 to get game info
-    boxscore = safe_call_nba_api(
-        name=f"BoxScoreTraditionalV3(game_id={game_id})",
-        call_fn=lambda: boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id),
-        max_retries=3,
-        base_delay=3.0,
-    )
-    
-    if boxscore is None:
-        print(f"[game_service] Failed to fetch game {game_id} after retries.")
-        return None
-    
-    data = boxscore.get_dict()
-    box_score_data = data.get('boxScoreTraditional', {})
-    
+    box_score_data = {}
+    source = None
+
+    # 1. Try BoxScoreTraditionalV3
+    try:
+        boxscore = safe_call_nba_api(
+            name=f"BoxScoreTraditionalV3(game_id={game_id})",
+            call_fn=lambda: boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id),
+            max_retries=3,
+            base_delay=3.0,
+        )
+        
+        if boxscore:
+            data = boxscore.get_dict()
+            box_score_data = data.get('boxScoreTraditional', {})
+            if box_score_data:
+                source = 'traditional'
+    except Exception as e:
+        print(f"[game_service] BoxScoreTraditionalV3 error: {e}")
+
+    # 2. Fallback to BoxScoreSummaryV3 if Traditional failed
+    if not source:
+        print(f"[game_service] TraditionalV3 failed/empty for {game_id}, trying BoxScoreSummaryV3 fallback...")
+        try:
+            summary = safe_call_nba_api(
+                name=f"BoxScoreSummaryV3(game_id={game_id})",
+                call_fn=lambda: boxscoresummaryv3.BoxScoreSummaryV3(game_id=game_id),
+                max_retries=3,
+                base_delay=2.0
+            )
+            if summary:
+                data = summary.get_dict()
+                box_score_data = data.get('boxScoreSummary', {})
+                if box_score_data:
+                    source = 'summary'
+        except Exception as e:
+             print(f"[game_service] BoxScoreSummaryV3 error: {e}")
+
     if not box_score_data:
-        print(f"[game_service] No game data found for game {game_id}")
+        print(f"[game_service] Failed to fetch game {game_id} from all endpoints")
         return None
     
-    # Extract game info from boxscore (may not exist if game hasn't started)
-    game_info = box_score_data.get('game', {})
+    # Extract game info based on source
+    if source == 'traditional':
+        game_info = box_score_data.get('game', {})
+    else:
+        # SummaryV3 stores game info at root
+        # Create a compatible wrapper or just use root
+        game_info = box_score_data
+        # Map SummaryV3 fields to expected names if missing
+        if 'gameDateEst' not in game_info:
+            # Summary has 'gameDate' usually
+            game_info['gameDateEst'] = game_info.get('gameDate', '').split('T')[0]
+        if 'gameStatus' not in game_info:
+            # Summary might use different status code field? usually it has it.
+            pass
     
     # Get team IDs from boxscore (these should always be available)
     home_team_id_api = box_score_data.get('homeTeamId')
