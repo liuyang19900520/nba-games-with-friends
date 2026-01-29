@@ -159,7 +159,7 @@ def _fetch_game_schedule_info(game_id: str, nba_team_id_to_db_id: Dict[str, int]
     home_team_id_nba = box_summary.get('homeTeamId')
     away_team_id_nba = box_summary.get('awayTeamId')
     arena = box_summary.get('arena', {})
-    arena_name = arena.get('name', '') if isinstance(arena, dict) else ''
+    arena_name = arena.get('arenaName', '') if isinstance(arena, dict) else ''
     
     # Use gameEt if available (more accurate), otherwise use gameTimeUTC
     game_time_str = game_time_et if game_time_et else game_time_utc
