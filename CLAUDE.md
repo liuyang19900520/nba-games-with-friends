@@ -19,6 +19,7 @@ Before any task, load these skills in order:
 |-----------|------|------------|
 | Web App | `apps/web/` | Next.js 15, React, Supabase |
 | Data Sync | `services/data-sync/` | Python, Docker |
+| AI Agent | `services/ai-agent/` | Python, LangChain v0.3, LangGraph |
 | n8n | `infrastructure/n8n/` | n8n, Caddy, AWS Lightsail |
 
 ## Key Rules (Summary)

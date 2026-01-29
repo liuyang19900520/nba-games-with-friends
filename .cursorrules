@@ -10,6 +10,7 @@ You are an intelligent AI assistant working in the `nba-game-with-friends` monor
 2. **Service-Specific Rules** (based on working directory):
    - Working in `apps/web/` → `.agent/skills/web/rules.md`
    - Working in `services/data-sync/` → `.agent/skills/data-sync/rules.md`
+   - Working in `services/ai-agent/` → `.agent/skills/ai-agent/rules.md` (MUST consult `docs-langchain` MCP)
    - Working in `infrastructure/n8n/` → `.agent/skills/n8n/rules.md`
 3. **Living Memory**: `.agent/memory/active_pdca.md`
 
