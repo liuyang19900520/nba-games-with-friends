@@ -1,0 +1,104 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "game-finished",
+        "options": {}
+      },
+      "id": "544448ed-0efd-4c8f-b982-65c4a04ba31f",
+      "name": "Game Finished Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        16
+      ],
+      "webhookId": "game-finished"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT \n  h.code as home_code, h.nickname as home_name,\n  a.code as away_code, a.nickname as away_name\nFROM teams h, teams a\nWHERE h.id = '{{ $json.body.home_team.id }}'\n  AND a.id = '{{ $json.body.away_team.id }}'",
+        "options": {}
+      },
+      "id": "780eb484-209d-42cf-935c-1d5b3ceb37a6",
+      "name": "Get Team Names",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -48,
+        16
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Vqe4fob0iM49fbzN",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://onesignal.com/api/v1/notifications",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"app_id\": \"9ee198f0-846a-4a48-bf1a-9775489478b1\",\n  \"included_segments\": [\"Subscribed Users\"],\n  \"headings\": {\"en\": \"🏀 比赛结束\"},\n  \"contents\": {\n    \"en\": \"{{ $('Get Team Names').item.json.away_name }} {{ $('Game Finished Webhook').item.json.body.away_team.score }} - {{ $('Game Finished Webhook').item.json.body.home_team.score }} {{ $('Get Team Names').item.json.home_name }}\"\n  },\n  \"url\": \"https://localhost:3000/games/{{ $('Game Finished Webhook').item.json.body.game_id }}\"\n}",
+        "options": {}
+      },
+      "id": "f7f2e6cf-4c89-465f-93c8-77baa5c59283",
+      "name": "Send OneSignal Push",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        176,
+        16
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "wMIM2xTy35rMF4Jg",
+          "name": "OneSignal API Key"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Game Finished Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Team Names",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Team Names": {
+      "main": [
+        [
+          {
+            "node": "Send OneSignal Push",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "7f95bd96e0e5c727811995ef51d9e1ffdabcc354b062795fa9a6d32568c6a432"
+  }
+}

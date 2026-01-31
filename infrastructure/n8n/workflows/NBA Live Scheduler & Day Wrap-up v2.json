@@ -6,13 +6,13 @@
         "query": "WITH tokyo_today AS (\n  -- Get current date in Tokyo timezone\n  SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date AS today_tokyo\n),\nlive_games AS (\n  SELECT id as game_id\n  FROM public.games, tokyo_today\n  WHERE (game_datetime AT TIME ZONE 'Asia/Tokyo')::date = tokyo_today.today_tokyo\n    AND (status = 'Live' \n         OR (status = 'Scheduled' \n             AND game_datetime <= CURRENT_TIMESTAMP + INTERVAL '30 minutes'\n             AND NOT COALESCE(is_time_tbd, false)))\n),\npending_sync_tasks AS (\n  SELECT DISTINCT (payload->>'game_id')::text as game_id\n  FROM public.task_queue\n  WHERE task_type = 'SYNC_LIVE_GAME'\n    AND status IN ('PENDING', 'PROCESSING')\n),\ngames_needing_sync AS (\n  SELECT lg.game_id\n  FROM live_games lg\n  LEFT JOIN pending_sync_tasks pt ON lg.game_id = pt.game_id\n  WHERE pt.game_id IS NULL\n),\ntoday_summary AS (\n  SELECT \n    COUNT(*) as total_games,\n    SUM(CASE WHEN status = 'Final' THEN 1 ELSE 0 END) as finished_games,\n    SUM(CASE WHEN status = 'Live' THEN 1 ELSE 0 END) as live_games,\n    SUM(CASE WHEN status IN ('Live', 'Scheduled') AND status != 'Final' THEN 1 ELSE 0 END) as active_games\n  FROM public.games, tokyo_today\n  WHERE (game_datetime AT TIME ZONE 'Asia/Tokyo')::date = tokyo_today.today_tokyo\n),\nwrap_up_check AS (\n  SELECT EXISTS(\n    SELECT 1 \n    FROM public.task_queue \n    WHERE task_type = 'DAILY_WRAP_UP' \n      AND (created_at AT TIME ZONE 'Asia/Tokyo')::date = (SELECT today_tokyo FROM tokyo_today)\n  ) as wrap_up_exists\n),\nfirst_game_notified AS (\n  SELECT EXISTS(\n    SELECT 1 \n    FROM public.task_queue \n    WHERE task_type = 'FIRST_GAME_NOTIFIED' \n      AND (created_at AT TIME ZONE 'Asia/Tokyo')::date = (SELECT today_tokyo FROM tokyo_today)\n  ) as already_notified\n),\nhas_started_games AS (\n  SELECT EXISTS(\n    SELECT 1 \n    FROM public.games, tokyo_today \n    WHERE (game_datetime AT TIME ZONE 'Asia/Tokyo')::date = tokyo_today.today_tokyo\n      AND (status IN ('Live', 'Final')\n           OR (status = 'Scheduled' \n               AND game_datetime <= CURRENT_TIMESTAMP + INTERVAL '30 minutes'\n               AND NOT COALESCE(is_time_tbd, false)))\n  ) as has_started\n)\nSELECT \n  COALESCE((SELECT json_agg(game_id) FROM games_needing_sync), '[]'::json) as games_to_sync,\n  (SELECT total_games FROM today_summary) as total_games,\n  (SELECT finished_games FROM today_summary) as finished_games,\n  (SELECT live_games FROM today_summary) as live_games,\n  -- New field: has active games (Live or not yet finished)\n  CASE \n    WHEN (SELECT live_games FROM today_summary) > 0 \n         OR ((SELECT total_games FROM today_summary) > 0 \n             AND (SELECT finished_games FROM today_summary) < (SELECT total_games FROM today_summary)\n             AND (SELECT has_started FROM has_started_games))\n    THEN true\n    ELSE false\n  END as has_active_games,\n  CASE \n    WHEN (SELECT total_games FROM today_summary) > 0 \n         AND (SELECT total_games FROM today_summary) = (SELECT finished_games FROM today_summary)\n         AND NOT (SELECT wrap_up_exists FROM wrap_up_check)\n    THEN true\n    ELSE false\n  END as should_wrap_up,\n  CASE \n    WHEN (SELECT has_started FROM has_started_games)\n         AND NOT (SELECT already_notified FROM first_game_notified)\n    THEN true\n    ELSE false\n  END as should_notify_first_game;",
         "options": {}
       },
-      "id": "0e8d9d52-b083-4976-a0bb-95ea9dec8578",
+      "id": "859703b5-847d-4231-8cb6-d29a5bed7f6b",
       "name": "Get Games & Status",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        96,
-        1040
+        -144,
+        1424
       ],
       "credentials": {
         "postgres": {
@@ -45,13 +45,13 @@
         },
         "options": {}
       },
-      "id": "f65e7ae3-e262-4a72-acb5-20db06f5508a",
+      "id": "37214b2c-1f02-4ed0-a499-a4f5ba0838a8",
       "name": "Has Games To Sync?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        336,
-        944
+        96,
+        1328
       ]
     },
     {
@@ -60,13 +60,13 @@
         "query": "=INSERT INTO public.task_queue (task_type, status, payload, created_at)\nSELECT \n  'SYNC_LIVE_GAME',\n  'PENDING',\n  jsonb_build_object('game_id', game_id::text),\n  NOW()\nFROM jsonb_array_elements_text('{{ JSON.stringify($('Get Games & Status').item.json.games_to_sync) }}'::jsonb) as game_id\nRETURNING id, payload->>'game_id' as game_id;",
         "options": {}
       },
-      "id": "b668119d-f689-4b8c-9432-93035f7bcfec",
+      "id": "de3e7716-f141-4455-b06e-6ee8b741438d",
       "name": "Insert Sync Tasks",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        608,
-        944
+        368,
+        1328
       ],
       "credentials": {
         "postgres": {
@@ -100,13 +100,13 @@
         },
         "options": {}
       },
-      "id": "b20e602b-05ab-46ee-a4e5-3b30d83445a9",
+      "id": "9dd0effa-f448-4159-93f1-70de40b183f4",
       "name": "Should Wrap Up?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        336,
-        1168
+        96,
+        1552
       ]
     },
     {
@@ -115,13 +115,13 @@
         "query": "INSERT INTO public.task_queue (task_type, status, payload, created_at)\nVALUES (\n  'DAILY_WRAP_UP',\n  'PENDING',\n  jsonb_build_object('date', ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date)::text),\n  NOW()\n)\nRETURNING id;",
         "options": {}
       },
-      "id": "eaef1037-1c3a-42b3-88d2-768d41f394c7",
+      "id": "ab517180-2fb6-4301-9f2f-6e7071c4ed8a",
       "name": "Insert Wrap Up Task",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        608,
-        1168
+        368,
+        1552
       ],
       "credentials": {
         "postgres": {
@@ -155,13 +155,13 @@
         },
         "options": {}
       },
-      "id": "c42f23ad-ef4c-4dd1-b1f4-4e377be90c81",
+      "id": "d2b3454c-d310-47cb-aa80-e178b37d35b5",
       "name": "First Game Starting?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        336,
-        1360
+        96,
+        1744
       ]
     },
     {
@@ -176,10 +176,6 @@
             {
               "name": "Content-Type",
               "value": "application/json"
-            },
-            {
-              "name": "Authorization",
-              "value": "={{ 'Bearer ' + $env.LINE_CHANNEL_TOKEN }}"
             }
           ]
         },
@@ -188,13 +184,13 @@
         "jsonBody": "={\n  \"to\": \"U39c581a7f6f9947e2d1061920173d95e\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"🏀 NBA比赛日开始！\\n\\n今日共有 {{ $('Get Games & Status').item.json.total_games }} 场比赛\\n当前进行中: {{ $('Get Games & Status').item.json.live_games }} 场\\n\\n祝观赛愉快！\"\n    }\n  ]\n}",
         "options": {}
       },
-      "id": "d3299c5b-e9f1-409d-a15c-87c05247c0e5",
+      "id": "ca12d82b-a359-4f61-b59c-0a256a440801",
       "name": "LINE: Games Started",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        608,
-        1360
+        368,
+        1744
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -209,13 +205,13 @@
         "query": "INSERT INTO public.task_queue (task_type, status, payload, created_at)\nVALUES (\n  'FIRST_GAME_NOTIFIED',\n  'COMPLETED',\n  jsonb_build_object('date', ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date)::text),\n  NOW()\n)\nRETURNING id;",
         "options": {}
       },
-      "id": "1bceaa08-ec83-4f37-87b0-87783a6be5f7",
+      "id": "102a0385-e6e1-45b0-8425-5c90ee1c4201",
       "name": "Record First Game Notified",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        848,
-        1360
+        608,
+        1744
       ],
       "credentials": {
         "postgres": {
@@ -236,10 +232,6 @@
             {
               "name": "Content-Type",
               "value": "application/json"
-            },
-            {
-              "name": "Authorization",
-              "value": "={{ 'Bearer ' + $env.LINE_CHANNEL_TOKEN }}"
             }
           ]
         },
@@ -248,13 +240,13 @@
         "jsonBody": "={\n  \"to\": \"U39c581a7f6f9947e2d1061920173d95e\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"🏁 今日NBA比赛全部结束！\\n\\n共完成 {{ $('Get Games & Status').item.json.total_games }} 场比赛\\n数据同步任务已创建\\n\\n明天见！\"\n    }\n  ]\n}",
         "options": {}
       },
-      "id": "bf4d2269-98f0-4412-890b-96f9b6dc3b2f",
+      "id": "a5e81c5c-bde3-4955-a7a5-56802fd2e2ce",
       "name": "LINE: Day Completed",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        848,
-        1168
+        608,
+        1552
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -298,13 +290,13 @@
         },
         "options": {}
       },
-      "id": "3affcd91-7077-4d86-8b27-4fca4ceb827d",
+      "id": "8ca6b4b5-401b-46b5-a616-e93d492036c8",
       "name": "Should Continue?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        224,
-        1040
+        -16,
+        1424
       ]
     },
     {
@@ -320,10 +312,10 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.3,
       "position": [
-        -96,
-        1040
+        -336,
+        1424
       ],
-      "id": "1df2a421-b3b4-4791-b099-40d459f5b907",
+      "id": "a7622eb0-5b34-4a45-b2da-4b8e33eafffc",
       "name": "Schedule Trigger"
     }
   ],
