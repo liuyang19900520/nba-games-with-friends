@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { OneSignalProvider } from '@/components/OneSignalProvider';
 import './globals.css';
 
 const inter = Inter({
@@ -22,12 +23,14 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className={inter.variable}>
       <body className="font-sans antialiased">
-        <div className="max-w-md mx-auto min-h-screen bg-background text-foreground flex flex-col">
-          <main className="flex-1 overflow-y-auto pb-[90px]">
-            {children}
-          </main>
-          <BottomNav />
-        </div>
+        <OneSignalProvider>
+          <div className="max-w-md mx-auto min-h-screen bg-background text-foreground flex flex-col">
+            <main className="flex-1 overflow-y-auto pb-[90px]">
+              {children}
+            </main>
+            <BottomNav />
+          </div>
+        </OneSignalProvider>
       </body>
     </html>
   );
