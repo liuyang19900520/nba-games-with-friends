@@ -68,7 +68,7 @@ def _fetch_player_stats_from_api(game_id: str) -> Tuple[Optional[List[Dict]], Op
     
     if boxscore is None:
         print(f"[game_player_stats_service] Failed to fetch boxscore for game {game_id} after retries.")
-        return None
+        return None, None
     
     # BoxScoreTraditionalV3 uses a new data structure
     data = boxscore.get_dict()

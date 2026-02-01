@@ -32,6 +32,7 @@ import time
 import json
 import argparse
 import traceback
+import requests
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -96,9 +97,24 @@ def handle_sync_live_game(payload: Dict[str, Any], logger: SyncLogger) -> bool:
     for game_id in game_ids:
         try:
             logger.info(f"Syncing game {game_id}...")
-            sync_single_game(str(game_id))
+            result = sync_single_game(str(game_id))
             success_count += 1
             logger.info(f"Successfully synced game {game_id}")
+
+            # Check if game just finished (Live/Scheduled → Final)
+            if result:
+                old_status = result.get("old_status")
+                new_status = result.get("new_status")
+                if old_status in ("Live", "Scheduled") and new_status == "Final":
+                    logger.info(f"🏁 Game {game_id} finished! Sending webhook...")
+                    send_game_finished_webhook({
+                        "game_id": game_id,
+                        "home_team_id": result.get("home_team_id"),
+                        "away_team_id": result.get("away_team_id"),
+                        "home_score": result.get("home_score"),
+                        "away_score": result.get("away_score")
+                    })
+
         except Exception as e:
             logger.error(f"Failed to sync game {game_id}: {str(e)}")
 
@@ -591,6 +607,89 @@ def update_task_status(db, task_id: int, status: str, error: Optional[str] = Non
         print(f"[worker] Error updating task {task_id}: {e}")
 
 
+def send_game_finished_webhook(game_data: Dict[str, Any]) -> None:
+    """
+    Send game finished webhook to n8n for push notifications.
+
+    Args:
+        game_data: Game information including teams and scores
+    """
+    webhook_url = os.getenv("GAME_FINISHED_WEBHOOK_URL")
+    if not webhook_url:
+        return  # Webhook not configured, skip silently
+
+    try:
+        payload = {
+            "event": "GAME_FINISHED",
+            "game_id": game_data.get("game_id"),
+            "home_team": {
+                "id": game_data.get("home_team_id"),
+                "score": game_data.get("home_score")
+            },
+            "away_team": {
+                "id": game_data.get("away_team_id"),
+                "score": game_data.get("away_score")
+            },
+            "finished_at": datetime.utcnow().isoformat()
+        }
+
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            timeout=10,
+            headers={"Content-Type": "application/json"}
+        )
+
+        if response.status_code >= 400:
+            print(f"[worker] Game finished webhook failed: {response.status_code}")
+        else:
+            print(f"[worker] Game finished webhook sent for game {game_data.get('game_id')}")
+
+    except Exception as e:
+        print(f"[worker] Game finished webhook error: {e}")
+
+
+def send_task_callback(task: Dict[str, Any], status: str, error: Optional[str] = None) -> None:
+    """
+    Send task completion callback to n8n webhook.
+
+    Args:
+        task: The task dict containing id, task_type, payload
+        status: Final status (COMPLETED or FAILED)
+        error: Error message if failed
+    """
+    callback_url = os.getenv("TASK_CALLBACK_URL")
+    if not callback_url:
+        return  # Callback not configured, skip silently
+
+    try:
+        payload = {
+            "task_id": task.get("id"),
+            "task_type": task.get("task_type"),
+            "status": status,
+            "error_log": error[:500] if error else None,
+            "completed_at": datetime.utcnow().isoformat(),
+            "payload": task.get("payload", {})
+        }
+
+        response = requests.post(
+            callback_url,
+            json=payload,
+            timeout=10,
+            headers={"Content-Type": "application/json"}
+        )
+
+        if response.status_code >= 400:
+            print(f"[worker] Callback failed with status {response.status_code}: {response.text[:200]}")
+        else:
+            print(f"[worker] Callback sent successfully for task {task.get('id')}")
+
+    except requests.exceptions.Timeout:
+        print(f"[worker] Callback timeout for task {task.get('id')}")
+    except Exception as e:
+        print(f"[worker] Callback error for task {task.get('id')}: {e}")
+
+
 def process_task(task: Dict[str, Any], logger: SyncLogger) -> bool:
     """Process a single task."""
     task_type = task.get("task_type")
@@ -664,14 +763,22 @@ def run_worker(poll_interval: int = 10) -> None:
                 print(f"[worker] Found task: {task_type} (id={task_id})")
 
                 # Process the task
-                success = process_task(task, logger)
+                error_msg = None
+                try:
+                    success = process_task(task, logger)
+                except Exception as e:
+                    success = False
+                    error_msg = str(e)
 
                 # Update task status
                 if success:
                     update_task_status(db, task_id, "COMPLETED")
+                    send_task_callback(task, "COMPLETED")
                     print(f"[worker] Task {task_id} completed successfully")
                 else:
-                    update_task_status(db, task_id, "FAILED", "Task handler returned failure")
+                    error_msg = error_msg or "Task handler returned failure"
+                    update_task_status(db, task_id, "FAILED", error_msg)
+                    send_task_callback(task, "FAILED", error_msg)
                     print(f"[worker] Task {task_id} failed")
 
                 # Reset error counter on successful processing
