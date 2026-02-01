@@ -13,3 +13,14 @@ Thumbs.db
 # MCP 配置（包含敏感凭证）
 .mcp.json
 
+
+# Python
+__pycache__/
+*.py[cod]
+*.log
+logs/
+
+# Local/Temp files
+run_test.py
+test_tracing.py
+.claude/settings.local.json

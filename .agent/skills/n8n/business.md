@@ -36,6 +36,13 @@ type: business
     -   Error Message
     -   Link to Execution ID
 
+### Callback Workflow: `Task Callback Handler`
+- **Trigger**: Webhook from data-sync worker after task completion.
+- **Endpoint**: `POST /webhook/task-callback`
+- **Action**:
+    -   If task FAILED → Send LINE alert with task type, ID, and error message.
+    -   If task COMPLETED → No action (silent success).
+
 ## 2. Notification Content
 -   **Game On**: "🏀 NBA比赛日开始！... 当前进行中: X 场"
 -   **Day End**: "🏁 今日NBA比赛全部结束！... 共完成 X 场"
