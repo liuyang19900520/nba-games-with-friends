@@ -1,11 +1,53 @@
 'use client';
 
-import { Lock } from 'lucide-react';
+import { useState } from 'react';
+import { Lock, X, AlertCircle } from 'lucide-react';
 
-export function PremiumFeatureCard() {
-  const handleUpgrade = () => {
-    // TODO: Implement upgrade logic
-    console.log('Upgrade clicked');
+interface PremiumFeatureCardProps {
+  userId: string | null;
+}
+
+export function PremiumFeatureCard({ userId }: PremiumFeatureCardProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpgrade = async () => {
+    if (!userId) {
+      // Redirect to login if not logged in
+      window.location.href = '/login';
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PAYMENT_API_URL}/create-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, priceId: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const { url } = await response.json();
+      if (url) {
+        window.location.href = url;
+      } else {
+        throw new Error('No payment URL received');
+      }
+    } catch (err) {
+      console.error('Payment failed:', err);
+      setError('Payment service is temporarily unavailable. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const dismissError = () => {
+    setError(null);
   };
 
   return (
@@ -98,12 +140,27 @@ export function PremiumFeatureCard() {
           Unlock AI-Powered One-Click Lineup Selection
         </p>
 
+        {/* Error Message */}
+        {error && (
+          <div className="w-full max-w-[280px] p-3 rounded-lg bg-red-500/20 border border-red-500/50 flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-300 flex-1">{error}</p>
+            <button
+              onClick={dismissError}
+              className="text-red-400 hover:text-red-300 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Upgrade Button */}
         <button
           onClick={handleUpgrade}
-          className="w-full max-w-[280px] py-3 px-6 rounded-lg bg-secondary text-brand-text-light font-medium hover:bg-accent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 focus:ring-offset-brand-dark"
+          disabled={loading}
+          className="w-full max-w-[280px] py-3 px-6 rounded-lg bg-secondary text-brand-text-light font-medium hover:bg-accent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 focus:ring-offset-brand-dark disabled:opacity-50"
         >
-          Upgrade Now - $4.99/mo
+          {loading ? 'Processing...' : 'Upgrade Now - ¥10'}
         </button>
       </div>
     </div>
