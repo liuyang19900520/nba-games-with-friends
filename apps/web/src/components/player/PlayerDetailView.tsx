@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import type { PlayerDetail } from '@/types';
 import type { PlayerShot } from '@/lib/db/player-shots';
 import type { LeagueAverages } from '@/lib/db/players';
@@ -51,9 +52,12 @@ export function PlayerDetailView({ player, shots = [], leagueAverages }: PlayerD
       <div className="flex items-center gap-6 pt-4">
         <div className="relative flex-shrink-0">
           <div className="absolute inset-0 rounded-full bg-gradient-to-r from-brand-blue via-purple-500 to-brand-blue opacity-60 blur-md animate-pulse" />
-          <img
+          <Image
             src={player.avatar}
             alt={player.name}
+            width={96}
+            height={96}
+            priority
             className="relative w-24 h-24 rounded-full object-cover border-4 border-brand-dark z-10"
           />
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-brand-blue rounded-full z-20" />

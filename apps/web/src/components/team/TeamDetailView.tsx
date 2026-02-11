@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import type { TeamDetail } from '@/types';
 
 import { PlayerStatCard } from './PlayerStatCard';
@@ -12,9 +13,12 @@ export function TeamDetailView({ team }: TeamDetailViewProps) {
       <div className="bg-brand-card border-2 border-purple-500/50 rounded-xl p-4 shadow-glow-blue">
         <div className="flex items-center gap-4 mb-4">
           {team.logo && (
-            <img
+            <Image
               src={team.logo}
               alt={team.name}
+              width={64}
+              height={64}
+              priority
               className="w-16 h-16 rounded-full object-cover border-2 border-brand-card-border"
             />
           )}

@@ -15,7 +15,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * - Public (no login required): /home, /lineup, /leagues, /team, /player
  */
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },

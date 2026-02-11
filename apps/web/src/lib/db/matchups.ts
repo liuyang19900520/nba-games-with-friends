@@ -58,7 +58,7 @@ export async function fetchMatchupLineup(
         10
       )}...)`
     );
-    
+
     // Decode JWT to check if it's actually a service_role key
     try {
       const parts = serviceRoleKey.split('.');
@@ -83,8 +83,7 @@ export async function fetchMatchupLineup(
       `[fetchMatchupLineup] Fetching lineup for user ${userId} on ${targetDate}`
     );
     logger.info(
-      `[fetchMatchupLineup] Date source: gameDate param=${
-        gameDate || "none"
+      `[fetchMatchupLineup] Date source: gameDate param=${gameDate || "none"
       }, getGameDate()=${await getGameDate()}`
     );
 
@@ -113,14 +112,14 @@ export async function fetchMatchupLineup(
         30
       )}...`
     );
-    
+
     // Check what role we're actually using
     try {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       logger.info(
         `[fetchMatchupLineup] Auth check: user=${authData?.user?.id || 'null'}, error=${authError?.message || 'none'}`
       );
-      
+
       // Try to get session info
       const { data: sessionData } = await supabase.auth.getSession();
       logger.info(
@@ -134,13 +133,13 @@ export async function fetchMatchupLineup(
     // This will help us determine if RLS is blocking or if there's another issue
     // Use RPC or direct query to test access
     logger.info(`[fetchMatchupLineup] Testing direct query with Service Role Key`);
-    
+
     // Try a simple query first to verify access
     const { data: testQuery, error: testError } = await supabase
       .from("user_daily_lineups")
       .select("id")
       .limit(1);
-    
+
     if (testError) {
       logger.error(`[fetchMatchupLineup] Test query failed:`, {
         message: testError.message,
@@ -151,7 +150,7 @@ export async function fetchMatchupLineup(
     } else {
       logger.info(`[fetchMatchupLineup] Test query succeeded, found ${testQuery?.length || 0} rows`);
     }
-    
+
     const { data: specificLineup, error: specificError } = await supabase
       .from("user_daily_lineups")
       .select("id, user_id, game_date, status, total_score")
@@ -170,16 +169,14 @@ export async function fetchMatchupLineup(
         `[fetchMatchupLineup] ✅ Successfully queried specific ID 5: user_id=${specificLineup.user_id}, game_date=${specificLineup.game_date}, status=${specificLineup.status}`
       );
       logger.info(
-        `[fetchMatchupLineup] User ID from DB: ${
-          specificLineup.user_id
+        `[fetchMatchupLineup] User ID from DB: ${specificLineup.user_id
         } (type: ${typeof specificLineup.user_id})`
       );
       logger.info(
         `[fetchMatchupLineup] Target User ID: ${userIdStr} (type: ${typeof userIdStr})`
       );
       logger.info(
-        `[fetchMatchupLineup] User ID match: ${
-          String(specificLineup.user_id) === userIdStr
+        `[fetchMatchupLineup] User ID match: ${String(specificLineup.user_id) === userIdStr
         }`
       );
     } else {
@@ -209,13 +206,11 @@ export async function fetchMatchupLineup(
       );
     } else {
       logger.info(
-        `[fetchMatchupLineup] All lineups (no filter): ${
-          allLineupsWithoutFilter?.length || 0
-        } rows (total count: ${totalCount ?? "unknown"}). Sample user_ids: ${
-          allLineupsWithoutFilter
-            ?.slice(0, 3)
-            .map((l) => `${l.user_id} (${typeof l.user_id})`)
-            .join(", ") || "none"
+        `[fetchMatchupLineup] All lineups (no filter): ${allLineupsWithoutFilter?.length || 0
+        } rows (total count: ${totalCount ?? "unknown"}). Sample user_ids: ${allLineupsWithoutFilter
+          ?.slice(0, 3)
+          .map((l) => `${l.user_id} (${typeof l.user_id})`)
+          .join(", ") || "none"
         }`
       );
 
@@ -261,17 +256,15 @@ export async function fetchMatchupLineup(
       // but log the error for debugging
     } else {
       logger.info(
-        `[fetchMatchupLineup] User has ${
-          allLineups?.length || 0
-        } lineups. Dates: ${
-          allLineups
-            ?.map((l) => {
-              const date = l.game_date;
-              return date instanceof Date
-                ? date.toISOString().split("T")[0]
-                : String(date).split("T")[0];
-            })
-            .join(", ") || "none"
+        `[fetchMatchupLineup] User has ${allLineups?.length || 0
+        } lineups. Dates: ${allLineups
+          ?.map((l) => {
+            const date = l.game_date;
+            return date instanceof Date
+              ? date.toISOString().split("T")[0]
+              : String(date).split("T")[0];
+          })
+          .join(", ") || "none"
         }`
       );
     }
@@ -345,12 +338,10 @@ export async function fetchMatchupLineup(
         );
       } else {
         logger.info(
-          `[fetchMatchupLineup] All lineups for user (no date filter): ${
-            allMatches?.length || 0
-          } rows. Dates: ${
-            allMatches
-              ?.map((l) => `${l.game_date} (${typeof l.game_date})`)
-              .join(", ") || "none"
+          `[fetchMatchupLineup] All lineups for user (no date filter): ${allMatches?.length || 0
+          } rows. Dates: ${allMatches
+            ?.map((l) => `${l.game_date} (${typeof l.game_date})`)
+            .join(", ") || "none"
           }`
         );
       }
@@ -412,10 +403,8 @@ export async function fetchMatchupLineup(
     }
 
     logger.info(
-      `[fetchMatchupLineup] Exact query result: data=${
-        exactLineup ? `found id=${exactLineup.id}` : "null"
-      }, error=${
-        exactError ? `${exactError.code}: ${exactError.message}` : "none"
+      `[fetchMatchupLineup] Exact query result: data=${exactLineup ? `found id=${exactLineup.id}` : "null"
+      }, error=${exactError ? `${exactError.code}: ${exactError.message}` : "none"
       }`
     );
 
@@ -479,8 +468,7 @@ export async function fetchMatchupLineup(
       .order("position");
 
     logger.info(
-      `[fetchMatchupLineup] Found ${
-        lineupItems?.length || 0
+      `[fetchMatchupLineup] Found ${lineupItems?.length || 0
       } lineup items for lineup ${finalLineup.id}`
     );
 
@@ -565,7 +553,7 @@ export async function fetchMatchupLineup(
     );
 
     // Fetch player stats for these games
-    let playerStatsMap = new Map<
+    const playerStatsMap = new Map<
       number,
       {
         pts: number;
@@ -595,7 +583,7 @@ export async function fetchMatchupLineup(
         // Map stats by player_id (take the latest game if multiple)
         for (const stat of statsData) {
           const existing = playerStatsMap.get(stat.player_id);
-          
+
           // Calculate fantasy score from stats
           const calculatedFantasyScore = calculateFantasyScore({
             pts: stat.pts || 0,
@@ -605,12 +593,12 @@ export async function fetchMatchupLineup(
             blk: stat.blk || 0,
             tov: stat.tov || 0,
           });
-          
+
           // Use calculated score if available, otherwise fall back to database value
-          const fantasyScore = calculatedFantasyScore > 0 
-            ? calculatedFantasyScore 
+          const fantasyScore = calculatedFantasyScore > 0
+            ? calculatedFantasyScore
             : (stat.fantasy_score || 0);
-          
+
           if (!existing || fantasyScore > existing.fantasy_score) {
             playerStatsMap.set(stat.player_id, {
               pts: stat.pts || 0,
@@ -650,7 +638,7 @@ export async function fetchMatchupLineup(
         fantasy_score: number;
         game_status: string;
       };
-      
+
       if (rawStats) {
         stats = rawStats;
       } else {
@@ -658,7 +646,7 @@ export async function fetchMatchupLineup(
         const calculatedScore = item.fantasy_score && item.fantasy_score > 0
           ? item.fantasy_score
           : 0;
-        
+
         stats = {
           pts: 0,
           reb: 0,
@@ -736,12 +724,12 @@ export async function fetchMatchupLineup(
 
     // Calculate total score from all players' fantasy scores
     const calculatedTotalScore = players.reduce((sum, player) => sum + player.fpts, 0);
-    
+
     // Use calculated total if available, otherwise use database value
-    const totalScore = calculatedTotalScore > 0 
-      ? calculatedTotalScore 
+    const totalScore = calculatedTotalScore > 0
+      ? calculatedTotalScore
       : (finalLineup.total_score || 0);
-    
+
     logger.info(
       `[fetchMatchupLineup] Total score: calculated=${calculatedTotalScore.toFixed(2)}, database=${finalLineup.total_score || 0}, using=${totalScore.toFixed(2)}`
     );

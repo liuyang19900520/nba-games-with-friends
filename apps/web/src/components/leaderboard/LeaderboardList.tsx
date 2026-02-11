@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import type { LeaderboardEntry, LeaderboardFilter } from '@/types';
@@ -141,15 +142,19 @@ function LeaderboardItem({ entry, filter, onClick }: LeaderboardItemProps) {
         {/* Avatar/Logo */}
         <div className="flex-shrink-0">
           {entry.avatar ? (
-            <img
+            <Image
               src={entry.avatar}
-              alt={entry.name}
+              alt={entry.name || "Player"}
+              width={40}
+              height={40}
               className="w-10 h-10 rounded-full object-cover border-2 border-brand-card-border"
             />
           ) : entry.logo ? (
-            <img
+            <Image
               src={entry.logo}
-              alt={entry.name}
+              alt={entry.name || "Team"}
+              width={40}
+              height={40}
               className="w-10 h-10 rounded-full object-cover border-2 border-brand-card-border"
             />
           ) : (
@@ -189,4 +194,3 @@ function LeaderboardItem({ entry, filter, onClick }: LeaderboardItemProps) {
     </div>
   );
 }
-

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { X, Sparkles } from 'lucide-react';
 import type { GameResult } from '@/types';
 
@@ -57,7 +58,7 @@ export function PredictionModal({
                                 {/* Away Team */}
                                 <div className="flex items-center gap-3 flex-1">
                                     {game.awayTeam.logoUrl ? (
-                                        <img src={game.awayTeam.logoUrl} alt={game.awayTeam.name} className="w-8 h-8 object-contain" />
+                                        <Image src={game.awayTeam.logoUrl} alt={game.awayTeam.name} width={32} height={32} className="w-8 h-8 object-contain" />
                                     ) : (
                                         <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold">
                                             {game.awayTeam.code}
@@ -79,7 +80,7 @@ export function PredictionModal({
                                         {game.homeTeam.code}
                                     </span>
                                     {game.homeTeam.logoUrl ? (
-                                        <img src={game.homeTeam.logoUrl} alt={game.homeTeam.name} className="w-8 h-8 object-contain" />
+                                        <Image src={game.homeTeam.logoUrl} alt={game.homeTeam.name} width={32} height={32} className="w-8 h-8 object-contain" />
                                     ) : (
                                         <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold">
                                             {game.homeTeam.code}

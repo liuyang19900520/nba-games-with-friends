@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { PlayerStats } from '@/types';
 
@@ -53,9 +54,11 @@ export function PlayerStatCard({ player }: PlayerStatCardProps) {
     >
       <div className="flex items-center gap-4">
         <div className="flex flex-col items-center justify-center flex-shrink-0 h-full w-24">
-          <img
+          <Image
             src={player.avatar}
             alt={player.name}
+            width={64}
+            height={64}
             className="w-16 h-16 rounded-full object-cover border-2 border-brand-card-border mb-2"
           />
           <div className="text-center mb-1 min-h-[2.5rem] flex flex-col justify-center">

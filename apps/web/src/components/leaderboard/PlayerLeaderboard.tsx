@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import type { PlayerSeasonStats } from '@/types/nba';
@@ -132,9 +133,11 @@ export function PlayerLeaderboard({ stats }: PlayerLeaderboardProps) {
                 {/* Avatar - Matching TeamRankItem style */}
                 <div className="flex items-center justify-center flex-shrink-0">
                   {stat.player?.headshot_url ? (
-                    <img
+                    <Image
                       src={stat.player.headshot_url}
                       alt={stat.player.full_name}
+                      width={32}
+                      height={32}
                       className="w-8 h-8 rounded-full object-cover border border-brand-card-border"
                     />
                   ) : (

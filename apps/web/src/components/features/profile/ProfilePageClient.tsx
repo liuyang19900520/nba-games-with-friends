@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { signOutWithoutRedirect } from "@/app/login/actions";
 import { Header } from "@/components/layout/Header";
@@ -85,9 +86,11 @@ export function ProfilePageClient({ user }: ProfilePageClientProps) {
               {/* Avatar */}
               <div className="flex-shrink-0">
                 {avatarUrl ? (
-                  <img
+                  <Image
                     src={avatarUrl}
                     alt={displayName}
+                    width={64}
+                    height={64}
                     className="w-16 h-16 rounded-full object-cover border-2 border-brand-card-border"
                   />
                 ) : (

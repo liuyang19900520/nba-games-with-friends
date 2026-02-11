@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import type { LeaderboardEntry } from '@/types';
 
@@ -47,9 +48,11 @@ export function TeamRankItem({ team, onClick }: TeamRankItemProps) {
       {/* Logo - Fixed width */}
       <div className="flex items-center justify-center flex-shrink-0">
         {teamLogo ? (
-          <img
+          <Image
             src={teamLogo}
             alt={team.name}
+            width={32}
+            height={32}
             className="w-8 h-8 rounded-full object-cover border border-brand-card-border"
           />
         ) : (

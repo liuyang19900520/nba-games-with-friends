@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { GameResult } from "@/types";
 import { formatTokyoTime } from "@/lib/utils/timezone";
@@ -58,9 +59,11 @@ export function GameResultCard({ game }: GameResultCardProps) {
           </span>
           <div className="w-8 h-8 flex-shrink-0">
             {game.homeTeam.logoUrl ? (
-              <img
+              <Image
                 src={game.homeTeam.logoUrl}
                 alt={game.homeTeam.name}
+                width={32}
+                height={32}
                 className="w-8 h-8 rounded-full object-cover"
               />
             ) : (
@@ -105,9 +108,11 @@ export function GameResultCard({ game }: GameResultCardProps) {
           </span>
           <div className="w-8 h-8 flex-shrink-0">
             {game.awayTeam.logoUrl ? (
-              <img
+              <Image
                 src={game.awayTeam.logoUrl}
                 alt={game.awayTeam.name}
+                width={32}
+                height={32}
                 className="w-8 h-8 rounded-full object-cover"
               />
             ) : (

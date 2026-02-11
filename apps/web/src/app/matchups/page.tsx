@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "View your starting lineup and friends leaderboard.",
 };
 
+export const dynamic = "force-dynamic";
+
 /**
  * Matchups 页面
  *
