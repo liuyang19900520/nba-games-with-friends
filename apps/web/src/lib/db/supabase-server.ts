@@ -50,8 +50,9 @@ export function createServerClient(): SupabaseClient {
   // Debug: Decode JWT to verify it's a service_role key
   try {
     const parts = supabaseServiceRoleKey.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    const middlePart = parts[1];
+    if (parts.length === 3 && middlePart) {
+      const payload = JSON.parse(Buffer.from(middlePart, 'base64').toString());
       console.log(`[supabase-server] Key role: ${payload.role}`);
       if (payload.role !== 'service_role') {
         console.error(`[supabase-server] ⚠️ ERROR: SUPABASE_SERVICE_ROLE_KEY is NOT a service_role key! It's a "${payload.role}" key.`);

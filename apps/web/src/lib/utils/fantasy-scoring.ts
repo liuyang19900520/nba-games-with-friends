@@ -20,6 +20,36 @@ export interface FantasyScoringConfig {
   version: string;
   description: string;
   rules: {
+    points: {
+      stat: string;
+      coefficient: number;
+      description: string;
+    };
+    rebounds: {
+      stat: string;
+      coefficient: number;
+      description: string;
+    };
+    assists: {
+      stat: string;
+      coefficient: number;
+      description: string;
+    };
+    steals: {
+      stat: string;
+      coefficient: number;
+      description: string;
+    };
+    blocks: {
+      stat: string;
+      coefficient: number;
+      description: string;
+    };
+    turnovers: {
+      stat: string;
+      coefficient: number;
+      description: string;
+    };
     [key: string]: {
       stat: string;
       coefficient: number;
