@@ -6,9 +6,9 @@ const nextConfig: NextConfig = {
   // Use export const experimental_ppr = true in page files
 
   // Transpile Supabase packages to resolve Next.js 15 compatibility issues
-  transpilePackages: ["@supabase/supabase-js"],
+  transpilePackages: ["@supabase/supabase-js", "@supabase/ssr"],
 
-  serverExternalPackages: ["@supabase/ssr", "@supabase/supabase-js"],
+  serverExternalPackages: [],
 
   images: {
     remotePatterns: [
