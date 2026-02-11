@@ -1,151 +1,215 @@
+import json
 import os
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
 from tools import tools
-from src.models.planner import PlanExecuteState, Plan, Act
+from models.planner import PlanExecuteState, Plan, Act
+from layers.models import PredictionResult
+from utils.logger import logger
 
-# 1. 定义状态 (State)
-# Plan-and-Execute 需要追踪输入、计划、已执行步骤和最终响应
-# 1. 定义状态 (State) - 移至 src/models/planner.py
-
-# 2. 定义计划的数据结构 (用于 Structured Output)
-# 2. 定义计划的数据结构 - 移至 src/models/planner.py
-
-# 3. 定义行动的数据结构 (用于 Replanner 决策)
-# 3. 定义行动的数据结构 - 移至 src/models/planner.py
 
 def create_prediction_graph():
     """
-    构造 NBA 预测图：采用 Plan-and-Execute 架构。
+    Build the NBA prediction graph using a Plan-and-Execute architecture.
+    Contains Planner → Executor → Replanner loop, plus a final Synthesizer node.
     """
     llm = ChatOpenAI(
         model="deepseek-chat",
         api_key=os.getenv("DEEPSEEK_API_KEY"),
         base_url="https://api.deepseek.com",
-        streaming=True
+        streaming=True,
     )
 
-    # 内部执行器 (Executor)：使用一个预制的 ReAct Agent 来执行具体的单个步骤
+    # Non-streaming LLM for structured output (streaming + json_mode can conflict)
+    structured_llm = ChatOpenAI(
+        model="deepseek-chat",
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        base_url="https://api.deepseek.com",
+        streaming=False,
+    )
+
+    # Internal Executor: a prebuilt ReAct Agent that executes individual steps
     executor = create_react_agent(llm, tools)
 
-    # --- 节点定义 ---
+    # --- Node Definitions ---
 
     def plan_step(state: PlanExecuteState):
-        """Planner 节点：根据输入创建初始计划。"""
-        
-        # 0. 动态获取工具描述
-        tool_descriptions = "\n".join([f"- {t.name}: {t.description}" for t in tools])
+        """Planner node: creates an initial plan based on user input."""
 
-        # 1. 定义 Few-Shot Examples (小样本提示) - 这是固定思路的关键
+        # 0. Dynamically get tool descriptions
+        tool_descriptions = "\n".join(
+            [f"- {t.name}: {t.description}" for t in tools]
+        )
+
+        # 1. Few-Shot Examples — anchor the reasoning style
         few_shot_examples = """
-示例 1:
-User: "分析一下勇士队最近的表现，也就是最近5场比赛的胜率和库里的场均得分。"
+Example 1:
+User: "Analyze the Warriors' recent performance — their win rate over the last 5 games and Curry's average points."
 Plan:
 {
-  "reasoning": "用户想了解勇士队近期状态。这包含两个具体的统计指标：最近5场胜率、库里近5场平均分。我需要先获取勇士队最近的比赛数据，然后计算胜率；同时获取库里这些比赛的数据，就算得分。这也是一个分步过程。",
+  "reasoning": "The user wants to understand the Warriors' recent form. This involves two specific metrics: last 5 games win rate and Curry's scoring average. I need to first fetch the Warriors' recent game data to calculate win rate, then get Curry's individual stats for those games.",
   "steps": [
-    "获取金州勇士队(Golden State Warriors)最近 5 场比赛的详细赛程和比分结果。",
-    "基于获取的比赛结果，计算勇士队的胜率。",
-    "获取斯蒂芬·库里(Stephen Curry)在上述 5 场比赛中的个人数据。",
-    "计算库里这 5 场比赛的平均得分。",
-    "整合胜率和球员数据，总结勇士队近期表现。"
+    "Fetch the Golden State Warriors' last 5 game results with scores and outcomes.",
+    "Calculate the Warriors' win rate based on those 5 games.",
+    "Fetch Stephen Curry's individual stats for those 5 games.",
+    "Calculate Curry's average points per game over those 5 games.",
+    "Summarize the Warriors' recent performance with both metrics."
   ]
 }
 
-示例 2:
-User: "比较一下湖人和凯尔特人历史上谁的冠军更多，以及他们最近一次交手的比分。"
+Example 2:
+User: "Predict the outcome of tomorrow's Lakers vs Celtics game."
 Plan:
 {
-  "reasoning": "这是一个对比任务，包含历史数据（冠军数）和近期事实（最近交手）。这两个信息源可能不同，最好分开查询。",
+  "reasoning": "This is a prediction task requiring comprehensive data collection. I need both teams' fundamentals (record, efficiency), latest news from the vector database, injury reports, recent performance trends, schedule stress, and head-to-head history. Let me systematically gather all this information.",
   "steps": [
-    "查询洛杉矶湖人队(Lakers)的历史总冠军数量。",
-    "查询波士顿凯尔特人队(Celtics)的历史总冠军数量。",
-    "查询湖人和凯尔特人最近一次比赛的日期和最终比分。",
-    "对比冠军数量，并结合最近一次交手结果生成回答。"
+    "Use get_team_id_by_code to get the Team IDs for Lakers (LAL) and Celtics (BOS).",
+    "Use get_team_fundamentals to get both teams' records, offensive/defensive efficiency, and home/away splits.",
+    "Use query_vector_memory to search the vector database for latest news and expert analysis on Lakers and Celtics.",
+    "Use search_nba_injuries to check both teams' latest injury reports and confirm key player availability.",
+    "Use get_recent_performance_analysis to analyze both teams' scoring trends and win rate over the last 5 games.",
+    "Use get_star_player_trends to compare each team's star players' recent form vs season averages.",
+    "Use get_schedule_stress_analysis to check if either team has back-to-backs or a compressed schedule.",
+    "Use get_matchup_analysis to get head-to-head records and efficiency comparisons.",
+    "Synthesize all collected data, analyze strengths and weaknesses, and make a prediction."
+  ]
+}
+
+Example 3:
+User: "Compare the Lakers and Celtics — who has more championships, and what was the score of their last meeting?"
+Plan:
+{
+  "reasoning": "This is a comparison task with two types of data: historical (championship count) and recent (last meeting score). These likely come from different sources, so it's best to query them separately.",
+  "steps": [
+    "Look up the total number of NBA championships for the Los Angeles Lakers.",
+    "Look up the total number of NBA championships for the Boston Celtics.",
+    "Find the date and final score of the most recent Lakers vs Celtics game.",
+    "Compare championship counts and combine with the latest matchup result to generate a response."
   ]
 }
 """
 
         planner_prompt = (
-            "你是一个顶级的 NBA 分析专家 Agent。\n"
-            "你的核心能力是将一个模糊的用户问题，拆解为一系列可执行的、逻辑严密的步骤。\n\n"
-            f"你可以用的工具有：\n{tool_descriptions}\n\n"
-            "制定计划的原则：\n"
-            "1. **详细且具体**：不要说'获取数据'，要说'获取勇士队最近5场的得分数据'。\n"
-            "2. **依赖关系**：如果步骤 B 依赖步骤 A 的结果（比如需要先查到 Player ID 才能查数据），请确保顺序正确。\n"
-            "3. **必须包含推理(Reasoning)**：在列出 steps 之前，先在 reasoning 字段中用中文分析一下思路。\n\n"
-            f"参考以下优秀的思考方式：\n{few_shot_examples}"
+            "You are a top-tier NBA analysis expert Agent.\n"
+            "Your core ability is to decompose a user's question into a series of executable, logically rigorous steps.\n\n"
+            f"Available tools:\n{tool_descriptions}\n\n"
+            "**Important Tool Notes**:\n"
+            "- `query_vector_memory`: Searches the vector database for latest NBA news and analysis articles (auto-scraped from ESPN every 30 minutes). For prediction tasks, always use this tool to get the latest intelligence.\n"
+            "- `search_nba_injuries`: Specifically searches NBA injury reports to confirm key player availability. Injury information is critical for predictions.\n\n"
+            "Planning principles:\n"
+            "1. **Be specific and detailed**: Don't say 'get data' — say 'get the Warriors' scoring data from the last 5 games'.\n"
+            "2. **Handle dependencies**: If step B depends on step A's results (e.g., you need a Player ID before querying stats), ensure correct ordering.\n"
+            "3. **Include reasoning**: Before listing steps, explain your thought process in the reasoning field.\n"
+            "4. **Be comprehensive for predictions**: If this is a game prediction, the plan MUST include: team fundamentals, vector DB latest news, injury reports, recent performance, schedule stress, and head-to-head history.\n\n"
+            f"Reference these high-quality examples:\n{few_shot_examples}\n\n"
+            "You MUST return pure JSON with no additional text or markdown. JSON structure:\n"
+            '{"reasoning": "Your reasoning process...", "steps": ["Step 1", "Step 2", ...]}'
         )
-        
-        planner = llm.with_structured_output(Plan)
-        
-        # 使用 System Prompt + User Input
+
+        planner = structured_llm.with_structured_output(Plan, method="json_mode")
+
         plan_result = planner.invoke([
             {"role": "system", "content": planner_prompt},
-            {"role": "user", "content": state["input"]}
+            {"role": "user", "content": state["input"]},
         ])
-        
+
         return {"plan": plan_result.steps, "reasoning": plan_result.reasoning}
 
     def execute_step(state: PlanExecuteState):
-        """Executor 节点：执行计划中的第一个步骤。"""
+        """Executor node: executes the first step in the current plan."""
         plan = state["plan"]
         task = plan[0]
         context = (
-            f"你当前正在执行计划中的步骤：{task}\n\n"
-            f"目标是解决原始任务：{state['input']}\n\n"
-            f"请利用工具完成这个特定的步骤，并返回详细的执行结果。"
+            f"You are currently executing this step from the plan: {task}\n\n"
+            f"The goal is to solve the original task: {state['input']}\n\n"
+            f"Use the available tools to complete this specific step and return detailed results."
         )
-        
-        # 调用 ReAct 代理执行单个原子任务
+
         result = executor.invoke({"messages": [("user", context)]})
-        return {
-            "past_steps": [(task, result["messages"][-1].content)]
-        }
+        return {"past_steps": [(task, result["messages"][-1].content)]}
 
     def replan_step(state: PlanExecuteState):
-        """Replanner 节点：根据执行结果决定是继续还是结束。"""
+        """Replanner node: decides whether to continue or finish based on execution results."""
         replanner_prompt = (
-            "你是一个顶级的 NBA 分析专家。根据已有的执行结果，决定后续操作。\n"
-            "如果你已经有足够的证据来回答问题，请给出最终答案 (response 设为字符串)。\n"
-            "如果你还需要更多步骤，请更新当前的计划列表 (response 设为字符串列表)，删除已完成的，添加必要的后续步骤。"
+            "You are a top-tier NBA analysis expert. Based on the execution results so far, decide what to do next.\n"
+            "If you have enough evidence to answer the question, provide a final answer (set response to a string).\n"
+            "If you need more steps, update the plan list (set response to a list of strings) — remove completed steps and add any necessary follow-ups.\n\n"
+            "You MUST return pure JSON with no additional text or markdown. JSON structure:\n"
+            'When task is complete: {"response": "Your final answer..."}\n'
+            'When more steps are needed: {"response": ["Next step 1", "Next step 2", ...]}'
         )
-        replanner = llm.with_structured_output(Act)
-        
-        # 汇总历史
-        history = "\n".join(f"步骤: {k}\n结果: {v}" for k, v in state["past_steps"])
-        user_msg = f"原始目标: {state['input']}\n\n执行历史:\n{history}"
-        
+        replanner = structured_llm.with_structured_output(Act, method="json_mode")
+
+        history = "\n".join(
+            f"Step: {k}\nResult: {v}" for k, v in state["past_steps"]
+        )
+        user_msg = f"Original goal: {state['input']}\n\nExecution history:\n{history}"
+
         result = replanner.invoke([
             {"role": "system", "content": replanner_prompt},
-            {"role": "user", "content": user_msg}
+            {"role": "user", "content": user_msg},
         ])
-        
+
         if isinstance(result.response, str):
             return {"response": result.response}
         else:
             return {"plan": result.response}
 
-    # --- 路由逻辑 ---
+    def synthesize_prediction(state: PlanExecuteState):
+        """Synthesizer node: combines all collected data into a structured PredictionResult."""
+        history = "\n".join(
+            f"Step: {k}\nResult: {v}" for k, v in state["past_steps"]
+        )
+
+        synthesizer_prompt = (
+            "You are an NBA game prediction expert. Based on all the data collected below, generate a structured prediction result.\n\n"
+            "Requirements:\n"
+            "1. winner: Full name of the predicted winning team\n"
+            "2. confidence: Prediction confidence (0.0 to 1.0), based on data completeness and consistency\n"
+            "3. key_factors: 3-5 key factors influencing the prediction\n"
+            "4. detailed_analysis: A detailed English analysis covering offensive/defensive matchups, injury impact, recent form, schedule factors, etc.\n\n"
+            f"Original task: {state['input']}\n\n"
+            f"Replanner preliminary conclusion:\n{state.get('response', '')}\n\n"
+            f"Full execution history:\n{history}\n\n"
+            "You MUST return pure JSON with no additional text or markdown. JSON structure:\n"
+            '{"winner": "Full Team Name", "confidence": 0.75, "key_factors": ["Factor 1", "Factor 2"], "detailed_analysis": "Detailed analysis..."}'
+        )
+
+        synthesizer = structured_llm.with_structured_output(PredictionResult, method="json_mode")
+
+        prediction = synthesizer.invoke([
+            {"role": "system", "content": synthesizer_prompt},
+            {"role": "user", "content": "Based on all the data above, generate the structured prediction result."},
+        ])
+
+        return {"prediction_result": prediction.model_dump()}
+
+    # --- Routing Logic ---
 
     def should_continue(state: PlanExecuteState):
         if "response" in state and state["response"]:
-            return END
+            return "synthesizer"
         return "execute"
 
-    # --- 构建图 (StateGraph) ---
+    # --- Build Graph (StateGraph) ---
 
     workflow = StateGraph(PlanExecuteState)
 
     workflow.add_node("planner", plan_step)
     workflow.add_node("execute", execute_step)
     workflow.add_node("replanner", replan_step)
+    workflow.add_node("synthesizer", synthesize_prediction)
 
     workflow.set_entry_point("planner")
     workflow.add_edge("planner", "execute")
     workflow.add_edge("execute", "replanner")
-    workflow.add_conditional_edges("replanner", should_continue)
+    workflow.add_conditional_edges(
+        "replanner",
+        should_continue,
+        {"execute": "execute", "synthesizer": "synthesizer"},
+    )
+    workflow.add_edge("synthesizer", END)
 
     return workflow.compile()

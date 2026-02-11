@@ -6,8 +6,11 @@ import { GameResultsList } from './GameResultsList';
 import { PremiumFeatureCard } from './PremiumFeatureCard';
 import { PremiumPredictionCard } from './PremiumPredictionCard';
 import { PredictionModal } from './PredictionModal';
+import { PredictionStreamView } from './PredictionStreamView';
+import { PredictionResultCard } from './PredictionResultCard';
 import { NotificationToast } from '@/components/ui/NotificationToast';
-import { fetchGamesByDate, predictGameOutcome } from '@/app/home/actions';
+import { fetchGamesByDate } from '@/app/home/actions';
+import { usePredictionStream } from '@/hooks/usePredictionStream';
 import type { GameResult } from '@/types';
 
 interface HomePageClientProps {
@@ -24,17 +27,18 @@ export function HomePageClient({ initialGames, initialDate, userId, isPremium }:
 
   // Prediction Modal State
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
-  const [isPredicting, setIsPredicting] = useState(false);
+
+  // Streaming prediction
+  const { status, steps, result, error, startPrediction, reset } = usePredictionStream();
+
+  // Matchup info for result display
+  const [predictionMatchup, setPredictionMatchup] = useState<{ home: string; away: string } | null>(null);
 
   // Toast State
   const [toast, setToast] = useState<{ isVisible: boolean; message: string }>({
     isVisible: false,
     message: ''
   });
-
-  const showToast = (message: string) => {
-    setToast({ isVisible: true, message });
-  };
 
   const hideToast = () => {
     setToast(prev => ({ ...prev, isVisible: false }));
@@ -49,7 +53,6 @@ export function HomePageClient({ initialGames, initialDate, userId, isPremium }:
         setGames(newGames);
       } catch (error) {
         console.error('[HomePageClient] Error fetching games:', error);
-        // Keep existing games on error
       }
     });
   };
@@ -58,22 +61,19 @@ export function HomePageClient({ initialGames, initialDate, userId, isPremium }:
     setIsPredictionModalOpen(true);
   };
 
-  const handleGameSelect = async (gameId: string) => {
-    setIsPredicting(true);
-    try {
-      // Call the AI Agent (Server Action)
-      const result = await predictGameOutcome(gameId);
+  const handleGameSelect = (game: GameResult) => {
+    setIsPredictionModalOpen(false);
+    setPredictionMatchup({ home: game.homeTeam.name, away: game.awayTeam.name });
+    startPrediction(
+      game.homeTeam.name,
+      game.awayTeam.name,
+      game.gameDate || selectedDate
+    );
+  };
 
-      if (result.success) {
-        showToast(result.message);
-      }
-    } catch (error) {
-      console.error('[HomePageClient] Prediction error:', error);
-      showToast('Failed to process prediction request. Please try again.');
-    } finally {
-      setIsPredicting(false);
-      setIsPredictionModalOpen(false);
-    }
+  const handleClosePrediction = () => {
+    reset();
+    setPredictionMatchup(null);
   };
 
   return (
@@ -109,13 +109,37 @@ export function HomePageClient({ initialGames, initialDate, userId, isPremium }:
         )}
       </section>
 
+      {/* AI Thinking Process (streaming) */}
+      {(status === 'streaming' || status === 'error') && (
+        <section>
+          <PredictionStreamView
+            status={status}
+            steps={steps}
+            error={error}
+            onClose={handleClosePrediction}
+          />
+        </section>
+      )}
+
+      {/* Final Prediction Result */}
+      {status === 'complete' && result && predictionMatchup && (
+        <section>
+          <PredictionResultCard
+            result={result}
+            homeTeam={predictionMatchup.home}
+            awayTeam={predictionMatchup.away}
+            onClose={handleClosePrediction}
+          />
+        </section>
+      )}
+
       {/* Prediction Modal */}
       <PredictionModal
         isOpen={isPredictionModalOpen}
         onClose={() => setIsPredictionModalOpen(false)}
         games={games}
         onSelectGame={handleGameSelect}
-        isSubmitting={isPredicting}
+        isSubmitting={false}
       />
 
       {/* Notification Toast */}

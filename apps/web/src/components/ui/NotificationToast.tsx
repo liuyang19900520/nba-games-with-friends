@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Sparkles, CheckCircle, X } from 'lucide-react';
 
 interface NotificationToastProps {
@@ -20,6 +20,12 @@ export function NotificationToast({
 }: NotificationToastProps) {
     const [show, setShow] = useState(false);
 
+    const handleClose = useCallback(() => {
+        setShow(false);
+        // Wait for exit animation to finish before calling onClose
+        setTimeout(onClose, 300);
+    }, [onClose]);
+
     // Handle entry animation
     useEffect(() => {
         if (isVisible) {
@@ -31,13 +37,7 @@ export function NotificationToast({
         } else {
             setShow(false);
         }
-    }, [isVisible, duration]);
-
-    const handleClose = () => {
-        setShow(false);
-        // Wait for exit animation to finish before calling onClose
-        setTimeout(onClose, 300);
-    };
+    }, [isVisible, duration, handleClose]);
 
     if (!isVisible && !show) return null;
 

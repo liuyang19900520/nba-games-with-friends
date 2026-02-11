@@ -13,9 +13,6 @@ interface ShotChartProps {
 // NBA Court dimensions (in feet, scaled to 10x)
 // Court is 50ft wide, half-court is ~47ft long
 // Data coordinates: X: -250 to 250, Y: -50 to ~420 (focused on offensive half)
-const COURT_WIDTH = 500; // -250 to 250
-const COURT_HEIGHT = 470; // -50 to 420 (focused area)
-
 // Color constants
 const MADE_SHOT_COLOR = '#ff9800'; // Orange for made shots
 const MISSED_SHOT_COLOR = '#2196f3'; // Blue for missed shots
@@ -47,7 +44,7 @@ export function ShotChart({ shots, width = 380, height = 400 }: ShotChartProps) 
     if (!svgRef.current || shots.length === 0) return;
 
     const svg = d3.select(svgRef.current);
-    
+
     // Clear previous content
     svg.selectAll('*').remove();
 
@@ -82,11 +79,11 @@ export function ShotChart({ shots, width = 380, height = 400 }: ShotChartProps) 
       .attr('y', '-50%')
       .attr('width', '200%')
       .attr('height', '200%');
-    
+
     filter.append('feGaussianBlur')
       .attr('stdDeviation', '3')
       .attr('result', 'coloredBlur');
-    
+
     const feMerge = filter.append('feMerge');
     feMerge.append('feMergeNode').attr('in', 'coloredBlur');
     feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
@@ -98,7 +95,7 @@ export function ShotChart({ shots, width = 380, height = 400 }: ShotChartProps) 
       .attr('y', '-50%')
       .attr('width', '200%')
       .attr('height', '200%');
-    
+
     heatFilter.append('feGaussianBlur')
       .attr('in', 'SourceGraphic')
       .attr('stdDeviation', '8');
@@ -165,7 +162,7 @@ export function ShotChart({ shots, width = 380, height = 400 }: ShotChartProps) 
     // Basket (hoop)
     const hoopX = xScale(0);
     const hoopY = yScale(0);
-    
+
     // Backboard
     courtGroup.append('line')
       .attr('x1', xScale(-30))
@@ -265,7 +262,7 @@ export function ShotChart({ shots, width = 380, height = 400 }: ShotChartProps) 
     const centerCircleRadiusX = xScale(60) - xScale(0);
     const centerCircleRadiusY = yScale(0) - yScale(60); // Note: Y is inverted
     const centerY = yScale(420);
-    
+
     // Draw semi-circle using SVG path arc command
     // A rx ry x-axis-rotation large-arc-flag sweep-flag x y
     courtGroup.append('path')
@@ -306,9 +303,9 @@ export function ShotChart({ shots, width = 380, height = 400 }: ShotChartProps) 
   return (
     <div className="bg-brand-card border border-brand-card-border rounded-xl p-4">
       <h4 className="text-sm font-bold text-white uppercase mb-4">Shot Chart</h4>
-      
+
       {/* Chart container */}
-      <div 
+      <div
         ref={containerRef}
         className="relative w-full flex justify-center"
         style={{ backgroundColor: '#0D121D', borderRadius: '8px' }}

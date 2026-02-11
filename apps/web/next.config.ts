@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
 
   // Transpile Supabase packages to resolve Next.js 15 compatibility issues
   transpilePackages: ["@supabase/supabase-js"],
+  output: 'standalone',
 
   images: {
     remotePatterns: [

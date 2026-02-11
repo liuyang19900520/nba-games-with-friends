@@ -25,7 +25,7 @@ def parse_record(record_str: str) -> str:
             return f"{record_str} (0.0%)"
         pct = (w / total) * 100
         return f"{record_str} ({pct:.1f}%)"
-    except:
+    except (ValueError, ZeroDivisionError):
         return record_str
 
 @tool

@@ -749,7 +749,7 @@ def run_worker(poll_interval: int = 10) -> None:
     print()
 
     consecutive_errors = 0
-    max_consecutive_errors = 5
+    max_consecutive_errors = 50
 
     while True:
         try:

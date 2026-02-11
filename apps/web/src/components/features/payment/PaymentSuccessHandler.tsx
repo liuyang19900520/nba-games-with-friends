@@ -11,7 +11,6 @@ interface PaymentSuccessHandlerProps {
 export function PaymentSuccessHandler({ sessionId }: PaymentSuccessHandlerProps) {
   const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // For now, assume success if we have a session_id
@@ -52,7 +51,7 @@ export function PaymentSuccessHandler({ sessionId }: PaymentSuccessHandlerProps)
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-semibold text-white mb-2">Payment Failed</h1>
           <p className="text-brand-text-dim mb-6">
-            {error || 'Something went wrong with your payment. Please try again.'}
+            Something went wrong with your payment. Please try again.
           </p>
           <button
             onClick={() => router.push('/home')}

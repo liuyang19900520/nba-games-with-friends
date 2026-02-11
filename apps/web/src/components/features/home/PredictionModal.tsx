@@ -7,7 +7,7 @@ interface PredictionModalProps {
     isOpen: boolean;
     onClose: () => void;
     games: GameResult[];
-    onSelectGame: (gameId: string) => void;
+    onSelectGame: (game: GameResult) => void;
     isSubmitting: boolean;
 }
 
@@ -50,7 +50,7 @@ export function PredictionModal({
                         games.map((game) => (
                             <button
                                 key={game.id}
-                                onClick={() => onSelectGame(game.id)}
+                                onClick={() => onSelectGame(game)}
                                 disabled={isSubmitting}
                                 className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:border-brand-blue/50 hover:bg-brand-blue/10 transition-all duration-200 group text-left disabled:opacity-50 disabled:cursor-not-allowed"
                             >

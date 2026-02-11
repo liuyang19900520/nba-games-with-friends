@@ -38,11 +38,10 @@ export function StartingFiveSection({ players, totalScore }: StartingFiveSection
           >
             {/* Status Badge */}
             <div
-              className={`absolute top-2 right-2 px-2 py-1 rounded text-xs font-semibold z-10 ${
-                player.status === 'LIVE'
-                  ? 'bg-red-500 text-white'
-                  : 'bg-gray-600 text-white'
-              }`}
+              className={`absolute top-2 right-2 px-2 py-1 rounded text-xs font-semibold z-10 ${player.status === 'LIVE'
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-600 text-white'
+                }`}
             >
               {player.status}
             </div>
@@ -124,7 +123,7 @@ export function StartingFiveSection({ players, totalScore }: StartingFiveSection
       {/* Total Score */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-brand-text-dim mb-1">TODAY'S TOTAL SCORE</p>
+          <p className="text-sm text-brand-text-dim mb-1">TODAY&apos;S TOTAL SCORE</p>
           <p className="text-3xl font-bold text-brand-blue">{totalScore.toFixed(1)} FPTS</p>
         </div>
         <div className="flex items-center gap-2">

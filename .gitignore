@@ -9,18 +9,63 @@ Thumbs.db
 
 # 通用环境文件
 .env
+.env.*.local
+.env.production
+.env.development
+.env.local
 
-# MCP 配置（包含敏感凭证）
+# MCP 配置
 .mcp.json
 
+# AI Tools - Local Config
+.agent/
+.agents/
+.claude/
+.cursorrules
+
+# Node.js
+node_modules/
+.next/
+out/
+build/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+tsconfig.tsbuildinfo
 
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
 *.log
 logs/
 
 # Local/Temp files
 run_test.py
 test_tracing.py
-.claude/settings.local.json
+GEMINI.md

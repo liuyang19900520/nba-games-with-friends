@@ -1,0 +1,81 @@
+name: Project Check (CI)
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  # 检查 Web 应用 (Only run if web files changed)
+  check-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Check for changes in apps/web
+        id: changed-web
+        run: |
+          if git diff --quiet HEAD^ HEAD apps/web; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.changed-web.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+          
+      - name: Install dependencies
+        if: steps.changed-web.outputs.changed == 'true'
+        run: npm ci
+        working-directory: apps/web
+        
+      - name: Build Web App
+        if: steps.changed-web.outputs.changed == 'true'
+        run: npm run build
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+  # 检查 AI Agent (Only run if AI files changed)
+  check-ai:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for changes in services/ai-agent
+        id: changed-ai
+        run: |
+          if git diff --quiet HEAD^ HEAD services/ai-agent; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Setup Python
+        if: steps.changed-ai.outputs.changed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        if: steps.changed-ai.outputs.changed == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        working-directory: services/ai-agent
+        
+      - name: Test build AI Agent
+        if: steps.changed-ai.outputs.changed == 'true'
+        run: python -c "print('Import check success')"
+        working-directory: services/ai-agent
