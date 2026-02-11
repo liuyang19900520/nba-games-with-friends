@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   description: "View NBA team and player leaderboards for your fantasy decisions.",
 };
 
+export const dynamic = "force-dynamic";
 export const revalidate = 60;
 
 export default async function LeaguesPage() {

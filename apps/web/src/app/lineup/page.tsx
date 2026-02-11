@@ -8,6 +8,8 @@ import { getTodayLineup } from '@/app/lineup/actions';
 import { createClient } from '@/lib/auth/supabase';
 import { getGameDate } from '@/lib/utils/game-date';
 
+export const dynamic = "force-dynamic";
+
 /**
  * Lineup Page - Server Component (RSC)
  *

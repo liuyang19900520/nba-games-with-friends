@@ -12,6 +12,8 @@ export const metadata: Metadata = {
   description: "Overview of your NBA fantasy activity and navigation entry.",
 };
 
+export const dynamic = "force-dynamic";
+
 /**
  * Home page - Dashboard with date selector and recent game results
  */
