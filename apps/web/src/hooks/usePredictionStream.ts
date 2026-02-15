@@ -64,6 +64,12 @@ export function usePredictionStream(): UsePredictionStreamReturn {
             .then(async (response) => {
                 if (!response.ok) {
                     const errData = await response.json().catch(() => ({}));
+                    if (response.status === 403 && errData.code === 'NO_CREDITS') {
+                        throw new Error('NO_CREDITS');
+                    }
+                    if (response.status === 401) {
+                        throw new Error('AUTH_REQUIRED');
+                    }
                     throw new Error(errData.error || `Server error (${response.status})`);
                 }
 

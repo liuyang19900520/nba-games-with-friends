@@ -32,7 +32,7 @@ export function PremiumUnlockButton({ userId }: { userId: string }) {
       disabled={loading}
       className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg transition-all disabled:opacity-50"
     >
-      {loading ? 'Processing...' : 'Unlock Premium Features (PayPay/Card)'}
+      {loading ? 'Processing...' : 'Get 5 AI Credits (PayPay/Card)'}
     </button>
   );
 }

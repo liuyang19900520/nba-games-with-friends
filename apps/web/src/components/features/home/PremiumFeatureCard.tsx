@@ -137,7 +137,7 @@ export function PremiumFeatureCard({ userId }: PremiumFeatureCardProps) {
 
         {/* Description */}
         <p className="text-brand-text-light text-base leading-relaxed max-w-xs">
-          Unlock AI-Powered One-Click Lineup Selection
+          Purchase 5 AI prediction credits to unlock AI-Powered Game Predictions
         </p>
 
         {/* Error Message */}
@@ -160,7 +160,7 @@ export function PremiumFeatureCard({ userId }: PremiumFeatureCardProps) {
           disabled={loading}
           className="w-full max-w-[280px] py-3 px-6 rounded-lg bg-secondary text-brand-text-light font-medium hover:bg-accent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 focus:ring-offset-brand-dark disabled:opacity-50"
         >
-          {loading ? 'Processing...' : 'Upgrade Now - ¥10'}
+          {loading ? 'Processing...' : 'Get 5 AI Credits - ¥50'}
         </button>
       </div>
     </div>

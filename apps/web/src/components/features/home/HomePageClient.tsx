@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { DateSelector } from './DateSelector';
 import { GameResultsList } from './GameResultsList';
 import { PremiumFeatureCard } from './PremiumFeatureCard';
@@ -17,12 +17,13 @@ interface HomePageClientProps {
   initialGames: GameResult[];
   initialDate: string;
   userId: string | null;
-  isPremium: boolean;
+  creditsRemaining: number;
 }
 
-export function HomePageClient({ initialGames, initialDate, userId, isPremium }: HomePageClientProps) {
+export function HomePageClient({ initialGames, initialDate, userId, creditsRemaining: initialCredits }: HomePageClientProps) {
   const [games, setGames] = useState<GameResult[]>(initialGames);
   const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [credits, setCredits] = useState(initialCredits);
   const [isPending, startTransition] = useTransition();
 
   // Prediction Modal State
@@ -30,6 +31,13 @@ export function HomePageClient({ initialGames, initialDate, userId, isPremium }:
 
   // Streaming prediction
   const { status, steps, result, error, startPrediction, reset } = usePredictionStream();
+
+  // Restore credit on error (backend refunds, so UI should match)
+  useEffect(() => {
+    if (status === 'error') {
+      setCredits(prev => prev + 1);
+    }
+  }, [status]);
 
   // Matchup info for result display
   const [predictionMatchup, setPredictionMatchup] = useState<{ home: string; away: string } | null>(null);
@@ -64,6 +72,8 @@ export function HomePageClient({ initialGames, initialDate, userId, isPremium }:
   const handleGameSelect = (game: GameResult) => {
     setIsPredictionModalOpen(false);
     setPredictionMatchup({ home: game.homeTeam.name, away: game.awayTeam.name });
+    // Optimistically decrement credit in UI
+    setCredits(prev => Math.max(0, prev - 1));
     startPrediction(
       game.homeTeam.name,
       game.awayTeam.name,
@@ -100,10 +110,10 @@ export function HomePageClient({ initialGames, initialDate, userId, isPremium }:
         )}
       </section>
 
-      {/* Premium Section */}
+      {/* AI Credits Section */}
       <section>
-        {isPremium ? (
-          <PremiumPredictionCard onPredictClick={handlePredictClick} />
+        {credits > 0 ? (
+          <PremiumPredictionCard onPredictClick={handlePredictClick} creditsRemaining={credits} />
         ) : (
           <PremiumFeatureCard userId={userId} />
         )}

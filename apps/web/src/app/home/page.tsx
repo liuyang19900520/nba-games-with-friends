@@ -5,7 +5,7 @@ import { getRecentGames } from "@/lib/db/games";
 import { getGameDate } from "@/lib/utils/game-date";
 import { logger } from "@/config/env";
 import { createClient } from "@/lib/auth/supabase";
-import { checkPremiumStatus } from "@/app/payment/actions";
+import { getCreditsRemaining } from "@/app/payment/actions";
 
 export const metadata: Metadata = {
   title: "Home - NBA Fantasy Manager",
@@ -34,15 +34,15 @@ export default async function HomePage() {
     logger.warn("[HomePage] No games returned from getRecentGames");
   }
 
-  // Get user info for premium feature
+  // Get user info and AI credits
   let userId: string | null = null;
-  let isPremium = false;
+  let creditsRemaining = 0;
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       userId = user.id;
-      isPremium = await checkPremiumStatus();
+      creditsRemaining = await getCreditsRemaining();
     }
   } catch {
     // Ignore auth errors
@@ -56,7 +56,7 @@ export default async function HomePage() {
           initialGames={recentGames}
           initialDate={gameDate}
           userId={userId}
-          isPremium={isPremium}
+          creditsRemaining={creditsRemaining}
         />
       </div>
     </div>

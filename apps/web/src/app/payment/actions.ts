@@ -4,33 +4,40 @@ import { createClient } from "@/lib/auth/supabase";
 import { logger } from "@/config/env";
 
 /**
- * Check if the current user has premium access
+ * Get the number of AI credits remaining for the current user.
+ * Returns 0 if not authenticated or no credits.
  */
-export async function checkPremiumStatus(): Promise<boolean> {
+export async function getCreditsRemaining(): Promise<number> {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) return false;
+    if (!user) return 0;
 
-    // We check the 'users' table which we updated in the migration
     const { data, error } = await supabase
       .from('users')
-      .select('has_premium')
+      .select('ai_credits_remaining')
       .eq('id', user.id)
       .single();
 
     if (error) {
-      // If profile doesn't exist yet, they definitely don't have premium
       if (error.code !== 'PGRST116') {
-        logger.error("[checkPremiumStatus] Error:", error);
+        logger.error("[getCreditsRemaining] Error:", error);
       }
-      return false;
+      return 0;
     }
 
-    return !!data?.has_premium;
+    return data?.ai_credits_remaining ?? 0;
   } catch (err) {
-    logger.error("[checkPremiumStatus] Unexpected error:", err);
-    return false;
+    logger.error("[getCreditsRemaining] Unexpected error:", err);
+    return 0;
   }
+}
+
+/**
+ * @deprecated Use getCreditsRemaining() instead.
+ */
+export async function checkPremiumStatus(): Promise<boolean> {
+  const credits = await getCreditsRemaining();
+  return credits > 0;
 }

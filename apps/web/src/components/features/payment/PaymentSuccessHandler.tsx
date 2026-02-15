@@ -75,7 +75,7 @@ export function PaymentSuccessHandler({ sessionId }: PaymentSuccessHandlerProps)
         />
         <h1 className="text-2xl font-semibold text-white mb-2">Payment Successful!</h1>
         <p className="text-brand-text-dim mb-6">
-          Welcome to Premium! You now have access to AI-powered predictions.
+          You now have 5 AI prediction credits. Use them to get AI-powered game predictions!
         </p>
         <p className="text-brand-text-dim text-sm">
           Redirecting to home...

@@ -34,17 +34,10 @@ const PaymentStatus = {
   REFUNDED: 'refunded',
 };
 
-// Webhook event types we handle
+// Webhook event types we handle (one-time payment model)
 const WebhookEvents = {
   CHECKOUT_COMPLETED: 'checkout.session.completed',
   CHECKOUT_EXPIRED: 'checkout.session.expired',
-  INVOICE_PAID: 'invoice.paid',
-  INVOICE_PAYMENT_FAILED: 'invoice.payment_failed',
-  SUBSCRIPTION_CREATED: 'customer.subscription.created',
-  SUBSCRIPTION_UPDATED: 'customer.subscription.updated',
-  SUBSCRIPTION_DELETED: 'customer.subscription.deleted',
-  PAYMENT_INTENT_SUCCEEDED: 'payment_intent.succeeded',
-  PAYMENT_INTENT_FAILED: 'payment_intent.payment_failed',
   CHARGE_REFUNDED: 'charge.refunded',
 };
 
@@ -316,17 +309,17 @@ async function handleCreateSession(body, secrets, corsHeaders, logger) {
 
   logger.info('Creating checkout session', { userId, priceId });
 
-  // Check if user exists and their premium status
+  // Check if user exists and their credit balance
   const { data: user } = await supabase
     .from('users')
-    .select('id, has_premium')
+    .select('id, ai_credits_remaining')
     .eq('id', userId)
     .single();
 
-  // Check if already premium (only if user record exists)
-  if (user?.has_premium) {
-    logger.info('User already has premium', { userId });
-    return errorResponse(400, 'User already has premium subscription', 'ALREADY_PREMIUM', corsHeaders);
+  // Prevent purchase when user still has unused credits (non-stackable)
+  if (user?.ai_credits_remaining > 0) {
+    logger.info('User still has credits remaining', { userId, credits: user.ai_credits_remaining });
+    return errorResponse(400, 'You still have AI credits remaining. Use them before purchasing more.', 'CREDITS_REMAINING', corsHeaders);
   }
 
   // If user doesn't exist in public.users, create a record
@@ -351,11 +344,11 @@ async function handleCreateSession(body, secrets, corsHeaders, logger) {
     return errorResponse(400, 'Invalid price ID', 'INVALID_PRICE', corsHeaders);
   }
 
-  // Create Stripe checkout session
+  // Create Stripe checkout session (one-time payment)
+  // payment_method_types omitted — uses methods enabled in Stripe Dashboard (card, PayPay, etc.)
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
     line_items: [{ price: priceId, quantity: 1 }],
-    mode: 'subscription',
+    mode: 'payment',
     success_url: `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/payment/cancel`,
     client_reference_id: userId,
@@ -363,10 +356,8 @@ async function handleCreateSession(body, secrets, corsHeaders, logger) {
     metadata: {
       userId,
       priceId,
-      productName: price.product?.name || 'Premium',
-    },
-    subscription_data: {
-      metadata: { userId },
+      productName: price.product?.name || 'AI Credits Pack',
+      credits_amount: '5',
     },
     allow_promotion_codes: true,
     billing_address_collection: 'auto',
@@ -384,7 +375,8 @@ async function handleCreateSession(body, secrets, corsHeaders, logger) {
     created_at: new Date().toISOString(),
     metadata: {
       productName: price.product?.name,
-      interval: price.recurring?.interval,
+      type: 'one_time_credits',
+      credits_amount: 5,
     },
   }, logger);
 
@@ -454,22 +446,6 @@ async function processWebhookEvent(event, supabase, stripe, logger) {
       await handleCheckoutExpired(data, supabase, logger);
       break;
 
-    case WebhookEvents.INVOICE_PAID:
-      await handleInvoicePaid(data, supabase, logger);
-      break;
-
-    case WebhookEvents.INVOICE_PAYMENT_FAILED:
-      await handleInvoicePaymentFailed(data, supabase, logger);
-      break;
-
-    case WebhookEvents.SUBSCRIPTION_UPDATED:
-      await handleSubscriptionUpdated(data, supabase, logger);
-      break;
-
-    case WebhookEvents.SUBSCRIPTION_DELETED:
-      await handleSubscriptionDeleted(data, supabase, logger);
-      break;
-
     case WebhookEvents.CHARGE_REFUNDED:
       await handleChargeRefunded(data, supabase, logger);
       break;
@@ -485,27 +461,20 @@ async function processWebhookEvent(event, supabase, stripe, logger) {
 
 async function handleCheckoutCompleted(session, supabase, stripe, logger) {
   const userId = session.client_reference_id;
-  const subscriptionId = session.subscription;
   const customerId = session.customer;
+  const paymentIntentId = session.payment_intent;
 
-  logger.info('Processing checkout.session.completed', {
+  logger.info('Processing checkout.session.completed (one-time payment)', {
     sessionId: session.id,
     userId,
-    subscriptionId,
+    paymentIntentId,
   });
-
-  // Get subscription details
-  let subscription;
-  if (subscriptionId) {
-    subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  }
 
   // Update payment record
   await updatePaymentRecord(supabase,
     { stripe_session_id: session.id },
     {
       status: PaymentStatus.ACTIVE,
-      stripe_subscription_id: subscriptionId,
       stripe_customer_id: customerId,
       amount_paid: session.amount_total,
       currency: session.currency,
@@ -515,34 +484,47 @@ async function handleCheckoutCompleted(session, supabase, stripe, logger) {
     logger
   );
 
-  // Activate premium for user
-  await updateUserPremiumStatus(supabase,
-    { id: userId },
-    {
-      has_premium: true,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: subscriptionId,
-      premium_activated_at: new Date().toISOString(),
-      premium_expires_at: subscription?.current_period_end
-        ? new Date(subscription.current_period_end * 1000).toISOString()
-        : null,
-    },
-    logger
-  );
+  // Grant 5 AI credits using atomic RPC function
+  const { data: creditsResult, error: creditsError } = await supabase
+    .rpc('grant_ai_credits', { p_user_id: userId, p_amount: 5 });
+
+  if (creditsError) {
+    logger.error('Failed to grant credits via RPC', { error: creditsError.message, userId });
+    // Fallback: direct update
+    await updateUserPremiumStatus(supabase,
+      { id: userId },
+      {
+        has_premium: true,
+        ai_credits_remaining: 5,
+        stripe_customer_id: customerId,
+        premium_activated_at: new Date().toISOString(),
+      },
+      logger
+    );
+  } else {
+    // Update customer ID separately
+    await updateUserPremiumStatus(supabase,
+      { id: userId },
+      { stripe_customer_id: customerId },
+      logger
+    );
+    logger.info('Credits granted via RPC', { userId, credits: creditsResult });
+  }
 
   // Record transaction
   await recordTransaction(supabase, {
     user_id: userId,
     stripe_session_id: session.id,
-    stripe_subscription_id: subscriptionId,
-    event_type: 'checkout_completed',
+    stripe_payment_intent_id: paymentIntentId,
+    event_type: 'credits_purchased',
     amount: session.amount_total,
     currency: session.currency,
     status: 'completed',
+    metadata: { credits_granted: 5 },
     created_at: new Date().toISOString(),
   }, logger);
 
-  logger.info('Checkout completed successfully', { userId, subscriptionId });
+  logger.info('One-time payment completed, credits granted', { userId });
 }
 
 async function handleCheckoutExpired(session, supabase, logger) {
@@ -557,141 +539,6 @@ async function handleCheckoutExpired(session, supabase, logger) {
     },
     logger
   );
-}
-
-async function handleInvoicePaid(invoice, supabase, logger) {
-  const subscriptionId = invoice.subscription;
-  const customerId = invoice.customer;
-
-  if (!subscriptionId) {
-    logger.info('Invoice paid but no subscription', { invoiceId: invoice.id });
-    return;
-  }
-
-  logger.info('Processing invoice.paid', {
-    invoiceId: invoice.id,
-    subscriptionId,
-    amount: invoice.amount_paid,
-  });
-
-  // Update user premium status (renewal)
-  await updateUserPremiumStatus(supabase,
-    { stripe_subscription_id: subscriptionId },
-    {
-      has_premium: true,
-      premium_expires_at: new Date(invoice.lines.data[0]?.period?.end * 1000).toISOString(),
-    },
-    logger
-  );
-
-  // Record transaction
-  await recordTransaction(supabase, {
-    stripe_subscription_id: subscriptionId,
-    stripe_invoice_id: invoice.id,
-    event_type: 'invoice_paid',
-    amount: invoice.amount_paid,
-    currency: invoice.currency,
-    status: 'completed',
-    created_at: new Date().toISOString(),
-  }, logger);
-
-  logger.info('Invoice paid processed', { subscriptionId, amount: invoice.amount_paid });
-}
-
-async function handleInvoicePaymentFailed(invoice, supabase, logger) {
-  const subscriptionId = invoice.subscription;
-
-  if (!subscriptionId) return;
-
-  logger.warn('Processing invoice.payment_failed', {
-    invoiceId: invoice.id,
-    subscriptionId,
-    attemptCount: invoice.attempt_count,
-  });
-
-  // Record transaction
-  await recordTransaction(supabase, {
-    stripe_subscription_id: subscriptionId,
-    stripe_invoice_id: invoice.id,
-    event_type: 'invoice_payment_failed',
-    amount: invoice.amount_due,
-    currency: invoice.currency,
-    status: 'failed',
-    failure_reason: invoice.last_finalization_error?.message || 'Payment failed',
-    created_at: new Date().toISOString(),
-  }, logger);
-
-  // After 3 failed attempts, revoke premium
-  if (invoice.attempt_count >= 3) {
-    logger.warn('Max payment attempts reached, revoking premium', { subscriptionId });
-    await updateUserPremiumStatus(supabase,
-      { stripe_subscription_id: subscriptionId },
-      { has_premium: false },
-      logger
-    );
-  }
-}
-
-async function handleSubscriptionUpdated(subscription, supabase, logger) {
-  logger.info('Processing customer.subscription.updated', {
-    subscriptionId: subscription.id,
-    status: subscription.status,
-  });
-
-  const isPremiumActive = ['active', 'trialing'].includes(subscription.status);
-
-  await updateUserPremiumStatus(supabase,
-    { stripe_subscription_id: subscription.id },
-    {
-      has_premium: isPremiumActive,
-      premium_expires_at: new Date(subscription.current_period_end * 1000).toISOString(),
-    },
-    logger
-  );
-
-  await updatePaymentRecord(supabase,
-    { stripe_subscription_id: subscription.id },
-    {
-      status: isPremiumActive ? PaymentStatus.ACTIVE : PaymentStatus.CANCELED,
-      updated_at: new Date().toISOString(),
-    },
-    logger
-  );
-}
-
-async function handleSubscriptionDeleted(subscription, supabase, logger) {
-  logger.info('Processing customer.subscription.deleted', {
-    subscriptionId: subscription.id,
-  });
-
-  // Revoke premium
-  await updateUserPremiumStatus(supabase,
-    { stripe_subscription_id: subscription.id },
-    {
-      has_premium: false,
-      premium_canceled_at: new Date().toISOString(),
-    },
-    logger
-  );
-
-  // Update payment status
-  await updatePaymentRecord(supabase,
-    { stripe_subscription_id: subscription.id },
-    {
-      status: PaymentStatus.CANCELED,
-      canceled_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    logger
-  );
-
-  // Record transaction
-  await recordTransaction(supabase, {
-    stripe_subscription_id: subscription.id,
-    event_type: 'subscription_canceled',
-    status: 'completed',
-    created_at: new Date().toISOString(),
-  }, logger);
 }
 
 async function handleChargeRefunded(charge, supabase, logger) {
@@ -714,11 +561,11 @@ async function handleChargeRefunded(charge, supabase, logger) {
       logger
     );
 
-    // Revoke premium on full refund
+    // Revoke premium and credits on full refund
     if (charge.refunded) {
       await updateUserPremiumStatus(supabase,
         { stripe_customer_id: customerId },
-        { has_premium: false },
+        { has_premium: false, ai_credits_remaining: 0 },
         logger
       );
     }
