@@ -7,34 +7,43 @@ It contains infrastructure configuration and independent sub-projects.
 
 ### 1. Applications (`apps/`)
 - **[apps/web](./apps/web)**: Next.js Frontend.
-  - *Independent Git Repository*.
-  - Tech: Next.js, React, Supabase, Tailwind.
+  - Tech: Next.js 15, React, Supabase, Tailwind.
+  - Deployment: Vercel.
 
 ### 2. Services (`services/`)
 - **[services/data-sync](./services/data-sync)**: Data Ingestion Worker.
-  - *Independent Git Repository*.
-  - Tech: Python, Docker, Supabase.
-- **services/ai-agent**: (Planned) LangChain AI Agent.
+  - Tech: Python, Supabase.
+  - Deployment: AWS Lambda (Sync functions).
+- **[services/ai-agent](./services/ai-agent)**: LangChain AI Agent.
+  - Tech: Python, LangChain v0.3, LangGraph.
+  - Deployment: Railway.
 
-### 3. Infrastructure (`infrastructure/`)
-- **[infrastructure/n8n](./infrastructure/n8n)**: N8n workflow orchestration (Docker).
-- **functions/payment**: (Planned) Serverless payment functions.
+### 3. Functions & Infra
+- **[functions/payment](./functions/payment)**: Node.js serverless payment handler (Stripe).
+  - Deployment: AWS Lambda.
+- **[infrastructure/n8n](./infrastructure/n8n)**: n8n workflow orchestration (Docker).
+  - Deployment: AWS Lightsail/Railway.
+
+## Environment & Deployment
+
+We follow a two-tier environment strategy:
+
+| Environment | Branch | Deployment | Purpose |
+|-------------|--------|------------|---------|
+| **Local** | N/A | Localhost | Development & Debugging |
+| **Preview** | `dev` | AWS (dev) / Railway (dev) | Integration testing with Prod keys |
+| **Production**| `main` | AWS (prod) / Railway (prod)| Live production environment |
+
+### CI/CD Workflows
+- Check `.github/workflows/` for automated deployment logic.
+- Web: Auto-deployed via Vercel integration.
+- Services: GitHub Actions for AWS Lambda and Railway.
 
 ## Development Guide
 
-### How to work on this project
-This is a **Single Monorepo Workspace**. All code is tracked in one Git repository.
+This is a **Monorepo Workspace**. All code is tracked in one Git repository.
 
-**To work on the Website:**
-1. You can open the root folder `/` to see everything.
-2. OR, you can open `apps/web` in your IDE to focus only on the frontend.
-   - Note: Git commits will still be tracked by the root `.git` folder (VS Code handles this automatically).
+1. **Local Setup**: Copy `.env.example` to `.env` in respective folders.
+2. **Commit Policy**: Follow Conventional Commits (`feat:`, `fix:`, etc.).
+3. **Environment**: Use `dev` branch for pushing to the preview environment.
 
-**To work on the Data Sync:**
-1. Open only the `services/data-sync` folder.
-2. Run with Docker or Python directly.
-3. Commit and push changes from *inside* that folder.
-
-### AI Agents
-Check `.agent/skills/SKILL.md` for global rules.
-Each sub-project has its own `SKILL.md` for specific rules.

@@ -11,6 +11,22 @@ This file provides context for AI assistants (Claude Code, Antigravity).
 | AI Agent | `services/ai-agent/` | Python, LangChain v0.3, LangGraph |
 | n8n | `infrastructure/n8n/` | n8n, Caddy, AWS Lightsail |
 
+## Environment & Deployment Strategy
+
+| Environment | Branch | Deployment Target | Key Usage |
+|-------------|--------|-------------------|-----------|
+| **Local** | N/A | Localhost / Docker | `.env.local` / `.env` |
+| **Product-Preview**| `dev` | AWS Lambda (dev) / Railway (dev) | Production Keys |
+| **Production** | `main` | AWS Lambda (prod) / Railway (prod) | Production Keys |
+
+### Deployment Workflows
+
+1. **Web App**: Managed by Vercel (Auto-deploys `dev` as preview, `main` as prod).
+2. **Data Sync (Python)**: `.github/workflows/deploy-*-py-data-sync.yml` -> AWS Lambda.
+3. **Payment (Node.js)**: `.github/workflows/deploy-*-payment.yml` -> AWS Lambda.
+4. **AI Agent (Python)**: `.github/workflows/deploy-ai-agent.yml` -> Railway.
+5. **n8n**: Local editing + Git-managed JSON. Manual/Auto import to production instance.
+
 ## Key Rules
 
 - **Language**: Code/Docs in English, Chat in Chinese
@@ -19,11 +35,15 @@ This file provides context for AI assistants (Claude Code, Antigravity).
 
 ## Infrastructure Quick Reference
 
-| Resource | Value |
-|----------|-------|
-| n8n URL | `https://57.182.161.64.nip.io` |
-| Lightsail SSH | `ssh -i ~/.ssh/LightsailDefaultKey-ap-northeast-1.pem ubuntu@57.182.161.64` |
-| Supabase | `cihryhmlyihjvonkhrpp.supabase.co` |
+| Resource | Dev/Prod Target | URL / Info |
+|----------|-----------------|------------|
+| n8n | Prod-only | `https://57.182.161.64.nip.io` |
+| Web | Preview | `*-git-dev-*.vercel.app` |
+| Web | Prod | `your-domain.com` |
+| Supabase | Shared/Prod | `cihryhmlyihjvonkhrpp.supabase.co` |
+| AI Agent | Dev | `ai-agent-dev.railway.app` |
+| AI Agent | Prod | `ai-agent-prod.railway.app` |
+
 
 ## Skills
 

@@ -1,16 +1,16 @@
-name: Deploy data-sync-service to dev Lambda
+name: Deploy data-sync-service to prod Lambda
 
 on:
   push:
     branches:
-      - dev
-    # Only trigger when changes are made under services/data-sync
+      - main
     paths:
       - 'services/data-sync/**'
+  workflow_dispatch:
 
 jobs:
-  deploy-dev-lambda:
-    name: Deploy data-sync to nba-sync-dev (Lambda)
+  deploy-prod-lambda:
+    name: Deploy data-sync to nba-sync-prod (Lambda)
     runs-on: ubuntu-latest
 
     steps:
@@ -37,18 +37,15 @@ jobs:
         working-directory: ./services/data-sync
         run: |
           mkdir -p build
-          # Copy source files and folders to build directory
           cp *.py build/ 2>/dev/null || true
           cp -r services build/ 2>/dev/null || true
           cp -r utils build/ 2>/dev/null || true
-          # Add more directories if needed
 
       - name: Create deployment package (zip)
         working-directory: ./services/data-sync
         run: |
           cd build
           zip -r ../package.zip .
-          ls -lh ../package.zip
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -60,13 +57,13 @@ jobs:
       - name: Upload package.zip to S3
         working-directory: ./services/data-sync
         run: |
-          aws s3 cp package.zip s3://nba-lambda-artifacts-dev/py-data-sync/package.zip
+          aws s3 cp package.zip s3://nba-lambda-artifacts-prod/py-data-sync/package.zip
 
-      - name: Deploy to Lambda (nba-sync-dev) using S3 artifact
+      - name: Deploy to Lambda (nba-sync-prod) using S3 artifact
         run: |
           aws lambda update-function-code \
-            --function-name nba-sync-dev \
-            --s3-bucket nba-lambda-artifacts-dev \
+            --function-name nba-sync-prod \
+            --s3-bucket nba-lambda-artifacts-prod \
             --s3-key py-data-sync/package.zip
 
-          echo "Deployment to nba-sync-dev completed."
+          echo "Deployment to nba-sync-prod completed."

@@ -1,0 +1,30 @@
+name: Deploy AI Agent to Railway
+
+on:
+  push:
+    branches: [ dev, main ]
+    paths:
+      - 'services/ai-agent/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Dev (Preview)
+        if: github.ref == 'refs/heads/dev'
+        run: railway up --service ai-agent-dev -d
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_DEV }}
+
+      - name: Deploy to Production
+        if: github.ref == 'refs/heads/main'
+        run: railway up --service ai-agent-prod -d
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
