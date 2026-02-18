@@ -1,30 +1,24 @@
-name: Deploy AI Agent to Railway
+name: Deploy AI Agent to EC2
 
 on:
   push:
-    branches: [ dev, main ]
+    branches: [dev, main]
     paths:
       - 'services/ai-agent/**'
-  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Determine branch
+        id: branch
+        run: echo "name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
 
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy to Dev (Preview)
-        if: github.ref == 'refs/heads/dev'
-        run: railway up --service ai-agent-dev -d
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_DEV }}
-
-      - name: Deploy to Production
-        if: github.ref == 'refs/heads/main'
-        run: railway up --service ai-agent-prod -d
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.AI_AGENT_EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          script: |
+            bash /home/ubuntu/nba-games-with-friends/infrastructure/scripts/deploy-ai-agent.sh ${{ steps.branch.outputs.name }}

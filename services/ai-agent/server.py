@@ -63,6 +63,23 @@ async def health():
     return {"status": "ok", "service": "nba-ai-agent"}
 
 
+@app.get("/test")
+async def test():
+    """Deployment verification endpoint. No external dependencies required."""
+    import platform
+    from datetime import datetime
+
+    return {
+        "status": "ok",
+        "service": "nba-ai-agent",
+        "environment": os.getenv("ENVIRONMENT", "unknown"),
+        "python_version": platform.python_version(),
+        "architecture": platform.machine(),
+        "timestamp": datetime.now().isoformat(),
+        "langchain_project": os.getenv("LANGCHAIN_PROJECT", "not set"),
+    }
+
+
 def _sse_event(event_type: str, data: dict) -> str:
     """Format a Server-Sent Event message."""
     return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
