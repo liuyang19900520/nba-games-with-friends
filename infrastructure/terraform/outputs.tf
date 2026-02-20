@@ -31,3 +31,17 @@ output "stop_command" {
   description = "AWS CLI command to stop the instance"
   value       = "aws ec2 stop-instances --instance-ids ${aws_instance.ai_agent.id} --region ${var.aws_region}"
 }
+
+# =============================================================================
+# Payment Lambda Outputs
+# =============================================================================
+
+output "payment_api_url_dev" {
+  description = "Payment API URL (dev)"
+  value       = aws_apigatewayv2_api.payment["dev"].api_endpoint
+}
+
+output "payment_api_url_prod" {
+  description = "Payment API URL (prod)"
+  value       = aws_apigatewayv2_api.payment["prod"].api_endpoint
+}
