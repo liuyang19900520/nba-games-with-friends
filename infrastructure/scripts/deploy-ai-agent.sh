@@ -12,9 +12,14 @@ echo "🔄 Deploying AI Agent..."
 
 # Pull latest code
 cd "$APP_DIR"
-git fetch origin
+# Auto-detect remote name (default to origin if not found)
+REMOTE_NAME=$(git remote | head -n 1)
+REMOTE_NAME=${REMOTE_NAME:-origin}
+
+echo "📡 Using remote: $REMOTE_NAME"
+git fetch "$REMOTE_NAME"
 git checkout "$1"  # branch name passed as argument (dev or main)
-git pull origin "$1"
+git pull "$REMOTE_NAME" "$1"
 
 # Update dependencies
 cd "$SERVICE_DIR"
