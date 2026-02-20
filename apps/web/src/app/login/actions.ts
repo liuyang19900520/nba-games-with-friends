@@ -18,7 +18,11 @@ export async function signInWithGoogle(
   next?: string
 ): Promise<{ url: string }> {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin") || "http://localhost:3000";
+  const headersList = await headers();
+  const host = headersList.get("x-forwarded-host") || headersList.get("host");
+  const protocol = headersList.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+  const origin = host ? `${protocol}://${host}` : "http://localhost:3000";
+
   const redirectTo = next
     ? `${origin}/auth/callback?next=${encodeURIComponent(next)}`
     : `${origin}/auth/callback`;
@@ -279,14 +283,14 @@ export async function emailSignup(
 ): Promise<
   | { success: true; needsEmailConfirmation: boolean }
   | {
-      success: false;
-      error: string;
-      details?: {
-        status?: number | string;
-        name?: string;
-        originalMessage?: string;
-      };
-    }
+    success: false;
+    error: string;
+    details?: {
+      status?: number | string;
+      name?: string;
+      originalMessage?: string;
+    };
+  }
 > {
   const email = formData.get("email")?.toString().trim();
   const password = formData.get("password")?.toString();
@@ -346,9 +350,8 @@ export async function emailSignup(
         if (error.status === 500 && errorCode === "unexpected_failure") {
           errorMessage = `Email sending failed (500): This usually means:\n1. SMTP not configured or invalid credentials\n2. Supabase built-in email service issue\n3. Email provider blocking\n\nCheck Supabase Dashboard → Authentication → Email Templates → SMTP Settings\n\nOriginal: ${error.message}`;
         } else {
-          errorMessage = `Email sending failed: ${error.message} (Status: ${
-            error.status || "unknown"
-          }, Code: ${errorCode || "unknown"})`;
+          errorMessage = `Email sending failed: ${error.message} (Status: ${error.status || "unknown"
+            }, Code: ${errorCode || "unknown"})`;
         }
         showDetailedError = true;
       } else {
@@ -573,9 +576,8 @@ export async function linkEmail(formData: FormData): Promise<{
       if (process.env.NODE_ENV === "development") {
         return {
           success: false,
-          error: `Email sending failed: ${error.message} (Status: ${
-            error.status || "unknown"
-          })`,
+          error: `Email sending failed: ${error.message} (Status: ${error.status || "unknown"
+            })`,
         };
       } else {
         return {
