@@ -27,12 +27,14 @@ from utils.logger import logger
 
 app = FastAPI(title="NBA AI Prediction Agent", version="1.0.0")
 
-# CORS — allow Next.js dev server
+# CORS — allow Next.js dev server and production domains
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
+        "https://preview.nba-game.liuyang19900520.com",
+        "https://nba-game.liuyang19900520.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
