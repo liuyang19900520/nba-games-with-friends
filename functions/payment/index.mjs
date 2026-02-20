@@ -22,7 +22,8 @@ import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-sec
 
 const REGION = 'ap-northeast-1';
 const SECRET_NAME = 'nba-game/payment-secrets';
-const ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:3001'];
+// Default allowed origins (fallback if not in secrets)
+const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:3001'];
 
 // Payment statuses
 const PaymentStatus = {
@@ -64,11 +65,18 @@ async function getSecrets() {
   cachedSecrets = JSON.parse(response.SecretString);
 
   // Validate required secrets
-  const requiredSecrets = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_URL'];
+  const requiredSecrets = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
   for (const key of requiredSecrets) {
     if (!cachedSecrets[key]) {
       throw new Error(`Missing required secret: ${key}`);
     }
+  }
+
+  // Parse allowed origins from secrets if available
+  if (cachedSecrets.ALLOWED_ORIGINS) {
+    cachedSecrets.parsedAllowedOrigins = cachedSecrets.ALLOWED_ORIGINS.split(',').map(o => o.trim());
+  } else {
+    cachedSecrets.parsedAllowedOrigins = DEFAULT_ALLOWED_ORIGINS;
   }
 
   return cachedSecrets;
@@ -119,14 +127,15 @@ class Logger {
 // CORS
 // ============================================================================
 
-function getCorsHeaders(origin, appUrl) {
-  const allowedOrigins = [...ALLOWED_ORIGINS, appUrl].filter(Boolean);
-  const allowedOrigin = allowedOrigins.includes(origin) ? origin : appUrl || '*';
+function getCorsHeaders(origin, secrets) {
+  const allowedOrigins = secrets.parsedAllowedOrigins || DEFAULT_ALLOWED_ORIGINS;
+  const isAllowed = allowedOrigins.includes(origin);
+  const responseOrigin = isAllowed ? origin : (secrets.APP_URL || allowedOrigins[0]);
 
   return {
-    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Origin": responseOrigin,
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, stripe-signature",
+    "Access-Control-Allow-Headers": "Content-Type, stripe-signature, Authorization",
     "Access-Control-Max-Age": "86400",
   };
 }
@@ -305,7 +314,12 @@ async function handleCreateSession(body, secrets, corsHeaders, logger) {
   const { userId, priceId } = validation.data;
   const stripe = getStripe(secrets);
   const supabase = getSupabase(secrets);
-  const appUrl = secrets.APP_URL;
+
+  // Use the origin from the request as success/cancel base URL if it's allowed
+  // Fallback to APP_URL from secrets
+  const allowedOrigins = secrets.parsedAllowedOrigins || DEFAULT_ALLOWED_ORIGINS;
+  const requestOrigin = corsHeaders["Access-Control-Allow-Origin"];
+  const appUrl = (requestOrigin && requestOrigin !== '*') ? requestOrigin : secrets.APP_URL;
 
   logger.info('Creating checkout session', { userId, priceId });
 
@@ -605,7 +619,7 @@ export const handler = async (event) => {
     const headers = event.headers || {};
     const origin = headers.origin || headers.Origin || '';
 
-    corsHeaders = getCorsHeaders(origin, appUrl);
+    corsHeaders = getCorsHeaders(origin, secrets);
 
     logger.info('Request received', { method: httpMethod, path, origin });
 
