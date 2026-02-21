@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.995.0",
     "@aws-sdk/client-sns": "^3.995.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.89.0",
@@ -33,6 +34,7 @@
     "@typescript-eslint/eslint-plugin": "^8.50.1",
     "@typescript-eslint/parser": "^8.50.1",
     "autoprefixer": "^10.4.0",
+    "dotenv": "^17.3.1",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.0.0",
     "eslint-plugin-react-refresh": "^0.4.26",
