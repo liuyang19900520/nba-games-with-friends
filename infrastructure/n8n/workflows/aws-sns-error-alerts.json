@@ -37,7 +37,7 @@
                 "conditions": {
                     "string": [
                         {
-                            "value1": "={{ $json.headers['x-amz-sns-message-type'] }}",
+                            "value1": "={{ $json.snsData.Type }}",
                             "value2": "SubscriptionConfirmation"
                         }
                     ]
