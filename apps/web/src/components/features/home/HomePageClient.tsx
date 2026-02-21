@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DateSelector } from './DateSelector';
 import { GameResultsList } from './GameResultsList';
 import { PremiumFeatureCard } from './PremiumFeatureCard';
@@ -25,6 +26,27 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [credits, setCredits] = useState(initialCredits);
   const [isPending, startTransition] = useTransition();
+  const searchParams = useSearchParams();
+
+  // Handle payment success callback
+  useEffect(() => {
+    const paymentStatus = searchParams?.get('payment');
+    if (paymentStatus === 'success') {
+      // Optimistically assume 5 credits were added in case webhook is delayed
+      if (credits === 0) {
+        setCredits(5);
+      }
+      setIsPredictionModalOpen(true);
+
+      // Clean up the URL so it doesn't reopen on refresh
+      window.history.replaceState(null, '', '/home');
+
+      setToast({
+        isVisible: true,
+        message: 'Payment verified! You can now use AI Predictions.'
+      });
+    }
+  }, [searchParams, credits]);
 
   // Prediction Modal State
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);

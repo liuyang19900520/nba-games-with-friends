@@ -26,7 +26,7 @@ export function PaymentSuccessHandler({ sessionId }: PaymentSuccessHandlerProps)
     if (status === 'success') {
       // Redirect to home after showing success message
       const timer = setTimeout(() => {
-        router.push('/home');
+        router.push('/home?payment=success');
       }, 2000);
 
       return () => clearTimeout(timer);
