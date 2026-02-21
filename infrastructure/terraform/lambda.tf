@@ -10,8 +10,7 @@
 
 locals {
   payment_environments = {
-    dev  = { name = "nba-payment-dev",  description = "Payment Lambda (dev)" }
-    prod = { name = "nba-payment-prod", description = "Payment Lambda (prod)" }
+    dev  = { name = "nba-payment-dev",  description = "Payment Lambda (dev & prod shared)" }
   }
 }
 

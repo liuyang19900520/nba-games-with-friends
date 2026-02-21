@@ -1,16 +1,17 @@
-name: Deploy payment-lambda to dev Lambda
+name: Deploy payment-lambda to shared Lambda
 
 on:
   push:
     branches:
       - dev
+      - main
     paths:
       - 'functions/payment/**'
   workflow_dispatch:
 
 jobs:
-  deploy-dev-payment:
-    name: Deploy payment to nba-payment-dev
+  deploy-payment:
+    name: Deploy payment to nba-payment-dev (shared)
     runs-on: ubuntu-latest
 
     steps:
