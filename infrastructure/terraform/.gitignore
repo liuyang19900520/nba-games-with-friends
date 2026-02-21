@@ -17,3 +17,6 @@ crash.*.log
 
 # Plan files
 *.tfplan
+
+# Temporary files
+.tmp/

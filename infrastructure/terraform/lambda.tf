@@ -142,12 +142,19 @@ resource "aws_apigatewayv2_integration" "payment" {
   payload_format_version = "2.0"
 }
 
-# Default route (catch-all: ANY /{proxy+})
+# Default route (catch-all)
 resource "aws_apigatewayv2_route" "payment" {
   for_each = local.payment_environments
-
   api_id    = aws_apigatewayv2_api.payment[each.key].id
-  route_key = "$default"
+  route_key = "ANY /{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.payment[each.key].id}"
+}
+
+# Root route
+resource "aws_apigatewayv2_route" "payment_root" {
+  for_each = local.payment_environments
+  api_id    = aws_apigatewayv2_api.payment[each.key].id
+  route_key = "ANY /"
   target    = "integrations/${aws_apigatewayv2_integration.payment[each.key].id}"
 }
 

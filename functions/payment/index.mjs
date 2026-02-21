@@ -72,12 +72,14 @@ async function getSecrets() {
     }
   }
 
+  const newSecrets = { ...cachedSecrets };
   // Parse allowed origins from secrets if available
-  if (cachedSecrets.ALLOWED_ORIGINS) {
-    cachedSecrets.parsedAllowedOrigins = cachedSecrets.ALLOWED_ORIGINS.split(',').map(o => o.trim());
+  if (newSecrets.ALLOWED_ORIGINS) {
+    newSecrets.parsedAllowedOrigins = newSecrets.ALLOWED_ORIGINS.split(',').map(o => o.trim());
   } else {
-    cachedSecrets.parsedAllowedOrigins = DEFAULT_ALLOWED_ORIGINS;
+    newSecrets.parsedAllowedOrigins = DEFAULT_ALLOWED_ORIGINS;
   }
+  cachedSecrets = newSecrets;
 
   return cachedSecrets;
 }
@@ -432,17 +434,16 @@ async function handleWebhook(body, headers, secrets, corsHeaders, logger) {
   }
 
   // Process event
-  let processingStatus = 'success';
   try {
     await processWebhookEvent(event, supabase, stripe, logger);
+    // Mark event as processed
+    await markEventProcessed(supabase, event.id, event.type, 'success', logger);
   } catch (err) {
     logger.error('Webhook processing failed', { eventId: event.id, error: err.message });
-    processingStatus = 'failed';
-    // Don't return error - we still want to acknowledge receipt to Stripe
+    await markEventProcessed(supabase, event.id, event.type, 'failed', logger);
+    // Explicitly throw 500 to let Stripe retry
+    return errorResponse(500, 'Webhook processing failed', 'WEBHOOK_FAILED', corsHeaders);
   }
-
-  // Mark event as processed
-  await markEventProcessed(supabase, event.id, event.type, processingStatus, logger);
 
   return jsonResponse(200, { received: true, eventId: event.id }, corsHeaders);
 }

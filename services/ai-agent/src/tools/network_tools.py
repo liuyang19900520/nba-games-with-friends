@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Optional
 from urllib.parse import urlparse
@@ -7,6 +8,8 @@ from bs4 import BeautifulSoup
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from tools.error_handler import handle_tool_error
+
+logger = logging.getLogger(__name__)
 
 _BLOCKED_HOSTS = frozenset({
     "localhost",
@@ -53,6 +56,7 @@ def search_internet(query: str, search_depth: str = "basic") -> str:
             output += f"{i}. [{res.get('url')}]: {res.get('content')}\n"
         return output
     except Exception as e:
+        logger.error(f"Search failed: {e}", exc_info=True)
         return f"Search failed: {str(e)}"
 
 
@@ -83,6 +87,7 @@ def search_nba_injuries(
                 output += f"  Source: {url}\n"
                 output += f"  {content[:600]}\n"
         except Exception as e:
+            logger.error(f"Search failed for '{query}': {e}", exc_info=True)
             output += f"\nSearch failed for '{query}': {str(e)}\n"
 
     if output.strip() == "--- NBA INJURY REPORT ---":
@@ -113,6 +118,7 @@ def fetch_web_page_content(url: str) -> str:
         )
         return f"--- CONTENT FROM {url} ---\n{content[:4000]}..."
     except Exception as e:
+        logger.error(f"Failed to fetch content from {url}: {e}", exc_info=True)
         return f"Failed to fetch content: {str(e)}"
 
 

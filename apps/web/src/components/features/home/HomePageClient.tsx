@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useTransition, useRef } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { DateSelector } from './DateSelector';
 import { GameResultsList } from './GameResultsList';
 import { PremiumFeatureCard } from './PremiumFeatureCard';
@@ -27,26 +27,29 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
   const [credits, setCredits] = useState(initialCredits);
   const [isPending, startTransition] = useTransition();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const hasProcessedPayment = useRef(false);
 
   // Handle payment success callback
   useEffect(() => {
     const paymentStatus = searchParams?.get('payment');
-    if (paymentStatus === 'success') {
+    if (paymentStatus === 'success' && !hasProcessedPayment.current) {
+      hasProcessedPayment.current = true;
       // Optimistically assume 5 credits were added in case webhook is delayed
       if (credits === 0) {
         setCredits(5);
       }
       setIsPredictionModalOpen(true);
 
-      // Clean up the URL so it doesn't reopen on refresh
-      window.history.replaceState(null, '', '/home');
+      // Clean up the URL securely with Next.js router
+      router.replace('/home');
 
       setToast({
         isVisible: true,
         message: 'Payment verified! You can now use AI Predictions.'
       });
     }
-  }, [searchParams, credits]);
+  }, [searchParams, credits, router]);
 
   // Prediction Modal State
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
@@ -82,7 +85,12 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
         const newGames = await fetchGamesByDate(date);
         setGames(newGames);
       } catch (error) {
-        console.error('[HomePageClient] Error fetching games:', error);
+        setToast({
+          isVisible: true,
+          message: 'Failed to fetch games'
+        });
+        // We throw so it can be handled globally instead of silently swallowed
+        throw error;
       }
     });
   };
