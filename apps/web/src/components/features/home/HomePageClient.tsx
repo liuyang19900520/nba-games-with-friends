@@ -39,7 +39,6 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
       if (credits === 0) {
         setCredits(5);
       }
-      setIsPredictionModalOpen(true);
 
       // Clean up the URL securely with Next.js router
       router.replace('/home');
