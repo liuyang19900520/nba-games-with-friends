@@ -1,8 +1,8 @@
 /**
  * AWS Native Error Reporting Utility for Vercel/Next.js
- * Pushes formatted JSON to the central SNS Topic.
+ * Pushes formatted JSON to AWS CloudWatch Logs.
  */
-import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
+import { CloudWatchLogsClient, PutLogEventsCommand, CreateLogStreamCommand } from "@aws-sdk/client-cloudwatch-logs";
 
 export type ErrorLevel = 'info' | 'warning' | 'error' | 'critical';
 export type ErrorSource = 'web-client' | 'web-api' | 'local-worker';
@@ -16,38 +16,50 @@ export interface ErrorPayload {
 }
 
 // AWS Client is lazy-initialized
-let snsClient: SNSClient | null = null;
+let cwClient: CloudWatchLogsClient | null = null;
+const LOG_GROUP_NAME = '/aws/vercel/nba-web';
 
-function getSNSClient() {
-    if (!snsClient) {
+function getCWClient() {
+    if (!cwClient) {
         // Requires AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY in env
-        snsClient = new SNSClient({
+        cwClient = new CloudWatchLogsClient({
             region: process.env.AWS_REGION || 'ap-northeast-1',
         });
     }
-    return snsClient;
+    return cwClient;
 }
 
 /**
- * Sends a standardized error payload to the central AWS SNS Topic.
- * Fails silently if the Topic ARN is not configured or if the request fails
- * to prevent error handling from crashing the app.
+ * Ensures the log stream exists for today.
+ */
+async function ensureLogStream(client: CloudWatchLogsClient, logStreamName: string) {
+    try {
+        await client.send(new CreateLogStreamCommand({
+            logGroupName: LOG_GROUP_NAME,
+            logStreamName: logStreamName
+        }));
+    } catch (e: unknown) {
+        // Ignore if the stream already exists
+        if (e && typeof e === 'object' && 'name' in e && e.name !== 'ResourceAlreadyExistsException') {
+            console.error('Error creating log stream:', e);
+        } else if (!e || typeof e !== 'object' || !('name' in e)) {
+            console.error('Unknown error creating log stream:', e);
+        }
+    }
+}
+
+/**
+ * Sends a standardized error payload to AWS CloudWatch Logs.
+ * Fails silently to prevent error handling from crashing the app.
  */
 export async function reportErrorToAWS(
     source: ErrorSource,
     level: ErrorLevel,
     message: string,
     errorObj?: Error | unknown,
-    additionalContext?: Record<string, any>
+    additionalContext?: Record<string, unknown>
 ) {
     try {
-        const topicArn = process.env.NEXT_PUBLIC_SNS_ERROR_TOPIC_ARN || process.env.SNS_ERROR_TOPIC_ARN;
-
-        if (!topicArn) {
-            console.warn('SNS_ERROR_TOPIC_ARN is not configured. Cannot send error alert to AWS.');
-            return;
-        }
-
         let detailsStr = '';
         if (errorObj instanceof Error) {
             detailsStr = `Name: ${errorObj.name}\nMessage: ${errorObj.message}\nStack: ${errorObj.stack || 'N/A'}`;
@@ -59,7 +71,6 @@ export async function reportErrorToAWS(
             detailsStr += `\n\nContext:\n${JSON.stringify(additionalContext, null, 2)}`;
         }
 
-        // This JSON structure matches what the n8n Parse JSON Node expects inside $input.item.json.snsData
         const payload: ErrorPayload = {
             source,
             level,
@@ -68,14 +79,25 @@ export async function reportErrorToAWS(
             timestamp: new Date().toISOString(),
         };
 
-        const client = getSNSClient();
+        const client = getCWClient();
 
-        // We send it as a JSON string within the "Message" property of SNS 
+        // Use a daily log stream to group logs neatly
+        const dateStr = new Date().toISOString().split('T')[0];
+        const logStreamName = `vercel-alerts-${dateStr}`;
+
+        await ensureLogStream(client, logStreamName);
+
+        // Send to CloudWatch Logs
         await client.send(
-            new PublishCommand({
-                TopicArn: topicArn,
-                Subject: `[${level.toUpperCase()}] Alert from ${source}`,
-                Message: JSON.stringify(payload)
+            new PutLogEventsCommand({
+                logGroupName: LOG_GROUP_NAME,
+                logStreamName: logStreamName,
+                logEvents: [
+                    {
+                        timestamp: Date.now(),
+                        message: JSON.stringify(payload) // The JSON structure is watched by the Metric Filter
+                    }
+                ]
             })
         );
 
