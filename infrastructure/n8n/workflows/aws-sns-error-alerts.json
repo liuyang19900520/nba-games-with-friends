@@ -1,0 +1,133 @@
+{
+    "name": "AWS SNS Error Alerts to Line",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "aws-sns-alerts",
+                "options": {
+                    "rawBody": true
+                }
+            },
+            "id": "1d8b9f0f-0c4a-4a0b-bcbd-111111111111",
+            "name": "AWS SNS Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                200,
+                300
+            ],
+            "webhookId": "sns-webhook-1"
+        },
+        {
+            "parameters": {
+                "jsCode": "const rawBody = $input.item.json.body;\ntry {\n  $input.item.json.snsData = JSON.parse(rawBody);\n} catch (e) {\n  $input.item.json.snsData = {};\n}\nreturn $input.item;"
+            },
+            "id": "parse-json-node",
+            "name": "Parse SNS JSON",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 1,
+            "position": [
+                400,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.headers['x-amz-sns-message-type'] }}",
+                            "value2": "SubscriptionConfirmation"
+                        }
+                    ]
+                }
+            },
+            "id": "28aa180d-1f9e-4731-897e-222222222222",
+            "name": "Is Subscription Confirmation?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                600,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $json.snsData.SubscribeURL }}",
+                "method": "GET"
+            },
+            "id": "3bc34def-12aa-4f3b-b6ce-333333333333",
+            "name": "Confirm SNS Subscription",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                800,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "message": "=🚨 AWS CloudWatch Alarm 🚨\n\n📌 Subject: {{ $json.snsData.Subject || 'Alarm' }}\n🕒 Time: {{ $json.snsData.Timestamp }}\n\n💬 Message:\n{{ $json.snsData.Message }}"
+            },
+            "id": "4bc34def-12aa-4f3b-b6ce-444444444444",
+            "name": "Send to Line",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4,
+            "position": [
+                800,
+                450
+            ],
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "line-notify-token",
+                    "name": "Line Notify Auth (Header)"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "AWS SNS Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Parse SNS JSON",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse SNS JSON": {
+            "main": [
+                [
+                    {
+                        "node": "Is Subscription Confirmation?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Is Subscription Confirmation?": {
+            "main": [
+                [
+                    {
+                        "node": "Confirm SNS Subscription",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Send to Line",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {}
+}
