@@ -41,7 +41,4 @@ output "payment_api_url_dev" {
   value       = aws_apigatewayv2_api.payment["dev"].api_endpoint
 }
 
-output "payment_api_url_prod" {
-  description = "Payment API URL (prod)"
-  value       = aws_apigatewayv2_api.payment["prod"].api_endpoint
-}
+

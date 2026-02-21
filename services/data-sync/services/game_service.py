@@ -108,8 +108,33 @@ def _fetch_games_for_date(day_offset: Optional[int] = None, team_id_to_tricode: 
     else:
         print(f"Fetching games for date {date_label}...")
     
-    # Use ScoreboardV2 for both yesterday and today, as it supports date parameter
-    # and is more reliable than the live endpoint which may return stale data
+    # Try CDN first (cdn.nba.com) - only covers the current game day
+    try:
+        from nba_api.live.nba.endpoints import scoreboard as live_scoreboard
+        cdn_sb = live_scoreboard.ScoreBoard()
+        cdn_data = cdn_sb.get_dict().get('scoreboard', {})
+        if cdn_data.get('gameDate') == date_str_formatted:
+            print(f"[game_service] ✅ Using CDN scoreboard for {date_str_formatted}")
+            cdn_games = []
+            for g in cdn_data.get('games', []):
+                home = g.get('homeTeam', {})
+                away = g.get('awayTeam', {})
+                cdn_games.append({
+                    'gameId': str(g['gameId']),
+                    'gameTimeUTC': g.get('gameTimeUTC', ''),
+                    'gameStatus': g.get('gameStatus', 1),
+                    'homeTeam': {'tricode': home.get('teamTricode', ''), 'score': home.get('score')},
+                    'awayTeam': {'tricode': away.get('teamTricode', ''), 'score': away.get('score')},
+                    'arena': {'name': g.get('arena', {}).get('arenaName', '')},
+                    'seasonYear': '',
+                })
+            return cdn_games
+        else:
+            print(f"[game_service] CDN date {cdn_data.get('gameDate')} != {date_str_formatted}, using ScoreboardV2")
+    except Exception as e:
+        print(f"[game_service] CDN scoreboard failed: {e}, falling back to ScoreboardV2")
+
+    # Fallback: ScoreboardV2 (stats.nba.com) - supports arbitrary historical dates
     scoreboard_obj = safe_call_nba_api(
         name=f"ScoreboardV2 for {date_str_formatted}",
         call_fn=lambda: scoreboardv2.ScoreboardV2(game_date=date_str_v2),
@@ -396,45 +421,83 @@ def _transform_game_data(game: dict, team_map: Dict[str, str], season: str) -> O
     return game_data
 
 
+def _fetch_single_game_from_cdn(game_id: str) -> Optional[dict]:
+    """
+    Fetch game data from cdn.nba.com via nba_api.live.
+
+    Returns a box_score_data dict compatible with _fetch_single_game_by_id processing,
+    or None if the fetch fails.
+    """
+    from nba_api.live.nba.endpoints import boxscore as live_boxscore
+
+    box = live_boxscore.BoxScore(game_id=game_id)
+    cdn = box.get_dict().get('game', {})
+    if not cdn:
+        return None
+
+    home = cdn.get('homeTeam', {})
+    away = cdn.get('awayTeam', {})
+
+    if not home.get('teamId') or not away.get('teamId'):
+        return None
+
+    return {
+        'homeTeamId': home['teamId'],
+        'awayTeamId': away['teamId'],
+        'game': {
+            'gameTimeUTC': cdn.get('gameTimeUTC', ''),
+            'gameStatus': cdn.get('gameStatus', 3),
+            'arenaName': cdn.get('arena', {}).get('arenaName', ''),
+        },
+        'homeTeam': {'statistics': {'points': home.get('score')}},
+        'awayTeam': {'statistics': {'points': away.get('score')}},
+    }
+
+
 def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str) -> Optional[dict]:
     """
     Fetch a single game by game ID from NBA API.
-    
-    Uses BoxScoreTraditionalV3 to get game info.
-    
-    Args:
-        game_id: NBA game ID (e.g., '0022500009')
-        team_map: Mapping from tricode to team UUID
-        season: Current NBA season (e.g., '2024-25')
-    
-    Returns:
-        Transformed game dictionary, or None if fetch failed
+
+    Tries cdn.nba.com (nba_api.live) first, falls back to BoxScoreTraditionalV3
+    then BoxScoreSummaryV3 (stats.nba.com).
     """
     from nba_api.stats.endpoints import boxscoretraditionalv3, boxscoresummaryv3
-    
+
     print(f"Fetching game {game_id} from NBA API...")
-    
+
     box_score_data = {}
     source = None
 
-    # 1. Try BoxScoreTraditionalV3
+    # 1. Try CDN first (cdn.nba.com - no rate limits)
     try:
-        boxscore = safe_call_nba_api(
-            name=f"BoxScoreTraditionalV3(game_id={game_id})",
-            call_fn=lambda: boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id),
-            max_retries=3,
-            base_delay=3.0,
-        )
-        
-        if boxscore:
-            data = boxscore.get_dict()
-            box_score_data = data.get('boxScoreTraditional', {})
-            if box_score_data:
-                source = 'traditional'
+        print(f"[game_service] Trying Live CDN for {game_id}...")
+        cdn_data = _fetch_single_game_from_cdn(game_id)
+        if cdn_data:
+            box_score_data = cdn_data
+            source = 'traditional'
+            print(f"[game_service] ✅ CDN fetch successful for {game_id}")
     except Exception as e:
-        print(f"[game_service] BoxScoreTraditionalV3 error: {e}")
+        print(f"[game_service] CDN fetch failed: {e}, falling back to stats.nba.com")
 
-    # 2. Fallback to BoxScoreSummaryV3 if Traditional failed
+    # 2. Fallback to BoxScoreTraditionalV3
+    if not source:
+        try:
+            boxscore = safe_call_nba_api(
+                name=f"BoxScoreTraditionalV3(game_id={game_id})",
+                call_fn=lambda: boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id),
+                max_retries=3,
+                base_delay=3.0,
+            )
+
+            if boxscore:
+                data = boxscore.get_dict()
+                box_score_data = data.get('boxScoreTraditional', {})
+                if box_score_data:
+                    source = 'traditional'
+        except Exception as e:
+            print(f"[game_service] BoxScoreTraditionalV3 error: {e}")
+
+    # 3. Fallback to BoxScoreSummaryV3
     if not source:
         print(f"[game_service] TraditionalV3 failed/empty for {game_id}, trying BoxScoreSummaryV3 fallback...")
         try:
@@ -450,7 +513,7 @@ def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str
                 if box_score_data:
                     source = 'summary'
         except Exception as e:
-             print(f"[game_service] BoxScoreSummaryV3 error: {e}")
+            print(f"[game_service] BoxScoreSummaryV3 error: {e}")
 
     if not box_score_data:
         print(f"[game_service] Failed to fetch game {game_id} from all endpoints")

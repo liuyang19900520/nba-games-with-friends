@@ -7,6 +7,7 @@ def setup_logger(name: str = "nba_agent") -> logging.Logger:
     Configure and return a standardized logger.
     - Writes to Console (StreamHandler).
     - Writes to File (FileHandler) in /logs directory.
+    - Writes to AWS CloudWatch Logs (Watchtower) if configured.
     - Format: Timestamp | Level | Component | Message
     """
     # 1. Ensure logs directory exists
@@ -38,6 +39,26 @@ def setup_logger(name: str = "nba_agent") -> logging.Logger:
     file_handler = logging.FileHandler(log_file, encoding='utf-8')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+
+    # 6. CloudWatch Handler (Watchtower)
+    try:
+        import watchtower
+        import boto3
+        
+        # We need boto3 to interact with AWS, and watchtower to stream logs
+        # This streams to /aws/ec2/ai-agent created by Terraform
+        cloudwatch_handler = watchtower.CloudWatchLogHandler(
+            log_group_name='/aws/ec2/ai-agent',
+            stream_name='python-app-logs',
+            create_log_group=False, # We let Terraform manage the group
+            boto3_client=boto3.client('logs', region_name=os.getenv('AWS_REGION', 'ap-northeast-1'))
+        )
+        cloudwatch_handler.setFormatter(formatter)
+        logger.addHandler(cloudwatch_handler)
+    except ImportError:
+        logger.warning("Watchtower or boto3 not installed; CloudWatch logging is disabled.")
+    except Exception as e:
+        logger.warning(f"Could not attach CloudWatchLogHandler: {e}")
 
     return logger
 

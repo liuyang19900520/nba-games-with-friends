@@ -49,161 +49,86 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
 
 def _fetch_player_stats_from_api(game_id: str) -> Tuple[Optional[List[Dict]], Optional[Dict]]:
     """
-    Fetch player statistics for a specific game from NBA API.
-    
-    Args:
-        game_id: NBA game ID (e.g., '0022500009')
-    
-    Returns:
-        List of player stat dictionaries, or None if fetch failed
+    Fetch player statistics for a specific game.
+
+    Tries cdn.nba.com (nba_api.live) first, falls back to BoxScoreTraditionalV3
+    (stats.nba.com) if CDN fails.
     """
-    print(f"Fetching player stats for game {game_id} from NBA API...")
-    
+    print(f"Fetching player stats for game {game_id}...")
+
+    # 1. Try CDN first (cdn.nba.com - no rate limits, no IP blocking)
+    try:
+        print(f"[game_player_stats_service] Trying Live CDN for {game_id}...")
+        cdn_stats, cdn_game_info = _fetch_player_stats_from_live_cdn(game_id)
+        if cdn_stats and len(cdn_stats) > 0:
+            print(f"[game_player_stats_service] ✅ CDN fetch successful: {len(cdn_stats)} players")
+            if cdn_game_info:
+                hs = cdn_game_info.get('home_score')
+                as_ = cdn_game_info.get('away_score')
+                if hs is not None and as_ is not None:
+                    print(f"  Game score: {as_} - {hs} (Away - Home)")
+            return cdn_stats, cdn_game_info
+        print(f"[game_player_stats_service] CDN returned empty data for {game_id}")
+    except Exception as e:
+        print(f"[game_player_stats_service] CDN fetch failed: {e}, falling back to stats.nba.com")
+
+    # 2. Fallback to BoxScoreTraditionalV3 (stats.nba.com)
+    print(f"[game_player_stats_service] Trying BoxScoreTraditionalV3 for {game_id}...")
     boxscore = safe_call_nba_api(
         name=f"BoxScoreTraditionalV3(game_id={game_id})",
         call_fn=lambda: boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id),
         max_retries=3,
         base_delay=3.0,
     )
-    
+
     if boxscore is None:
         print(f"[game_player_stats_service] Failed to fetch boxscore for game {game_id} after retries.")
         return None, None
-    
-    # BoxScoreTraditionalV3 uses a new data structure
+
     data = boxscore.get_dict()
     box_score_data = data.get('boxScoreTraditional', {})
-    
+
     if not box_score_data:
         print(f"[game_player_stats_service] No boxScoreTraditional data found for game {game_id}")
-        print(f"[game_player_stats_service] This might mean the game hasn't started yet or the game_id is invalid.")
         return None, None
-    
-    # Extract player stats from homeTeam and awayTeam
-    # Each team has a 'players' list, where each player has 'personId' and 'statistics'
+
     home_team = box_score_data.get('homeTeam', {})
     away_team = box_score_data.get('awayTeam', {})
     home_team_id = box_score_data.get('homeTeamId')
     away_team_id = box_score_data.get('awayTeamId')
-    
-    # Extract team scores from team statistics
-    home_team_stats = home_team.get('statistics', {})
-    away_team_stats = away_team.get('statistics', {})
-    home_score = home_team_stats.get('points') if home_team_stats else None
-    away_score = away_team_stats.get('points') if away_team_stats else None
-    
-    game_status = 'Final' # Default heuristic
-    
-    # FALLBACK: If scores are missing/zero, try BoxScoreSummaryV3
-    # Check if scores are effectively zero (which implies missing for live games)
-    is_score_missing = (home_score is None or int(home_score) == 0) and (away_score is None or int(away_score) == 0)
-    
-    if is_score_missing:
-        print(f"[game_player_stats_service] Scores missing/zero in TraditionalV3 for {game_id}, trying BoxScoreSummaryV3...")
-        try:
-            from nba_api.stats.endpoints import boxscoresummaryv3
-            summary_obj = safe_call_nba_api(
-                name=f"BoxScoreSummaryV3({game_id})",
-                call_fn=lambda: boxscoresummaryv3.BoxScoreSummaryV3(game_id=game_id),
-                max_retries=2
-            )
-            if summary_obj:
-                sum_data = summary_obj.get_dict().get('boxScoreSummary', {})
-                sum_home = sum_data.get('homeTeam', {})
-                sum_away = sum_data.get('awayTeam', {})
-                
-                # Extract new scores
-                new_home_score = sum_home.get('score')
-                new_away_score = sum_away.get('score')
-                
-                if new_home_score is not None:
-                    home_score = new_home_score
-                if new_away_score is not None:
-                    away_score = new_away_score
-                
-                # Check status
-                status_text = sum_data.get('gameStatusText', '')
-                if status_text and 'Final' not in status_text:
-                     game_status = 'Live'
-                     print(f"  ℹ️  Set status to Live based on SummaryV3 (Status: {status_text})")
-                elif status_text and 'Final' in status_text:
-                     game_status = 'Final'
 
-        except ImportError:
-            pass
-        except Exception as e:
-            print(f"  ⚠️ BoxScoreSummaryV3 fallback failed: {e}")
-            
-    # Build game info dict for updating games table
+    home_score = home_team.get('statistics', {}).get('points')
+    away_score = away_team.get('statistics', {}).get('points')
+
     game_info = {
         'home_score': int(home_score) if home_score is not None else None,
         'away_score': int(away_score) if away_score is not None else None,
-        'status': game_status
+        'status': 'Final',
     }
-    
-    home_players = home_team.get('players', [])
-    away_players = away_team.get('players', [])
-    
-    # Combine both teams' player stats and add team_id
+
     all_player_stats = []
-    
-    # Process home team players
-    for player in home_players:
-        if player.get('statistics'):  # Only include players with stats
-            player_stat = {
+    for player in home_team.get('players', []):
+        if player.get('statistics'):
+            all_player_stats.append({
                 'PLAYER_ID': player.get('personId'),
                 'TEAM_ID': home_team_id,
                 'statistics': player.get('statistics', {}),
-            }
-            all_player_stats.append(player_stat)
-    
-    # Process away team players
-    for player in away_players:
-        if player.get('statistics'):  # Only include players with stats
-            player_stat = {
+            })
+    for player in away_team.get('players', []):
+        if player.get('statistics'):
+            all_player_stats.append({
                 'PLAYER_ID': player.get('personId'),
                 'TEAM_ID': away_team_id,
                 'statistics': player.get('statistics', {}),
-            }
-            all_player_stats.append(player_stat)
-    
-    if not all_player_stats or len(all_player_stats) == 0:
-        print(f"[game_player_stats_service] Empty player stats data for game {game_id}")
-        print(f"[game_player_stats_service] This usually means:")
-        print(f"  - The game hasn't started yet (no player stats available)")
-        print(f"  - The game_id format is incorrect")
-        print(f"  - The game doesn't exist")
-        print(f"[game_player_stats_service] Tip: Check if the game has started by running 'python cli.py games' first")
-        return None, None
-    
-    print(f"Fetched {len(all_player_stats)} player stats from NBA API for game {game_id}")
-    
-    # Check if stats are empty (all zeros) which indicates V3 failure
-    has_valid_stats = False
-    for p in all_player_stats:
-        stats = p.get('statistics', {})
-        if _safe_int(stats.get('points')) > 0 or _safe_int(stats.get('minutes')) > 0: # minutes might be string "00:00"
-             has_valid_stats = True
-             break
-    
-    if not has_valid_stats:
-        print(f"[game_player_stats_service] V3 returned zero stats. Attempting Live CDN fallback...")
-        try:
-             live_stats, live_game_info = _fetch_player_stats_from_live_cdn(game_id)
-             if live_stats:
-                 print(f"  ✅ Live CDN fallback successful! Found {len(live_stats)} players.")
-                 all_player_stats = live_stats
-                 # Update game info with live scores if available
-                 if live_game_info:
-                     game_info.update(live_game_info)
-                     home_score = live_game_info.get('home_score')
-                     away_score = live_game_info.get('away_score')
-        except Exception as e:
-             print(f"  ⚠️ Live CDN fallback failed: {e}")
+            })
 
+    if not all_player_stats:
+        print(f"[game_player_stats_service] Empty player stats data for game {game_id}")
+        return None, None
+
+    print(f"Fetched {len(all_player_stats)} player stats via BoxScoreTraditionalV3 for game {game_id}")
     if home_score is not None and away_score is not None:
         print(f"  Game score: {away_score} - {home_score} (Away - Home)")
-    
     return all_player_stats, game_info
 
 
@@ -231,21 +156,23 @@ def _parse_iso_duration(duration_str: str) -> str:
 
 
 def _fetch_player_stats_from_live_cdn(game_id: str) -> Tuple[Optional[List[Dict]], Optional[Dict]]:
-    """Fallback: Fetch stats from nba_api.live endpoint"""
+    """Fetch stats from nba_api.live (cdn.nba.com) endpoint."""
     from nba_api.live.nba.endpoints import boxscore
-    
+
     box = boxscore.BoxScore(game_id=game_id)
     data = box.get_dict()
     game = data.get('game', {})
-    
+
     home_team = game.get('homeTeam', {})
     away_team = game.get('awayTeam', {})
-    
-    # Get scores
+
+    status_map = {1: 'Scheduled', 2: 'Live', 3: 'Final'}
+    status = status_map.get(game.get('gameStatus', 3), 'Final')
+
     game_info = {
         'home_score': _safe_int(home_team.get('score')),
         'away_score': _safe_int(away_team.get('score')),
-        'status': 'Live' # If we are using this, it's likely live
+        'status': status,
     }
     
     all_player_stats = []

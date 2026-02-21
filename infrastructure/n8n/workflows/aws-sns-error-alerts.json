@@ -82,7 +82,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={\n  \"to\": \"U39c581a7f6f9947e2d1061920173d95e\",\n  \"messages\": [\n    {\n      \"type\": \"text\", \n      \"text\": \"🚨 NBA AWS CloudWatch Alert 🚨\\n\\n📌 Subject: {{ $json.snsData.Subject || 'Vercel / AWS Error' }}\\n📝 Message: \\n{{ $json.snsData.Message }}\\n\\n⏰ Time: {{ $json.snsData.Timestamp }}\"\n    }\n  ]\n}",
+                "jsonBody": "={\n  \"to\": \"U39c581a7f6f9947e2d1061920173d95e\",\n  \"messages\": [\n    {\n      \"type\": \"text\", \n      \"text\": \"🚨 AWS CloudWatch Alarm 🚨\\n\\n📌 Status: {{ JSON.parse($json.snsData.Message).NewStateValue }}\\n🔔 Alarm: {{ JSON.parse($json.snsData.Message).AlarmName }}\\n📝 Reason: \\n{{ JSON.parse($json.snsData.Message).NewStateReason }}\\n\\n⏰ Time: {{ JSON.parse($json.snsData.Message).StateChangeTime }}\"\n    }\n  ]\n}",
                 "options": {}
             },
             "id": "de8e2d51-7caf-4d0e-8fd4-97190e323479",

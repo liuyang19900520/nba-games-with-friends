@@ -49,6 +49,19 @@ def get_current_nba_season() -> str:
     return season
 
 
+def _restore_nba_proxy(
+    proxy_url: Optional[str],
+    old_https: Optional[str],
+    old_http: Optional[str],
+    old_nba_proxy: Optional[str] = None,
+) -> None:
+    """Restore nba_api proxy and env vars after a stats.nba.com call."""
+    if not proxy_url:
+        return
+    import nba_api.library.http as _nba_http
+    _nba_http.PROXY = old_nba_proxy if old_nba_proxy is not None else ""
+
+
 def safe_call_nba_api(
     name: str,
     call_fn: Callable[[], Any],
@@ -64,6 +77,7 @@ def safe_call_nba_api(
     - Exponential backoff on failures
     - Extended delays for rate limit errors (RemoteDisconnected, 429)
     - Post-success sleep to avoid triggering limits
+    - Optional proxy via NBA_STATS_PROXY env var (only applied to nba_api calls)
 
     Args:
         name: A human-readable name for logging (e.g. "LeagueStandings(2025-26)").
@@ -78,10 +92,21 @@ def safe_call_nba_api(
     """
     import random
     from http.client import RemoteDisconnected
+
+    # Apply proxy only for nba_api (stats.nba.com) calls, not CDN or Supabase
+    proxy_url = os.environ.get('NBA_STATS_PROXY')
+    _old_https_proxy = os.environ.get('HTTPS_PROXY')
+    _old_http_proxy = os.environ.get('HTTP_PROXY')
+    if proxy_url:
+        import nba_api.library.http as _nba_http
+        _old_nba_proxy = _nba_http.PROXY
+        _nba_http.PROXY = proxy_url
+    else:
+        _old_nba_proxy = None
     
     attempt = 1
     last_error: Optional[Exception] = None
-    
+
     # Track if we're being rate limited (for longer delays)
     rate_limited = False
 
@@ -97,6 +122,7 @@ def safe_call_nba_api(
                 sleep_time = post_success_sleep + random.uniform(0, 0.5)
                 time.sleep(sleep_time)
 
+            _restore_nba_proxy(proxy_url, _old_https_proxy, _old_http_proxy, _old_nba_proxy)
             return result
 
         except (ReadTimeout, Timeout) as e:
@@ -176,6 +202,7 @@ def safe_call_nba_api(
         f"[nba_api] Giving up on {name} after {max_retries} attempts. "
         f"Last error: {last_error}"
     )
+    _restore_nba_proxy(proxy_url, _old_https_proxy, _old_http_proxy, _old_nba_proxy)
     return None
 
 

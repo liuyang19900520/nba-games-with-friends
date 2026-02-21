@@ -17,7 +17,7 @@ variable "project_name" {
 variable "instance_type" {
   description = "EC2 instance type (ARM-based for cost efficiency)"
   type        = string
-  default     = "t4g.small"  # 2 vCPU, 2GB RAM, ARM
+  default     = "t4g.small" # 2 vCPU, 2GB RAM, ARM
 }
 
 variable "key_name" {
@@ -35,5 +35,11 @@ variable "ssh_private_key_path" {
 variable "allowed_ssh_cidr" {
   description = "CIDR block allowed for SSH access (your IP)"
   type        = string
-  default     = "0.0.0.0/0"  # TODO: restrict to your IP for security
+  default     = "0.0.0.0/0" # TODO: restrict to your IP for security
+}
+
+variable "n8n_webhook_url" {
+  description = "The public n8n Webhook URL to subscribe to the SNS error alerts topic"
+  type        = string
+  default     = "https://57.182.161.64.nip.io/webhook/aws-sns-alerts"
 }
