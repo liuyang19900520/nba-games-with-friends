@@ -1,4 +1,4 @@
-name: Deploy data-sync-service to dev Lambda
+name: Deploy data-sync-service to EC2
 
 on:
   push:
@@ -9,64 +9,20 @@ on:
       - 'services/data-sync/**'
 
 jobs:
-  deploy-dev-lambda:
-    name: Deploy data-sync to nba-sync-dev (Lambda)
+  deploy-to-ec2:
+    name: Deploy data-sync to EC2 Docker
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Determine branch
+        id: branch
+        run: echo "name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1
         with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        working-directory: ./services/data-sync
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            mkdir -p build
-            pip install -r requirements.txt -t build
-          else
-            echo "No requirements.txt found, skipping dependency installation."
-          fi
-
-      - name: Copy source code into build directory
-        working-directory: ./services/data-sync
-        run: |
-          mkdir -p build
-          # Copy source files and folders to build directory
-          cp *.py build/ 2>/dev/null || true
-          cp -r services build/ 2>/dev/null || true
-          cp -r utils build/ 2>/dev/null || true
-          # Add more directories if needed
-
-      - name: Create deployment package (zip)
-        working-directory: ./services/data-sync
-        run: |
-          cd build
-          zip -r ../package.zip .
-          ls -lh ../package.zip
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Upload package.zip to S3
-        working-directory: ./services/data-sync
-        run: |
-          aws s3 cp package.zip s3://nba-lambda-artifacts-dev/py-data-sync/package.zip
-
-      - name: Deploy to Lambda (nba-sync-dev) using S3 artifact
-        run: |
-          aws lambda update-function-code \
-            --function-name nba-sync-dev \
-            --s3-bucket nba-lambda-artifacts-dev \
-            --s3-key py-data-sync/package.zip
-
-          echo "Deployment to nba-sync-dev completed."
+          host: ${{ secrets.AI_AGENT_EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          script: |
+            bash /home/ubuntu/nba-games-with-friends/infrastructure/scripts/deploy-data-sync.sh ${{ steps.branch.outputs.name }}
