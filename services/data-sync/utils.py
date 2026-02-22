@@ -104,33 +104,23 @@ def safe_call_nba_api(
         _old_nba_proxy = _nba_http.PROXY
         _old_session = _nba_http.NBAHTTP._session
 
-    # Build a shuffled list of proxy session indices to cycle through without repeating
-    _proxy_indices: List[int] = list(range(1, 11))
-    random.shuffle(_proxy_indices)
-    _proxy_attempt = 0  # index into _proxy_indices
-
     def _apply_proxy() -> None:
-        """Pick next proxy IP in cycle, build a new session, inject into nba_api."""
-        nonlocal _proxy_attempt
+        """Build a new session with proxy injected into nba_api.
+        For rotating proxies each new session gets a fresh IP automatically."""
         if not proxy_url_template:
             return
         import nba_api.library.http as _nba_http
         from nba_api.stats.library.http import NBAStatsHTTP as _NBAStatsHTTP
-        resolved = proxy_url_template
-        if '{n}' in resolved:
-            n = _proxy_indices[_proxy_attempt % len(_proxy_indices)]
-            resolved = resolved.replace('{n}', str(n))
-            _proxy_attempt += 1
         # Build a fresh session with proxy pre-configured on the session itself
         session = _requests.Session()
-        session.proxies = {'http': resolved, 'https': resolved}
-        _nba_http.PROXY = resolved      # used by send_api_request for per-request proxies arg
+        session.proxies = {'http': proxy_url_template, 'https': proxy_url_template}
+        _nba_http.PROXY = proxy_url_template  # used by send_api_request for per-request proxies arg
         # IMPORTANT: must set on the SUBCLASS (NBAStatsHTTP), not base NBAHTTP.
         # After NBAStatsHTTP.get_session() is called once, it creates its own _session
         # class attribute that shadows NBAHTTP._session.
         _NBAStatsHTTP._session = session
         _nba_http.NBAHTTP._session = session  # also set base class for safety
-        print(f"[nba_api] Using proxy session: {resolved.split('@')[-1]} (index {_proxy_attempt}/{len(_proxy_indices)})")
+        print(f"[nba_api] Using proxy: {proxy_url_template.split('@')[-1]}")
 
     def _restore_proxy() -> None:
         if proxy_url_template is None:
@@ -223,8 +213,8 @@ def safe_call_nba_api(
 
         if attempt < max_retries:
             if proxy_failure:
-                # Proxy IP issue: switch to next IP immediately with minimal delay
-                delay = 1.0 + random.uniform(0, 1)
+                # Rotating proxy: wait 3-8s so the proxy pool assigns a truly fresh IP
+                delay = 3.0 + random.uniform(0, 5)
                 proxy_failure = False  # reset for next attempt
             else:
                 # Cap exponential backoff at 30s — longer waits don't help for NBA API
