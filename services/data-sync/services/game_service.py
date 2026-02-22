@@ -138,7 +138,7 @@ def _fetch_games_for_date(day_offset: Optional[int] = None, team_id_to_tricode: 
     scoreboard_obj = safe_call_nba_api(
         name=f"ScoreboardV2 for {date_str_formatted}",
         call_fn=lambda: scoreboardv2.ScoreboardV2(game_date=date_str_v2),
-        max_retries=3,
+        max_retries=10,
         base_delay=3.0,
     )
     
@@ -485,7 +485,7 @@ def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str
             boxscore = safe_call_nba_api(
                 name=f"BoxScoreTraditionalV3(game_id={game_id})",
                 call_fn=lambda: boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id),
-                max_retries=3,
+                max_retries=10,
                 base_delay=3.0,
             )
 
@@ -504,7 +504,7 @@ def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str
             summary = safe_call_nba_api(
                 name=f"BoxScoreSummaryV3(game_id={game_id})",
                 call_fn=lambda: boxscoresummaryv3.BoxScoreSummaryV3(game_id=game_id),
-                max_retries=3,
+                max_retries=10,
                 base_delay=2.0
             )
             if summary:
@@ -646,7 +646,7 @@ def _fetch_single_game_by_id(game_id: str, team_map: Dict[str, str], season: str
             summary_obj = safe_call_nba_api(
                 name=f"BoxScoreSummaryV3({game_id})",
                 call_fn=lambda: boxscoresummaryv3.BoxScoreSummaryV3(game_id=game_id),
-                max_retries=2
+                max_retries=10
             )
             if summary_obj:
                 sum_data = summary_obj.get_dict().get('boxScoreSummary', {})

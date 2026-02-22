@@ -37,7 +37,7 @@ def sync_player_season_stats(season: Optional[str] = None) -> None:
                 season=season,
                 per_mode_detailed='PerGame',  # Important: We want averages, not totals
             ),
-            max_retries=3,
+            max_retries=10,
             base_delay=3.0,
         )
         if stats is None:

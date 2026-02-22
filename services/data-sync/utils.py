@@ -78,6 +78,7 @@ def safe_call_nba_api(
     - Extended delays for rate limit errors (RemoteDisconnected, 429)
     - Post-success sleep to avoid triggering limits
     - Optional proxy via NBA_STATS_PROXY env var (only applied to nba_api calls)
+    - Per-attempt proxy rotation: each retry picks a fresh {n} session and new TCP session
 
     Args:
         name: A human-readable name for logging (e.g. "LeagueStandings(2025-26)").
@@ -90,39 +91,76 @@ def safe_call_nba_api(
     Returns:
         The result of call_fn() on success, or None if all retries fail.
     """
-    import random
+    import requests as _requests
     from http.client import RemoteDisconnected
 
-    # Apply proxy only for nba_api (stats.nba.com) calls, not CDN or Supabase
-    proxy_url = os.environ.get('NBA_STATS_PROXY')
-    _old_https_proxy = os.environ.get('HTTPS_PROXY')
-    _old_http_proxy = os.environ.get('HTTP_PROXY')
-    if proxy_url:
+    proxy_url_template = os.environ.get('NBA_STATS_PROXY')
+
+    # Save original nba_api proxy so we can restore after the call
+    _old_nba_proxy: Optional[str] = None
+    _old_session = None
+    if proxy_url_template:
         import nba_api.library.http as _nba_http
         _old_nba_proxy = _nba_http.PROXY
-        _nba_http.PROXY = proxy_url
-    else:
-        _old_nba_proxy = None
-    
+        _old_session = _nba_http.NBAHTTP._session
+
+    # Build a shuffled list of proxy session indices to cycle through without repeating
+    _proxy_indices: List[int] = list(range(1, 11))
+    random.shuffle(_proxy_indices)
+    _proxy_attempt = 0  # index into _proxy_indices
+
+    def _apply_proxy() -> None:
+        """Pick next proxy IP in cycle, build a new session, inject into nba_api."""
+        nonlocal _proxy_attempt
+        if not proxy_url_template:
+            return
+        import nba_api.library.http as _nba_http
+        from nba_api.stats.library.http import NBAStatsHTTP as _NBAStatsHTTP
+        resolved = proxy_url_template
+        if '{n}' in resolved:
+            n = _proxy_indices[_proxy_attempt % len(_proxy_indices)]
+            resolved = resolved.replace('{n}', str(n))
+            _proxy_attempt += 1
+        # Build a fresh session with proxy pre-configured on the session itself
+        session = _requests.Session()
+        session.proxies = {'http': resolved, 'https': resolved}
+        _nba_http.PROXY = resolved      # used by send_api_request for per-request proxies arg
+        # IMPORTANT: must set on the SUBCLASS (NBAStatsHTTP), not base NBAHTTP.
+        # After NBAStatsHTTP.get_session() is called once, it creates its own _session
+        # class attribute that shadows NBAHTTP._session.
+        _NBAStatsHTTP._session = session
+        _nba_http.NBAHTTP._session = session  # also set base class for safety
+        print(f"[nba_api] Using proxy session: {resolved.split('@')[-1]} (index {_proxy_attempt}/{len(_proxy_indices)})")
+
+    def _restore_proxy() -> None:
+        if proxy_url_template is None:
+            return
+        import nba_api.library.http as _nba_http
+        from nba_api.stats.library.http import NBAStatsHTTP as _NBAStatsHTTP
+        _nba_http.PROXY = _old_nba_proxy if _old_nba_proxy is not None else ""
+        _NBAStatsHTTP._session = _old_session
+        _nba_http.NBAHTTP._session = _old_session
+
     attempt = 1
     last_error: Optional[Exception] = None
-
-    # Track if we're being rate limited (for longer delays)
     rate_limited = False
+    # Track whether the last failure was a proxy-level issue (not server-side rate limit)
+    proxy_failure = False
 
     while attempt <= max_retries:
+        # Apply a fresh proxy (next IP in cycle + new session) on every attempt
+        _apply_proxy()
+
         try:
             print(f"[nba_api] Calling {name} (attempt {attempt}/{max_retries})")
             result = call_fn()
             print(f"[nba_api] {name} succeeded on attempt {attempt}")
 
-            # Always sleep after success to respect rate limits
             if post_success_sleep > 0:
-                # Add jitter to avoid detection patterns
                 sleep_time = post_success_sleep + random.uniform(0, 0.5)
                 time.sleep(sleep_time)
 
-            _restore_nba_proxy(proxy_url, _old_https_proxy, _old_http_proxy, _old_nba_proxy)
+            _restore_proxy()
             return result
 
         except (ReadTimeout, Timeout) as e:
@@ -131,9 +169,13 @@ def safe_call_nba_api(
                 f"[nba_api] {name} failed with {type(e).__name__} on "
                 f"attempt {attempt}/{max_retries}: {e}"
             )
-            # Timeout might indicate rate limiting
-            rate_limited = True
-            
+            if proxy_url_template:
+                # Timeout through proxy = this IP is blocked/slow by nba.com → rotate quickly
+                proxy_failure = True
+                print(f"[nba_api] ⚠️ Proxy IP blocked/slow — will rotate to next IP")
+            else:
+                rate_limited = True
+
         except ConnectionError as e:
             last_error = e
             error_str = str(e)
@@ -141,57 +183,54 @@ def safe_call_nba_api(
                 f"[nba_api] {name} failed with ConnectionError on "
                 f"attempt {attempt}/{max_retries}: {e}"
             )
-            # Check for rate limit indicators
-            if 'RemoteDisconnected' in error_str or 'Connection aborted' in error_str:
+            if 'ProxyError' in error_str or 'Unable to connect to proxy' in error_str:
+                # Proxy itself failed — rotate IP on next attempt, no extra delay needed
+                proxy_failure = True
+                print(f"[nba_api] ⚠️ Proxy connection failed — will rotate IP on next attempt")
+            elif 'RemoteDisconnected' in error_str or 'Connection aborted' in error_str:
                 print(f"[nba_api] ⚠️ Rate limit detected! Server disconnected.")
                 rate_limited = True
-            
+
         except HTTPError as e:
             last_error = e
             print(
                 f"[nba_api] {name} failed with HTTPError on "
                 f"attempt {attempt}/{max_retries}: {e}"
             )
-            # Check for 429 Too Many Requests
             if hasattr(e, 'response') and e.response is not None:
                 if e.response.status_code == 429:
                     print(f"[nba_api] ⚠️ Rate limit (429) detected!")
                     rate_limited = True
-                    
-        except Exception as e:  # Catch-all
+
+        except Exception as e:
             last_error = e
             error_str = str(e)
             print(
                 f"[nba_api] {name} failed with unexpected {type(e).__name__} "
                 f"on attempt {attempt}/{max_retries}: {e}"
             )
-            # Check for rate limit indicators in exception message
-            if 'RemoteDisconnected' in error_str or '429' in error_str:
+            if 'ProxyError' in error_str or 'Unable to connect to proxy' in error_str:
+                print(f"[nba_api] ⚠️ Proxy connection failed — will rotate IP on next attempt")
+            elif 'RemoteDisconnected' in error_str or '429' in error_str:
                 rate_limited = True
             else:
-                # For truly unexpected errors, don't retry
-                # EXCEPTION: 'NoneType' object has no attribute 'get' is a common nba_api error
-                # when the response is empty/None but the library tries to access headers.
-                # We should retry this as it's likely a transient upstream issue.
                 if isinstance(e, AttributeError) and "'NoneType' object has no attribute 'get'" in error_str:
-                     print(f"[nba_api] ⚠️ Known nba_api error (empty response?) - retrying")
+                    print(f"[nba_api] ⚠️ Known nba_api error (empty response?) - retrying")
                 else:
                     break
 
-        # Decide whether to retry with exponential backoff
         if attempt < max_retries:
-            # Exponential backoff: base_delay * 2^attempt
-            delay = base_delay * (2 ** (attempt - 1))
-            
-            # If rate limited, add extra delay
-            if rate_limited:
-                extra_delay = 30 + random.uniform(0, 30)  # 30-60 seconds extra
-                delay += extra_delay
-                print(f"[nba_api] ⚠️ Rate limited - adding extra {extra_delay:.1f}s delay")
-            
-            # Add jitter
-            delay += random.uniform(0, 3)
-            
+            if proxy_failure:
+                # Proxy IP issue: switch to next IP immediately with minimal delay
+                delay = 1.0 + random.uniform(0, 1)
+                proxy_failure = False  # reset for next attempt
+            else:
+                delay = base_delay * (2 ** (attempt - 1))
+                if rate_limited:
+                    extra_delay = 30 + random.uniform(0, 30)
+                    delay += extra_delay
+                    print(f"[nba_api] ⚠️ Rate limited - adding extra {extra_delay:.1f}s delay")
+                delay += random.uniform(0, 3)
             print(f"[nba_api] Retrying {name} after {delay:.1f}s...")
             time.sleep(delay)
             attempt += 1
@@ -202,7 +241,7 @@ def safe_call_nba_api(
         f"[nba_api] Giving up on {name} after {max_retries} attempts. "
         f"Last error: {last_error}"
     )
-    _restore_nba_proxy(proxy_url, _old_https_proxy, _old_http_proxy, _old_nba_proxy)
+    _restore_proxy()
     return None
 
 
