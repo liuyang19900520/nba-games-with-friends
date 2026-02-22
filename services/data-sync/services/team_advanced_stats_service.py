@@ -111,7 +111,7 @@ def sync_team_season_advanced_stats(season: Optional[str] = None) -> None:
                 per_mode_detailed='PerGame',
                 measure_type_detailed_defense='Advanced',  # Key: Advanced stats
             ),
-            max_retries=10,
+            max_retries=30,
             base_delay=3.0,
         )
         

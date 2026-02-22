@@ -49,7 +49,7 @@ def _fetch_game_advanced_stats(game_id: str) -> Optional[Dict]:
     result = safe_call_nba_api(
         name=f"BoxScoreAdvancedV3(game_id={game_id})",
         call_fn=lambda: boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=game_id),
-        max_retries=10,
+        max_retries=30,
         base_delay=3.0,
     )
     

@@ -115,7 +115,7 @@ def _fetch_shot_chart_from_api(
                 season_type_all_star=season_type,
                 context_measure_simple='FGA',  # Field Goal Attempts
             ),
-            max_retries=10,
+            max_retries=30,
             base_delay=3.0,
         )
         

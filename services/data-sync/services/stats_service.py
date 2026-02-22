@@ -36,8 +36,9 @@ def sync_player_season_stats(season: Optional[str] = None) -> None:
             call_fn=lambda: leaguedashplayerstats.LeagueDashPlayerStats(
                 season=season,
                 per_mode_detailed='PerGame',  # Important: We want averages, not totals
+                timeout=60,
             ),
-            max_retries=10,
+            max_retries=30,
             base_delay=3.0,
         )
         if stats is None:
