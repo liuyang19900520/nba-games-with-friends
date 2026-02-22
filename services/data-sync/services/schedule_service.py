@@ -97,7 +97,7 @@ def _get_game_ids_for_date_range(start_date: datetime, end_date: datetime) -> Li
         scoreboard_obj = safe_call_nba_api(
             name=f"ScoreboardV2 for {current_date.strftime('%Y-%m-%d')}",
             call_fn=lambda: scoreboardv2.ScoreboardV2(game_date=date_str_v2),
-            max_retries=3,
+            max_retries=10,
             base_delay=3.0,
             post_success_sleep=0.5,  # Rate limiting
         )
@@ -138,7 +138,7 @@ def _fetch_game_schedule_info(game_id: str, nba_team_id_to_db_id: Dict[str, int]
     boxscore = safe_call_nba_api(
         name=f"BoxScoreSummaryV3(game_id={game_id})",
         call_fn=lambda: boxscoresummaryv3.BoxScoreSummaryV3(game_id=game_id),
-        max_retries=3,
+        max_retries=10,
         base_delay=2.0,
         post_success_sleep=0.3,  # Rate limiting
     )

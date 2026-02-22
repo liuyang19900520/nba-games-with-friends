@@ -77,7 +77,7 @@ def _fetch_player_stats_from_api(game_id: str) -> Tuple[Optional[List[Dict]], Op
     boxscore = safe_call_nba_api(
         name=f"BoxScoreTraditionalV3(game_id={game_id})",
         call_fn=lambda: boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id),
-        max_retries=3,
+        max_retries=10,
         base_delay=3.0,
     )
 

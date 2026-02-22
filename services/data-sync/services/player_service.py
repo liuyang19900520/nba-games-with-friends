@@ -52,7 +52,7 @@ def sync_active_players() -> None:
                     call_fn=lambda team_id=team_id: commonteamroster.CommonTeamRoster(
                         team_id=team_id, season=season
                     ),
-                    max_retries=3,
+                    max_retries=10,
                     base_delay=3.0,
                     post_success_sleep=0.6,  # retain existing rate limiting behaviour
                 )

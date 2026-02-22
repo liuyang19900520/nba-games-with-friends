@@ -62,7 +62,7 @@ def sync_teams() -> None:
         standings = safe_call_nba_api(
             name=f"LeagueStandings(season={season})",
             call_fn=lambda: leaguestandings.LeagueStandings(season=season),
-            max_retries=3,
+            max_retries=10,
             base_delay=3.0,
         )
         if standings is None:
