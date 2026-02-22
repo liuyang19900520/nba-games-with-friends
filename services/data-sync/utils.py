@@ -183,13 +183,12 @@ def safe_call_nba_api(
                 f"[nba_api] {name} failed with ConnectionError on "
                 f"attempt {attempt}/{max_retries}: {e}"
             )
-            if 'ProxyError' in error_str or 'Unable to connect to proxy' in error_str:
-                # Proxy itself failed — rotate IP on next attempt, no extra delay needed
+            if ('ProxyError' in error_str or 'Unable to connect to proxy' in error_str
+                    or 'Tunnel connection failed' in error_str or 'SSLError' in error_str
+                    or 'RemoteDisconnected' in error_str or 'Connection aborted' in error_str):
+                # All connection-level failures: proxy issue — rotate IP, minimal delay
                 proxy_failure = True
-                print(f"[nba_api] ⚠️ Proxy connection failed — will rotate IP on next attempt")
-            elif 'RemoteDisconnected' in error_str or 'Connection aborted' in error_str:
-                print(f"[nba_api] ⚠️ Rate limit detected! Server disconnected.")
-                rate_limited = True
+                print(f"[nba_api] ⚠️ Proxy/connection failed — will rotate IP on next attempt")
 
         except HTTPError as e:
             last_error = e
@@ -209,8 +208,11 @@ def safe_call_nba_api(
                 f"[nba_api] {name} failed with unexpected {type(e).__name__} "
                 f"on attempt {attempt}/{max_retries}: {e}"
             )
-            if 'ProxyError' in error_str or 'Unable to connect to proxy' in error_str:
-                print(f"[nba_api] ⚠️ Proxy connection failed — will rotate IP on next attempt")
+            if ('ProxyError' in error_str or 'Unable to connect to proxy' in error_str
+                    or 'SSLError' in error_str or 'SSL' in type(e).__name__
+                    or 'Tunnel connection failed' in error_str):
+                proxy_failure = True
+                print(f"[nba_api] ⚠️ Proxy/SSL connection failed — will rotate IP on next attempt")
             elif 'RemoteDisconnected' in error_str or '429' in error_str:
                 rate_limited = True
             else:
@@ -225,7 +227,8 @@ def safe_call_nba_api(
                 delay = 1.0 + random.uniform(0, 1)
                 proxy_failure = False  # reset for next attempt
             else:
-                delay = base_delay * (2 ** (attempt - 1))
+                # Cap exponential backoff at 30s — longer waits don't help for NBA API
+                delay = min(base_delay * (2 ** (attempt - 1)), 30.0)
                 if rate_limited:
                     extra_delay = 30 + random.uniform(0, 30)
                     delay += extra_delay
