@@ -180,3 +180,115 @@ resource "aws_eip" "ai_agent" {
     Project = var.project_name
   }
 }
+# =============================================================================
+# EventBridge Scheduler for EC2 Auto Start/Stop
+# =============================================================================
+
+# 1. IAM Role for EventBridge to execute SSM and manage EC2
+resource "aws_iam_role" "scheduler_role" {
+  name = "ai-agent-ec2-scheduler-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "scheduler.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Environment = "production"
+    Service     = "ai-agent"
+  }
+}
+
+# 2. IAM Policy for the Scheduler Role
+resource "aws_iam_role_policy" "scheduler_policy" {
+  name = "ai-agent-ec2-scheduler-policy"
+  role = aws_iam_role.scheduler_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:StartAutomationExecution"
+        ]
+        Resource = [
+          "arn:aws:ssm:ap-northeast-1::document/AWS-StartEC2Instance",
+          "arn:aws:ssm:ap-northeast-1::document/AWS-StopEC2Instance"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:StartInstances",
+          "ec2:StopInstances",
+          "ec2:DescribeInstances",
+          "ec2:DescribeInstanceStatus"
+        ]
+        Resource = [
+          aws_instance.ai_agent.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeInstances",
+          "ec2:DescribeInstanceStatus"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# 3. EventBridge Schedule: Start EC2 at 09:00 JST every day
+resource "aws_scheduler_schedule" "start_ec2_schedule" {
+  name       = "ai-agent-start-ec2-daily"
+  group_name = "default"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression          = "cron(0 9 * * ? *)"
+  schedule_expression_timezone = "Asia/Tokyo"
+
+  target {
+    arn      = "arn:aws:ssm:ap-northeast-1::document/AWS-StartEC2Instance"
+    role_arn = aws_iam_role.scheduler_role.arn
+
+    input = jsonencode({
+      InstanceId = [aws_instance.ai_agent.id]
+    })
+  }
+}
+
+# 4. EventBridge Schedule: Stop EC2 at 15:00 JST every day
+resource "aws_scheduler_schedule" "stop_ec2_schedule" {
+  name       = "ai-agent-stop-ec2-daily"
+  group_name = "default"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression          = "cron(0 15 * * ? *)"
+  schedule_expression_timezone = "Asia/Tokyo"
+
+  target {
+    arn      = "arn:aws:ssm:ap-northeast-1::document/AWS-StopEC2Instance"
+    role_arn = aws_iam_role.scheduler_role.arn
+
+    input = jsonencode({
+      InstanceId = [aws_instance.ai_agent.id]
+    })
+  }
+}
