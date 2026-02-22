@@ -107,24 +107,45 @@ def safe_call_nba_api(
     def _apply_proxy() -> None:
         """Build a new session with proxy injected into nba_api.
         For rotating proxies each new session gets a fresh IP automatically."""
-        if not proxy_url_template:
-            return
         import nba_api.library.http as _nba_http
         from nba_api.stats.library.http import NBAStatsHTTP as _NBAStatsHTTP
+        
         # Build a fresh session with proxy pre-configured on the session itself
         session = _requests.Session()
-        session.proxies = {'http': proxy_url_template, 'https': proxy_url_template}
-        _nba_http.PROXY = proxy_url_template  # used by send_api_request for per-request proxies arg
+        
+        # Inject standard browser headers to bypass NBA WAF
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/115.0"
+        ]
+        session.headers.update({
+            "User-Agent": random.choice(user_agents),
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Origin": "https://www.nba.com",
+            "Referer": "https://www.nba.com/",
+            "Connection": "keep-alive",
+            "Sec-Ch-Ua": "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"",
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": "\"macOS\""
+        })
+
+        if proxy_url_template:
+            session.proxies = {'http': proxy_url_template, 'https': proxy_url_template}
+            _nba_http.PROXY = proxy_url_template  # used by send_api_request for per-request proxies arg
+            print(f"[nba_api] Using proxy: {proxy_url_template.split('@')[-1]}")
+        else:
+            _nba_http.PROXY = ""
+
         # IMPORTANT: must set on the SUBCLASS (NBAStatsHTTP), not base NBAHTTP.
         # After NBAStatsHTTP.get_session() is called once, it creates its own _session
         # class attribute that shadows NBAHTTP._session.
         _NBAStatsHTTP._session = session
         _nba_http.NBAHTTP._session = session  # also set base class for safety
-        print(f"[nba_api] Using proxy: {proxy_url_template.split('@')[-1]}")
 
     def _restore_proxy() -> None:
-        if proxy_url_template is None:
-            return
         import nba_api.library.http as _nba_http
         from nba_api.stats.library.http import NBAStatsHTTP as _NBAStatsHTTP
         _nba_http.PROXY = _old_nba_proxy if _old_nba_proxy is not None else ""
