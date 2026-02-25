@@ -26,15 +26,26 @@ cd "$SERVICE_DIR"
 source venv/bin/activate
 pip install -r requirements.txt --quiet
 
+# Determine Service and Port based on branch
+BRANCH=$1
+if [ "$BRANCH" == "main" ]; then
+    SERVICE="ai-agent-main"
+    PORT=8001
+else
+    SERVICE="ai-agent-dev"
+    PORT=8000
+fi
+
 # Restart service
-sudo systemctl restart ai-agent
+echo "🔄 Restarting service: $SERVICE"
+sudo systemctl restart $SERVICE
 
 # Wait and check health
 sleep 3
-if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-    echo "✅ Deploy successful! Health check passed."
+if curl -sf http://localhost:$PORT/health > /dev/null 2>&1; then
+    echo "✅ Deploy successful! Health check passed on port $PORT."
 else
     echo "❌ Health check failed. Checking logs..."
-    sudo journalctl -u ai-agent -n 20 --no-pager
+    sudo journalctl -u $SERVICE -n 20 --no-pager
     exit 1
 fi

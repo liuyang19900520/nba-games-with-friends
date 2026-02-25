@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - dev
+      - main
     # Only trigger when changes are made under services/data-sync
     paths:
       - 'services/data-sync/**'

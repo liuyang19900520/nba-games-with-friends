@@ -20,17 +20,20 @@ git fetch "$REMOTE_NAME"
 git checkout "$1"  # branch name passed as argument (dev or main)
 git pull "$REMOTE_NAME" "$1"
 
+# Set correct Docker Compose project name
+PROJECT_NAME="nba-sync-$1"
+
 # Rebuild and restart the docker container
-echo "🐳 Rebuilding and restarting sync-worker container..."
-sudo docker compose build sync-worker
-sudo docker compose up -d sync-worker
+echo "🐳 Rebuilding and restarting sync-worker container for $PROJECT_NAME..."
+sudo docker compose -p "$PROJECT_NAME" build sync-worker
+sudo docker compose -p "$PROJECT_NAME" up -d sync-worker
 
 # Wait and check status
 sleep 3
-if sudo docker ps | grep -q "nba-sync-worker"; then
+if sudo docker ps | grep -q "$PROJECT_NAME-sync-worker"; then
     echo "✅ Deploy successful! Container is running."
 else
     echo "❌ Container failed to start. Checking logs..."
-    sudo docker logs --tail 20 nba-sync-worker
+    sudo docker logs --tail 20 "$PROJECT_NAME-sync-worker-1" || sudo docker logs --tail 20 "$PROJECT_NAME-sync-worker"
     exit 1
 fi
