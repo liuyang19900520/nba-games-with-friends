@@ -41,7 +41,7 @@ echo "🔄 Restarting service: $SERVICE"
 sudo systemctl restart $SERVICE
 
 # Wait and check health
-sleep 3
+sleep 5
 if curl -sf http://localhost:$PORT/health > /dev/null 2>&1; then
     echo "✅ Deploy successful! Health check passed on port $PORT."
 else
