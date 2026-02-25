@@ -46,5 +46,3 @@ This is a **Monorepo Workspace**. All code is tracked in one Git repository.
 1. **Local Setup**: Copy `.env.example` to `.env` in respective folders.
 2. **Commit Policy**: Follow Conventional Commits (`feat:`, `fix:`, etc.).
 3. **Environment**: Use `dev` branch for pushing to the preview environment.
-
->>>>>>> dev
