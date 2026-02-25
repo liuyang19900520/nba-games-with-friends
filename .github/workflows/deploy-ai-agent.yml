@@ -1,0 +1,24 @@
+name: Deploy AI Agent to EC2
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'services/ai-agent/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine branch
+        id: branch
+        run: echo "name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.AI_AGENT_EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          script: |
+            bash /home/ubuntu/nba-games-with-friends/infrastructure/scripts/deploy-ai-agent.sh ${{ steps.branch.outputs.name }}

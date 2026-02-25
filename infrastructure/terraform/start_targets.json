@@ -1,0 +1,18 @@
+[
+    {
+        "Id": "1",
+        "Arn": "arn:aws:ssm:ap-northeast-1::document/AWS-StartEC2Instance",
+        "RoleArn": "arn:aws:iam::324971275476:role/ai-agent-ec2-scheduler-role",
+        "Input": "{\"InstanceId\":[\"i-0f4ea2867c4ad4ba1\"]}",
+        "RunCommandParameters": {
+            "RunCommandTargets": [
+                {
+                    "Key": "InstanceIds",
+                    "Values": [
+                        "i-0f4ea2867c4ad4ba1"
+                    ]
+                }
+            ]
+        }
+    }
+]

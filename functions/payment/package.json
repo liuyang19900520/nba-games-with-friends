@@ -1,0 +1,12 @@
+{
+  "name": "nba-payment-lambda",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Payment Lambda for Stripe PayPay + Supabase",
+  "main": "index.mjs",
+  "dependencies": {
+    "stripe": "^14.0.0",
+    "@supabase/supabase-js": "^2.38.0",
+    "@aws-sdk/client-secrets-manager": "^3.450.0"
+  }
+}

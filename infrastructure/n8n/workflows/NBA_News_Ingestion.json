@@ -1,0 +1,335 @@
+{
+    "name": "NBA News Ingestion (Standard)",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "manual-trigger",
+            "name": "Manual Trigger",
+            "type": "n8n-nodes-base.manualTrigger",
+            "typeVersion": 1,
+            "position": [
+                -400,
+                360
+            ]
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "minutes",
+                            "minutesInterval": 30
+                        }
+                    ]
+                }
+            },
+            "id": "schedule-trigger",
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.1,
+            "position": [
+                -400,
+                180
+            ]
+        },
+        {
+            "parameters": {
+                "url": "https://www.espn.com/espn/rss/nba/news"
+            },
+            "id": "rss-node",
+            "name": "ESPN NBA RSS",
+            "type": "n8n-nodes-base.rssFeedRead",
+            "typeVersion": 1,
+            "position": [
+                -180,
+                280
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const items = [];\n\nfor (const item of $input.all()) {\n  const title = item.json.title || '';\n  const snippet = item.json.contentSnippet || item.json.content || '';\n  const link = item.json.link || '';\n  const pubDate = item.json.isoDate || item.json.pubDate || '';\n  \n  const content = `${title}. ${snippet}`;\n  \n  items.push({\n    json: {\n      content: content,\n      link: link,\n      metadata: {\n        title: title,\n        link: link,\n        pubDate: pubDate,\n        source: 'ESPN'\n      }\n    }\n  });\n}\n\nreturn items;"
+            },
+            "id": "prepare-data",
+            "name": "Prepare Data",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                40,
+                280
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT id FROM documents WHERE metadata->>'link' = '{{ $json.link }}' LIMIT 1;",
+                "options": {}
+            },
+            "id": "check-exists",
+            "name": "Check If Exists",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.6,
+            "position": [
+                260,
+                280
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "Vqe4fob0iM49fbzN",
+                    "name": "Postgres account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "type": "string"
+                    },
+                    "conditions": [
+                        {
+                            "id": "a1b2c3d4",
+                            "leftValue": "={{ $json.id }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "string",
+                                "operation": "isEmpty",
+                                "name": "is empty"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "id": "filter-new",
+            "name": "Filter New",
+            "type": "n8n-nodes-base.filter",
+            "typeVersion": 2,
+            "position": [
+                480,
+                280
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const teams = [\n    \"Lakers\", \"Warriors\", \"Celtics\", \"Nets\", \"Bucks\", \"Suns\", \"Mavericks\", \"76ers\", \"Heat\", \"Bulls\",\n    \"Grizzlies\", \"Nuggets\", \"Clippers\", \"Knicks\", \"Cavaliers\", \"Hawks\", \"Raptors\", \"Timberwolves\",\n    \"Pelicans\", \"Spurs\", \"Trail Blazers\", \"Kings\", \"Jazz\", \"Thunder\", \"Magic\", \"Pacers\", \"Pistons\",\n    \"Rockets\", \"Wizards\", \"Hornets\"\n];\n\nconst items = $input.all();\nconst originalItems = $('Prepare Data').all();\n\nfor (const item of items) {\n    const original = originalItems.find(o => o.json.link === item.json.link);\n    if (original) {\n        const text = (original.json.metadata.title + \" \" + original.json.content).toLowerCase();\n        const foundTeams = teams.filter(team => text.includes(team.toLowerCase()));\n        item.json.content = original.json.content;\n        item.json.metadata = original.json.metadata;\n        item.json.metadata.tags = foundTeams;\n    }\n}\n\nreturn items;"
+            },
+            "id": "extract-tags",
+            "name": "Extract Tags",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                700,
+                280
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://router.huggingface.co/hf-inference/models/BAAI/bge-small-en-v1.5",
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{REDACTED_HF_TOKEN}}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ JSON.stringify({ inputs: $json.content, options: { wait_for_model: true } }) }}",
+                "options": {}
+            },
+            "id": "embedding-node",
+            "name": "Get Embeddings",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                920,
+                280
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const items = [];\nconst embedOutput = $input.all();\nconst tagOutput = $('Extract Tags').all();\n\nlet vector = [];\nif (embedOutput.length > tagOutput.length && typeof embedOutput[0].json === 'number') {\n    vector = embedOutput.map(item => item.json);\n    if (tagOutput.length > 0) {\n        items.push({\n            json: {\n                content: tagOutput[0].json.content,\n                metadata: tagOutput[0].json.metadata,\n                embedding: vector\n            }\n        });\n    }\n} else {\n    if (embedOutput.length > 0) {\n        let vec = embedOutput[0].json;\n        if (Array.isArray(vec)) vector = vec;\n        else if (vec.embedding) vector = vec.embedding;\n        \n        items.push({\n            json: {\n                content: tagOutput[0].json.content,\n                metadata: tagOutput[0].json.metadata,\n                embedding: vector\n            }\n        });\n    }\n}\n\nreturn items;"
+            },
+            "id": "merge-node",
+            "name": "Merge Data",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1140,
+                280
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "=INSERT INTO documents (content, metadata, embedding)\nVALUES (\n  '{{ $json.content.replace(/'/g, \"''\") }}',\n  '{{ JSON.stringify($json.metadata).replace(/'/g, \"''\") }}'::jsonb,\n  '{{ JSON.stringify($json.embedding) }}'::vector\n)\nRETURNING id;",
+                "options": {}
+            },
+            "id": "insert-db",
+            "name": "Insert to Supabase",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.6,
+            "position": [
+                1360,
+                280
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "Vqe4fob0iM49fbzN",
+                    "name": "Postgres account"
+                }
+            }
+        },
+        {
+            "parameters": {},
+            "id": "error-trigger",
+            "name": "On Error",
+            "type": "n8n-nodes-base.errorTrigger",
+            "typeVersion": 1,
+            "position": [
+                -180,
+                540
+            ]
+        },
+        {
+            "parameters": {
+                "to": "Admin",
+                "message": "=🚨 NBA News Ingestion Error!\\n\\nWorkflow: {{ $workflow.name }}\\nNode: {{ $node.name }}\\nError: {{ $json.message }}"
+            },
+            "id": "line-notify",
+            "name": "LINE Notify",
+            "type": "n8n-nodes-base.line",
+            "typeVersion": 1,
+            "position": [
+                40,
+                540
+            ],
+            "credentials": {
+                "line": {
+                    "id": "NBA_Line_Bot",
+                    "name": "NBA_Line_Bot"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Manual Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "ESPN NBA RSS",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "ESPN NBA RSS",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "ESPN NBA RSS": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare Data",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare Data": {
+            "main": [
+                [
+                    {
+                        "node": "Check If Exists",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check If Exists": {
+            "main": [
+                [
+                    {
+                        "node": "Filter New",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Filter New": {
+            "main": [
+                [
+                    {
+                        "node": "Extract Tags",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extract Tags": {
+            "main": [
+                [
+                    {
+                        "node": "Get Embeddings",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Embeddings": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Data",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Merge Data": {
+            "main": [
+                [
+                    {
+                        "node": "Insert to Supabase",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "On Error": {
+            "main": [
+                [
+                    {
+                        "node": "LINE Notify",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

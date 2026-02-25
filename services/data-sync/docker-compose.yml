@@ -1,0 +1,89 @@
+# NBA Data Sync Worker - Docker Compose Configuration
+# Supports both development and production environments
+
+services:
+  # ==========================================================================
+  # PRODUCTION WORKER
+  # ==========================================================================
+  nba-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nba-sync-worker
+    restart: always
+    
+    # Environment variables
+    env_file:
+      - .env.production
+    
+    environment:
+      - ENVIRONMENT=production
+      - PYTHONUNBUFFERED=1
+      - WORKER_POLL_INTERVAL=10
+      - TZ=Asia/Tokyo
+    
+    # Resource limits (recommended for production)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # DEVELOPMENT WORKER (with hot-reload)
+  # ==========================================================================
+  nba-worker-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nba-sync-worker-dev
+    profiles:
+      - dev
+    
+    # Mount current directory for hot-reload
+    volumes:
+      - .:/app
+    
+    env_file:
+      - .env.development
+    
+    environment:
+      - ENVIRONMENT=development
+      - PYTHONUNBUFFERED=1
+      - WORKER_POLL_INTERVAL=10
+      - TZ=Asia/Tokyo
+    
+    restart: unless-stopped
+
+  # ==========================================================================
+  # ONE-TIME TASKS (for manual execution)
+  # ==========================================================================
+  nba-task:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nba-sync-task
+    profiles:
+      - task
+    
+    env_file:
+      - .env.production
+    
+    environment:
+      - ENVIRONMENT=production
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Tokyo
+    
+    # Override command via docker-compose run
+    # Example: docker-compose run --rm nba-task python worker.py --task DATA_AUDIT
+    entrypoint: ["python", "-u"]
+    command: ["worker.py", "--help"]

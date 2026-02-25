@@ -1,0 +1,67 @@
+services:
+  # ==========================================================================
+  # AI AGENT (FastAPI)
+  # ==========================================================================
+  ai-agent:
+    build:
+      context: ./services/ai-agent
+      dockerfile: Dockerfile
+    container_name: nba-ai-agent
+    restart: always
+    env_file:
+      - ./services/ai-agent/.env
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # DATA SYNC WORKER
+  # ==========================================================================
+  sync-worker:
+    build:
+      context: ./services/data-sync
+      dockerfile: Dockerfile
+    container_name: nba-sync-worker
+    restart: always
+    env_file:
+      - ./services/data-sync/.env.production
+    environment:
+      - ENVIRONMENT=production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # WEB APP (Next.js)
+  # ==========================================================================
+  web-app:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: nba-web-app
+    restart: always
+    depends_on:
+      ai-agent:
+        condition: service_healthy
+    env_file:
+      - ./apps/web/.env.production
+    environment:
+      - AI_AGENT_URL=http://ai-agent:8000
+    ports:
+      - "3000:3000"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

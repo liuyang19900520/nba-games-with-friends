@@ -1,0 +1,151 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "aws-sns-alerts",
+                "options": {
+                    "rawBody": true
+                }
+            },
+            "id": "2e3773f0-dc09-4f6a-8eaa-ea61d381f1ea",
+            "name": "AWS SNS Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                -784,
+                176
+            ],
+            "webhookId": "sns-webhook-1"
+        },
+        {
+            "parameters": {
+                "jsCode": "let rawBody = $input.item.json.body || {};\ntry {\n  if (typeof rawBody === 'string') {\n    rawBody = JSON.parse(rawBody);\n  }\n} catch (e) { \n  // already json or empty\n}\n\n// Put it directly onto root level snsData so it is easy to query\n$input.item.json.snsData = rawBody;\nreturn $input.item;"
+            },
+            "id": "39d5c300-6edf-4e61-86f8-25142f649519",
+            "name": "Parse SNS JSON",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 1,
+            "position": [
+                -576,
+                176
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.snsData.Type }}",
+                            "value2": "SubscriptionConfirmation"
+                        }
+                    ]
+                }
+            },
+            "id": "00c50e4a-b06a-4409-be60-e0ca910c6313",
+            "name": "Is Subscription Confirmation?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                -384,
+                176
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $json.snsData.SubscribeURL }}",
+                "options": {}
+            },
+            "id": "e51107ac-9a20-4824-a862-2826c8989560",
+            "name": "Confirm SNS Subscription",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                -176,
+                16
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://api.line.me/v2/bot/message/push",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"to\": \"U39c581a7f6f9947e2d1061920173d95e\",\n  \"messages\": [\n    {\n      \"type\": \"text\", \n      \"text\": \"🚨 AWS CloudWatch Alarm 🚨\\n\\n📌 Status: {{ JSON.parse($json.snsData.Message).NewStateValue }}\\n🔔 Alarm: {{ JSON.parse($json.snsData.Message).AlarmName }}\\n📝 Reason: \\n{{ JSON.parse($json.snsData.Message).NewStateReason }}\\n\\n⏰ Time: {{ JSON.parse($json.snsData.Message).StateChangeTime }}\"\n    }\n  ]\n}",
+                "options": {}
+            },
+            "id": "de8e2d51-7caf-4d0e-8fd4-97190e323479",
+            "name": "Send LINE Notification",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                -176,
+                304
+            ],
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "evjTvllP34iRY10U",
+                    "name": "Header Auth account"
+                }
+            },
+            "onError": "continueRegularOutput"
+        }
+    ],
+    "connections": {
+        "AWS SNS Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Parse SNS JSON",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse SNS JSON": {
+            "main": [
+                [
+                    {
+                        "node": "Is Subscription Confirmation?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Is Subscription Confirmation?": {
+            "main": [
+                [
+                    {
+                        "node": "Confirm SNS Subscription",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Send LINE Notification",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "meta": {
+        "instanceId": "7f95bd96e0e5c727811995ef51d9e1ffdabcc354b062795fa9a6d32568c6a432"
+    }
+}
