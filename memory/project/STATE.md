@@ -17,10 +17,12 @@ Transform the legacy NBA Fantasy Lineup backend into an AI-Native Multi-Agent ar
 ## Current Phase Progress
 - [x] Phase 1.3: Extract/organize existing scripts into skills (`.agents/skills/`)
 - [x] Phase 1.4: Verify `STATE.md` recovery mechanism
-- [ ] Phase 2.1: Refactor single Agent to Supervisor/Router architecture in `fantasy_lineup.py`
-      **STATUS: IN_PROGRESS - Transitioning logic**
-- [ ] Phase 2.2: Define Explicit Agent Handoffs
+- [x] Phase 2.1: Refactor single Agent to Supervisor/Router architecture in `fantasy_lineup.py`
+      **STATUS: COMPLETED - Built `supervisor.py` to route atomic data fetching tasks.**
+- [x] Phase 2.2: Define Explicit Agent Handoffs
+      **STATUS: COMPLETED - Supervisor effectively maps loop across DataFetcher and Reviewer.**
 - [ ] Phase 2.3: Data Tools vs Render Tools isolation
+      **STATUS: IN_PROGRESS - Context Asymmetry.**
 - [ ] Phase 3: Eval-Driven Checks
 - [ ] Phase 4: UI Context Asymmetry (`data-llm` attributes)
 

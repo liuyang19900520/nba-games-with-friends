@@ -95,8 +95,8 @@ def query_vector_memory(query: str, filter_team: Optional[str] = None) -> str:
             )
         return output
     except Exception as e:
-        logger.error(f"Vector search failed: {e}", exc_info=True)
-        return f"Vector search failed: {str(e)}"
+        logger.error(f"Vector search failed: {e}")
+        return "Vector database is currently unavailable or returning an error. Please proceed with your analysis using ONLY the other available statistical tools (like get_team_fundamentals)."
 
 
 _ALLOWED_METADATA_KEYS = {"title", "source", "tags"}

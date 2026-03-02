@@ -22,7 +22,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List
 
-from graph.plan_and_execute import create_prediction_graph
+from graph.supervisor import create_prediction_graph
 from utils.logger import logger
 
 app = FastAPI(title="NBA AI Prediction Agent", version="1.0.0")
@@ -109,49 +109,38 @@ async def predict_stream(req: PredictRequest):
             }
 
             step_count = 0
-            for chunk in graph.stream({"input": user_input}, config):
+            for chunk in graph.stream({"messages": [user_input]}, config):
                 step_count += 1
 
-                if "planner" in chunk:
-                    steps = chunk["planner"].get("plan", [])
+                if "supervisor" in chunk:
+                    next_node = chunk["supervisor"].get("next", "FINISH")
                     yield _sse_event("plan", {
                         "step": step_count,
                         "phase": "planning",
-                        "title": "📋 Analyzing matchup & creating plan...",
-                        "detail": steps,
+                        "title": f"📋 Supervisor routing task to: {next_node}",
+                        "detail": chunk["supervisor"]["messages"][-1].content if chunk["supervisor"].get("messages") else "Finalizing prediction...",
                     })
 
-                elif "execute" in chunk:
-                    past = chunk["execute"].get("past_steps", [])
-                    if past:
-                        task, result = past[-1]
-                        yield _sse_event("execute", {
-                            "step": step_count,
-                            "phase": "executing",
-                            "title": f"🔍 {task}",
-                            "detail": result[:300] if isinstance(result, str) else str(result)[:300],
-                        })
+                elif "data_fetcher" in chunk:
+                    last_msg = chunk["data_fetcher"]["messages"][-1]
+                    yield _sse_event("execute", {
+                        "step": step_count,
+                        "phase": "executing",
+                        "title": "🔍 Data Fetcher gathering stats & news...",
+                        "detail": last_msg.content[:300],
+                    })
 
-                elif "replanner" in chunk:
-                    data = chunk["replanner"]
-                    if "response" in data:
-                        yield _sse_event("replan", {
-                            "step": step_count,
-                            "phase": "concluding",
-                            "title": "🧠 Forming preliminary conclusion...",
-                            "detail": data["response"][:300] if isinstance(data["response"], str) else "",
-                        })
-                    else:
-                        new_plan = data.get("plan", [])
-                        yield _sse_event("replan", {
-                            "step": step_count,
-                            "phase": "replanning",
-                            "title": "🔄 Adjusting analysis plan...",
-                            "detail": new_plan,
-                        })
+                elif "reviewer" in chunk:
+                    last_msg = chunk["reviewer"]["messages"][-1]
+                    yield _sse_event("replan", {
+                        "step": step_count,
+                        "phase": "replanning",
+                        "title": "🧠 Reviewer evaluating raw data...",
+                        "detail": last_msg.content[:300],
+                    })
 
-                elif "synthesizer" in chunk:
-                    prediction = chunk["synthesizer"].get("prediction_result", {})
+                elif "finalizer" in chunk:
+                    prediction = chunk["finalizer"].get("prediction_result", {})
                     yield _sse_event("result", {
                         "step": step_count,
                         "phase": "complete",
@@ -198,9 +187,9 @@ async def predict(req: PredictRequest):
         }
 
         final_prediction = None
-        for chunk in graph.stream({"input": user_input}, config):
-            if "synthesizer" in chunk:
-                final_prediction = chunk["synthesizer"].get("prediction_result")
+        for chunk in graph.stream({"messages": [user_input]}, config):
+            if "finalizer" in chunk:
+                final_prediction = chunk["finalizer"].get("prediction_result")
 
         if not final_prediction:
             raise HTTPException(status_code=500, detail="AI Agent did not produce a prediction result.")
