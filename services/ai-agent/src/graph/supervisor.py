@@ -45,20 +45,13 @@ def create_data_fetcher():
     prompt = SystemMessage(content=(
         "You are the Data Fetcher Agent. Your ONLY job is to execute the available tools (like get_team_fundamentals, "
         "query_vector_memory, search_nba_injuries) to retrieve accurate data requested by the Supervisor. \n"
+        "CRITICAL: To save time, you should call multiple tools IN PARALLEL whenever possible.\n"
         "You MUST use tools to retrieve this data. Do not say you need more steps or apologize. Just use the tools and "
         "summarize the data you retrieved in your final response to the Supervisor."
     ))
     return create_react_agent(get_llm(), tools, prompt=prompt)
 
-def create_reviewer():
-    """An agent purely focused on evaluating the returned data and building a prediction."""
-    prompt = SystemMessage(content=(
-        "You are the Reviewer & Prediction Agent. You review the raw data fetched by the Data Fetcher, "
-        "and generate a final analysis and prediction. \n"
-        "You do not execute tools. You only reason and format the final prediction."
-    ))
-    # Reviewer doesn't need data-fetching tools normally, but we can give it a math/calc tool if needed
-    return create_react_agent(get_llm(), tools=[], prompt=prompt)
+# Removed create_reviewer because we will use a direct LLM call for structured output.
 
 # --- SuperVisor Node ---
 
@@ -70,11 +63,10 @@ def supervisor_node(state: AgentState):
         "- 'data_fetcher': Executes tools to gather stats, news, and injuries.\n"
         "- 'reviewer': Evaluates the raw data and generates the final prediction result.\n\n"
         "Review the conversation history and decide who should act next.\n"
-        "CRITICAL RULE: Do NOT ask the 'data_fetcher' to get all data at once. Ask it to fetch ONE specific piece of information at a time (e.g., 'Only fetch Lakers stats', or 'Only fetch Celtics injuries').\n"
+        "CRITICAL RULE: You MUST ask the 'data_fetcher' to get ALL required data at once in a SINGLE instruction (e.g., 'Fetch stats, news, and injuries for both teams').\n"
         "If you are missing data (fundamentals, injuries, news for both teams), route to 'data_fetcher' with ONE specific instruction.\n"
         "If the data_fetcher has provided enough info for both teams, route to 'reviewer'.\n"
         "If you are stuck in a loop and the data_fetcher keeps failing or asking for more steps, route to 'reviewer'.\n"
-        "If the reviewer has provided the final valid prediction, return 'FINISH'.\n"
         "You MUST return pure JSON with no additional text or markdown. JSON structure:\n"
         '{"next_agent": "...", "instructions": "..."}'
     )
@@ -85,8 +77,7 @@ def supervisor_node(state: AgentState):
     messages = [SystemMessage(content=supervisor_prompt)] + list(state["messages"])
     decision = router_llm.invoke(messages)
     
-    if decision.next_agent == "FINISH":
-        return {"next": "FINISH"}
+
         
     # Append the supervisor's instructions to guide the next worker
     return {
@@ -98,19 +89,7 @@ def supervisor_node(state: AgentState):
 
 from layers.models import PredictionResult
 
-def extract_final_prediction(state: AgentState):
-    """A purely deterministic node that extracts the JSON from the reviewer's output."""
-    # We ask a lightweight model to extract the structured JSON from the Reviewer's final string
-    extractor_llm = get_llm(streaming=False).with_structured_output(PredictionResult, method="json_mode")
-    final_output = extractor_llm.invoke([
-        SystemMessage(content=(
-            "Extract the final prediction strictly into this schema. "
-            "You MUST return pure JSON with no additional text or markdown. JSON structure:\n"
-            '{"winner": "Full Team Name", "confidence": 0.75, "key_factors": ["Factor 1", "Factor 2"], "detailed_analysis": "Detailed analysis..."}'
-        )),
-        state["messages"][-1]
-    ])
-    return {"prediction_result": final_output.model_dump()}
+# We removed extract_final_prediction since Reviewer will do it directly.
 
 # --- Sub-Agent Invocation Wrappers ---
 
@@ -120,10 +99,29 @@ def data_fetcher_node(state: AgentState, data_agent):
     # Mark the message so the supervisor knows who it came from
     return {"messages": [AIMessage(content=f"[DataFetcher]: {last_msg.content}")], "next": ""}
 
-def reviewer_node(state: AgentState, reviewer_agent):
-    result = reviewer_agent.invoke(state, config={"recursion_limit": 30})
-    last_msg = result["messages"][-1]
-    return {"messages": [AIMessage(content=f"[Reviewer]: {last_msg.content}")], "next": ""}
+def reviewer_node(state: AgentState):
+    prompt = SystemMessage(content=(
+        "You are the Reviewer & Prediction Agent. You review the raw data fetched by the Data Fetcher, "
+        "and generate a final analysis and prediction.\n"
+        "CRITICAL RULE: Your response MUST be EXACTLY this JSON structure:\n"
+        "{\n"
+        '  "winner": "Team Name",\n'
+        '  "confidence": 0.85,\n'
+        '  "key_factors": ["Factor 1", "Factor 2", "Factor 3"],\n'
+        '  "detailed_analysis": "Under 80 words."\n'
+        "}\n"
+        "Your detailed_analysis MUST be extremely concise (under 80 words)."
+    ))
+    messages = [prompt] + list(state["messages"])
+    
+    extractor_llm = get_llm(streaming=False).with_structured_output(PredictionResult, method="json_mode")
+    final_output = extractor_llm.invoke(messages)
+    
+    return {
+        "prediction_result": final_output.model_dump(),
+        "messages": [AIMessage(content=f"Prediction generated: {final_output.winner} wins.")],
+        "next": "FINISH"
+    }
 
 # --- Build the Multi-Agent Graph ---
 
@@ -133,15 +131,13 @@ def create_prediction_graph():
     
     # Initialize agents
     d_fetcher = create_data_fetcher()
-    r_viewer = create_reviewer()
     
     # Add Nodes
     workflow.add_node("supervisor", supervisor_node)
     
     # Provide the actual agents using lambda or partials
     workflow.add_node("data_fetcher", lambda state: data_fetcher_node(state, d_fetcher))
-    workflow.add_node("reviewer", lambda state: reviewer_node(state, r_viewer))
-    workflow.add_node("finalizer", extract_final_prediction)
+    workflow.add_node("reviewer", reviewer_node)
     
     # Routing Logic
     workflow.set_entry_point("supervisor")
@@ -152,16 +148,14 @@ def create_prediction_graph():
         lambda x: x["next"],
         {
             "data_fetcher": "data_fetcher",
-            "reviewer": "reviewer",
-            "FINISH": "finalizer"
+            "reviewer": "reviewer"
         }
     )
     
-    # Workers always report back to the supervisor
+    # Data fetcher always reports back to the supervisor
     workflow.add_edge("data_fetcher", "supervisor")
-    workflow.add_edge("reviewer", "supervisor")
     
-    # The finalizer ends the process
-    workflow.add_edge("finalizer", END)
+    # Reviewer is the final step, terminates the graph
+    workflow.add_edge("reviewer", END)
     
     return workflow.compile()

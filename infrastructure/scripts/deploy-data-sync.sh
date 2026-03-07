@@ -2,7 +2,6 @@
 # =============================================================================
 # Data Sync Deploy Script (called by GitHub Actions or manually)
 # This script runs ON the EC2 instance
-# dev and main share the same container (single instance)
 # =============================================================================
 set -e
 

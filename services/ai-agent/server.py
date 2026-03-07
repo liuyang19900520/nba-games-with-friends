@@ -131,16 +131,7 @@ async def predict_stream(req: PredictRequest):
                     })
 
                 elif "reviewer" in chunk:
-                    last_msg = chunk["reviewer"]["messages"][-1]
-                    yield _sse_event("replan", {
-                        "step": step_count,
-                        "phase": "replanning",
-                        "title": "🧠 Reviewer evaluating raw data...",
-                        "detail": last_msg.content[:300],
-                    })
-
-                elif "finalizer" in chunk:
-                    prediction = chunk["finalizer"].get("prediction_result", {})
+                    prediction = chunk["reviewer"].get("prediction_result", {})
                     yield _sse_event("result", {
                         "step": step_count,
                         "phase": "complete",
@@ -188,8 +179,8 @@ async def predict(req: PredictRequest):
 
         final_prediction = None
         for chunk in graph.stream({"messages": [user_input]}, config):
-            if "finalizer" in chunk:
-                final_prediction = chunk["finalizer"].get("prediction_result")
+            if "reviewer" in chunk:
+                final_prediction = chunk["reviewer"].get("prediction_result")
 
         if not final_prediction:
             raise HTTPException(status_code=500, detail="AI Agent did not produce a prediction result.")

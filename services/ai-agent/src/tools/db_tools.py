@@ -9,10 +9,20 @@ from tools.error_handler import handle_tool_error
 # Load environment variables
 load_dotenv()
 
-# Initialize Supabase Client
+import threading
+
+# Initialize thread-local storage for Supabase Clients to ensure thread safety
+thread_local = threading.local()
+
 url: str = os.getenv("SUPABASE_URL")
 key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-supabase: Client = create_client(url, key)
+
+def get_supabase() -> Client:
+    if not hasattr(thread_local, "client"):
+        # Explicitly configure httpx with HTTP/1.1 or connection pooling limits if HTTP/2 is still flaking 
+        # But a thread-local standard client is usually safe enough and resilient.
+        thread_local.client = create_client(url, key)
+    return thread_local.client
 
 def parse_record(record_str: str) -> str:
     """Helper to convert '15-5' format to '15-5 (75.0%)'."""
@@ -34,7 +44,7 @@ def get_team_id_by_code(team_code: str) -> str:
     Find a team's ID (Integer) based on its abbreviation (e.g., 'CLE', 'GSW', 'LAL').
     Use this first if you only have a team code (like 'CLE' for Cavaliers).
     """
-    response = supabase.table("teams").select("id, name").eq("code", team_code.upper()).execute()
+    response = get_supabase().table("teams").select("id, name").eq("code", team_code.upper()).execute()
     if response.data:
         team = response.data[0]
         return f"Found Team: {team['name']} (TEAM_ID: {team['id']})"
@@ -47,11 +57,11 @@ def get_team_fundamentals(team_id: int) -> str:
     Retrieves a team's basic standing, home/road split, win streaks, and offensive/defensive ratings from the database.
     """
     # Get standings
-    standings = supabase.table("team_standings").select("*").eq("team_id", team_id).limit(1).execute()
+    standings = get_supabase().table("team_standings").select("*").eq("team_id", team_id).limit(1).execute()
     # Get advanced stats
-    adv_stats = supabase.table("team_season_advanced_stats").select("*").eq("team_id", team_id).limit(1).execute()
+    adv_stats = get_supabase().table("team_season_advanced_stats").select("*").eq("team_id", team_id).limit(1).execute()
     
-    team_name_resp = supabase.table("teams").select("name").eq("id", team_id).execute()
+    team_name_resp = get_supabase().table("teams").select("name").eq("id", team_id).execute()
     team_name = team_name_resp.data[0]['name'] if team_name_resp.data else f"Team {team_id}"
 
     result = f"--- [{team_name}] FUNDAMENTALS ---\n"
@@ -83,7 +93,7 @@ def get_recent_performance_analysis(team_id: int, limit: int = 5) -> str:
     Module 2: Recent Momentum (Database).
     Analyzes historical games for a team from the DB, calculating win rate and scoring trends.
     """
-    response = supabase.table("games").select("*").or_(f"home_team_id.eq.{team_id},away_team_id.eq.{team_id}").order("game_date", desc=True).limit(limit).execute()
+    response = get_supabase().table("games").select("*").or_(f"home_team_id.eq.{team_id},away_team_id.eq.{team_id}").order("game_date", desc=True).limit(limit).execute()
     
     if not response.data:
         return "No recent games found in database."
@@ -122,7 +132,7 @@ def get_star_player_trends(team_id: int) -> str:
     Module 4: Star Player Trends (Database).
     Compares recent player stats vs season averages stored in the DB.
     """
-    season_stats = supabase.table("player_season_stats").select("player_id, pts").eq("team_id", team_id).order("pts", desc=True).limit(3).execute()
+    season_stats = get_supabase().table("player_season_stats").select("player_id, pts").eq("team_id", team_id).order("pts", desc=True).limit(3).execute()
     
     if not season_stats.data:
         return "No star player data found in database."
@@ -132,9 +142,9 @@ def get_star_player_trends(team_id: int) -> str:
     for p in season_stats.data:
         pid = p['player_id']
         s_pts = p['pts']
-        name_resp = supabase.table("players").select("full_name").eq("id", pid).execute()
+        name_resp = get_supabase().table("players").select("full_name").eq("id", pid).execute()
         name = name_resp.data[0]['full_name'] if name_resp.data else f"Player {pid}"
-        recent_resp = supabase.table("game_player_stats").select("pts").eq("player_id", pid).order("game_id", desc=True).limit(3).execute()
+        recent_resp = get_supabase().table("game_player_stats").select("pts").eq("player_id", pid).order("game_id", desc=True).limit(3).execute()
         
         if recent_resp.data:
             recent_pts = [r['pts'] for r in recent_resp.data]
@@ -152,13 +162,13 @@ def get_top_players_stats(team_id: int) -> str:
     """
     Get top performing players of a team (Points Per Game) from database.
     """
-    stats_resp = supabase.table("player_season_stats").select("player_id, pts, reb, ast").eq("team_id", team_id).order("pts", desc=True).limit(5).execute()
+    stats_resp = get_supabase().table("player_season_stats").select("player_id, pts, reb, ast").eq("team_id", team_id).order("pts", desc=True).limit(5).execute()
     
     if not stats_resp.data:
         return "No player stats found in DB."
         
     player_ids = [s['player_id'] for s in stats_resp.data]
-    names_resp = supabase.table("players").select("id, full_name").in_("id", player_ids).execute()
+    names_resp = get_supabase().table("players").select("id, full_name").in_("id", player_ids).execute()
     name_map = {n['id']: n['full_name'] for n in names_resp.data}
     
     result = "--- TOP PLAYERS (DB Season Averages) ---\n"
@@ -178,7 +188,7 @@ def get_schedule_stress_analysis(team_id: int, target_date: str) -> str:
     yesterday_str = (current_dt - timedelta(days=1)).strftime("%Y-%m-%d")
     seven_days_ago_str = (current_dt - timedelta(days=7)).strftime("%Y-%m-%d")
     
-    response = supabase.table("games").select("game_date, home_team_id").or_(f"home_team_id.eq.{team_id},away_team_id.eq.{team_id}").gte("game_date", seven_days_ago_str).lt("game_date", target_date).order("game_date", desc=True).execute()
+    response = get_supabase().table("games").select("game_date, home_team_id").or_(f"home_team_id.eq.{team_id},away_team_id.eq.{team_id}").gte("game_date", seven_days_ago_str).lt("game_date", target_date).order("game_date", desc=True).execute()
     
     games_list = response.data if response.data else []
     game_count = len(games_list)
@@ -204,10 +214,10 @@ def get_matchup_analysis(team_a_idx: int, team_b_idx: int) -> str:
     Module 3: Matchup & H2H Analysis (Database).
     Compares two teams directly using DB H2H history and ratings.
     """
-    response = supabase.table("games").select("*").or_(f"and(home_team_id.eq.{team_a_idx},away_team_id.eq.{team_b_idx}),and(home_team_id.eq.{team_b_idx},away_team_id.eq.{team_a_idx})").order("game_date", desc=True).limit(5).execute()
+    response = get_supabase().table("games").select("*").or_(f"and(home_team_id.eq.{team_a_idx},away_team_id.eq.{team_b_idx}),and(home_team_id.eq.{team_b_idx},away_team_id.eq.{team_a_idx})").order("game_date", desc=True).limit(5).execute()
     
-    stats_a = supabase.table("team_season_advanced_stats").select("ts_pct, efg_pct, def_rating").eq("team_id", team_a_idx).limit(1).execute()
-    stats_b = supabase.table("team_season_advanced_stats").select("ts_pct, efg_pct, def_rating").eq("team_id", team_b_idx).limit(1).execute()
+    stats_a = get_supabase().table("team_season_advanced_stats").select("ts_pct, efg_pct, def_rating").eq("team_id", team_a_idx).limit(1).execute()
+    stats_b = get_supabase().table("team_season_advanced_stats").select("ts_pct, efg_pct, def_rating").eq("team_id", team_b_idx).limit(1).execute()
     
     result = "--- DB MATCHUP ANALYSIS (H2H & Stats) ---\n"
     

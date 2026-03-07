@@ -1,9 +1,9 @@
 # NBA Data Sync Worker - Docker Compose Configuration
-# Supports both development and production environments
+# Supports both one-time tasks and continuous worker
 
 services:
   # ==========================================================================
-  # PRODUCTION WORKER
+  # WORKER
   # ==========================================================================
   nba-worker:
     build:
@@ -14,7 +14,7 @@ services:
     
     # Environment variables
     env_file:
-      - .env.production
+      - .env
     
     environment:
       - ENVIRONMENT=production
@@ -39,32 +39,6 @@ services:
         max-file: "3"
 
   # ==========================================================================
-  # DEVELOPMENT WORKER (with hot-reload)
-  # ==========================================================================
-  nba-worker-dev:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: nba-sync-worker-dev
-    profiles:
-      - dev
-    
-    # Mount current directory for hot-reload
-    volumes:
-      - .:/app
-    
-    env_file:
-      - .env.development
-    
-    environment:
-      - ENVIRONMENT=development
-      - PYTHONUNBUFFERED=1
-      - WORKER_POLL_INTERVAL=10
-      - TZ=Asia/Tokyo
-    
-    restart: unless-stopped
-
-  # ==========================================================================
   # ONE-TIME TASKS (for manual execution)
   # ==========================================================================
   nba-task:
@@ -76,7 +50,7 @@ services:
       - task
     
     env_file:
-      - .env.production
+      - .env
     
     environment:
       - ENVIRONMENT=production

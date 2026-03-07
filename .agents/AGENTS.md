@@ -18,3 +18,9 @@ This file constitutes the **Global Operating System** for any AI Agent (includin
 
 ## 4. Multi-Agent Hand-off Protocol
 Whenever you decide a task is outside your immediate contextual reasoning or too large, divide the task into sub-tasks in `memory/project/STATE.md` and instruct the user that "I have compacted the context and recorded progress in STATE.md. Please approve to continue to Phase X." This enforces manual-compaction gracefully.
+
+## 5. Deployment Architecture
+Before modifying CI/CD, Terraform, or local configs, you **MUST** read the structural rules outlined in `.agents/rules/deployment.md` to ensure your deployment paths match the project's hybrid unified/split structure exactly.
+
+## 6. Subproject Conventions
+This repository is split between 5 main services. Before committing architectural features to any domain folder, study their structural business limits located inside `.agents/rules/subprojects.md`.
