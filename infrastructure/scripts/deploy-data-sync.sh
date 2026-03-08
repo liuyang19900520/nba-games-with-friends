@@ -20,10 +20,13 @@ git fetch "$REMOTE_NAME"
 git checkout "$1"  # branch name passed as argument (dev or main)
 git pull "$REMOTE_NAME" "$1"
 
+# Move to the service directory where docker-compose.yml is located
+cd "$APP_DIR/services/data-sync"
+
 # Rebuild and restart the docker container
-echo "🐳 Rebuilding and restarting sync-worker container..."
-sudo docker compose build sync-worker
-sudo docker compose up -d sync-worker
+echo "🐳 Rebuilding and restarting nba-worker container..."
+sudo docker compose build nba-worker
+sudo docker compose up -d nba-worker
 
 # Wait and check status
 sleep 5

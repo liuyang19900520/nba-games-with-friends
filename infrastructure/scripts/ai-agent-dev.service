@@ -1,0 +1,16 @@
+[Unit]
+Description=NBA AI Agent (Dev Branch) FastAPI Server
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/nba-games-with-friends/services/ai-agent
+ExecStart=/home/ubuntu/nba-games-with-friends/services/ai-agent/venv/bin/python server.py
+Environment="ENVIRONMENT=dev"
+Environment="AI_AGENT_PORT=8000"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
