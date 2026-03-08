@@ -9,7 +9,6 @@ import { PredictionModal } from './PredictionModal';
 import { PredictionStreamView } from './PredictionStreamView';
 import { PredictionResultCard } from './PredictionResultCard';
 import { LineupStreamView } from './LineupStreamView';
-import { NotificationToast } from '@/components/ui/NotificationToast';
 import { fetchGamesByDate } from '@/app/home/actions';
 import { usePredictionStream } from '@/hooks/usePredictionStream';
 import { useLineupStream } from '@/hooks/useLineupStream';
@@ -73,14 +72,12 @@ export function HomePageClient({
     }
   };
 
-  const [toast, setToast] = useState({ isVisible: false, message: '' });
-  const showToast = (message: string) => setToast({ isVisible: true, message });
-  const hideToast = () => setToast({ isVisible: false, message: '' });
+
 
   // 1-Click Lineup handlers
   const handleLineupClick = () => {
     if (credits <= 0) {
-      showToast('Insufficient AI credits. Please recharge.');
+      router.push('/payment');
       return;
     }
 
@@ -115,7 +112,7 @@ export function HomePageClient({
 
   const handleMatchupClick = (matchup: GameResult) => {
     if (credits <= 0) {
-      showToast('Insufficient AI credits. Please recharge.');
+      router.push('/payment');
       return;
     }
 
@@ -226,12 +223,7 @@ export function HomePageClient({
         isSubmitting={status === 'streaming'}
       />
 
-      {/* Notification Toast */}
-      <NotificationToast
-        isVisible={toast.isVisible}
-        message={toast.message}
-        onClose={hideToast}
-      />
+
     </div>
   );
 }
