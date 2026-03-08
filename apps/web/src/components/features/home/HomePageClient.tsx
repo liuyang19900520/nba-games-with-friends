@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DateSelector } from './DateSelector';
 import { GameResultsList } from './GameResultsList';
 import { PremiumPredictionCard } from './PremiumPredictionCard';
+import { PremiumFeatureCard } from './PremiumFeatureCard';
 import { PredictionModal } from './PredictionModal';
 import { PredictionStreamView } from './PredictionStreamView';
 import { PredictionResultCard } from './PredictionResultCard';
@@ -150,13 +151,17 @@ export function HomePageClient({
         />
       </section>
 
-      {/* AI Credits Info & Call to Action */}
+      {/* AI Credits Info & Call to Action or Recharge Card */}
       <section>
-        <PremiumPredictionCard
-          onPredictClick={() => setIsModalOpen(true)}
-          onLineupClick={handleLineupClick}
-          creditsRemaining={credits}
-        />
+        {credits > 0 ? (
+          <PremiumPredictionCard
+            onPredictClick={() => setIsModalOpen(true)}
+            onLineupClick={handleLineupClick}
+            creditsRemaining={credits}
+          />
+        ) : (
+          <PremiumFeatureCard userId={_userId} />
+        )}
       </section>
 
       {/* AI Thinking Process (streaming Matchup) */}
