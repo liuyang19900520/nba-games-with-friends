@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Header } from "@/components/layout/Header";
 import { HomePageClient } from "@/components/features/home/HomePageClient";
 import { getRecentGames } from "@/lib/db/games";
-import { getGameDate } from "@/lib/utils/game-date";
+import { getGameDate, getTomorrowTokyoDate } from "@/lib/utils/game-date";
 import { logger } from "@/config/env";
 import { createClient } from "@/lib/auth/supabase";
 import { getCreditsRemaining } from "@/app/payment/actions";
@@ -18,13 +18,12 @@ export const dynamic = "force-dynamic";
  * Home page - Dashboard with date selector and recent game results
  */
 export default async function HomePage() {
-  // Get configured game date
-  const gameDate = await getGameDate();
+  // Get today's JST date
+  const today = await getGameDate();
+  const tomorrow = getTomorrowTokyoDate();
 
-  // Fetch recent games for the configured date (returns empty array if games table doesn't exist)
-  // Note: Using getRecentGames which is cached. For debugging, you can temporarily
-  // import fetchRecentGames directly to bypass cache.
-  const recentGames = await getRecentGames(10, gameDate);
+  // Fetch games for both today and tomorrow
+  const recentGames = await getRecentGames(20, [today, tomorrow]);
 
   // Debug: Log the result
   logger.info(`[HomePage] Received ${recentGames.length} games`);
@@ -54,7 +53,7 @@ export default async function HomePage() {
       <div className="flex-1 overflow-y-auto pt-[60px] px-4 pb-4">
         <HomePageClient
           initialGames={recentGames}
-          initialDate={gameDate}
+          initialDate={today}
           userId={userId}
           creditsRemaining={creditsRemaining}
         />
