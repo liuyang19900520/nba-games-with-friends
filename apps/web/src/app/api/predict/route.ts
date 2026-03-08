@@ -8,6 +8,7 @@ interface PredictRequestBody {
     home_team: string;
     away_team: string;
     game_date: string;
+    season?: string;
 }
 
 /**
@@ -81,7 +82,12 @@ export async function POST(request: NextRequest) {
             const response = await fetch(`${AI_AGENT_URL}/predict/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
+                body: JSON.stringify({
+                    home_team: body.home_team,
+                    away_team: body.away_team,
+                    game_date: body.game_date,
+                    season: body.season || '2025-26',
+                }),
                 signal: controller.signal,
             });
 
