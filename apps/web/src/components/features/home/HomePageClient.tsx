@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback, useEffect, startTransition } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { DateSelector } from './DateSelector';
-import { GameList } from './GameList';
+import { GameResultsList } from './GameResultsList';
 import { PremiumPredictionCard } from './PremiumPredictionCard';
 import { PredictionModal } from './PredictionModal';
 import { PredictionStreamView } from './PredictionStreamView';
@@ -14,9 +14,10 @@ import { fetchGamesByDate } from '@/app/home/actions';
 import { usePredictionStream } from '@/hooks/usePredictionStream';
 import { useLineupStream } from '@/hooks/useLineupStream';
 import { getTomorrowTokyoDate } from '@/lib/utils/game-date';
+import type { GameResult } from '@/types';
 
 interface HomePageClientProps {
-  initialGames: any[];
+  initialGames: GameResult[];
   initialDate: string;
   userId: string | null;
   creditsRemaining: number;
@@ -29,16 +30,16 @@ interface HomePageClientProps {
 export function HomePageClient({
   initialGames,
   initialDate,
-  userId,
+  userId: _userId,
   creditsRemaining,
 }: HomePageClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [games, setGames] = useState(initialGames);
+  const [games, setGames] = useState<GameResult[]>(initialGames);
   const [isLoading, setIsLoading] = useState(false);
-  const [predictionMatchup, setPredictionMatchup] = useState<any>(null);
+  const [predictionMatchup, setPredictionMatchup] = useState<GameResult | null>(null);
   const [credits, setCredits] = useState(creditsRemaining);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Matchup prediction streaming
   const { status, steps, result, error, startPrediction, reset } = usePredictionStream();
@@ -57,7 +58,7 @@ export function HomePageClient({
     setSelectedDate(date);
     setIsLoading(true);
     try {
-      const { games: newGames } = await fetchGamesByDate(date);
+      const newGames = await fetchGamesByDate(date);
       setGames(newGames);
     } catch (err) {
       console.error('Failed to fetch games:', err);
@@ -72,27 +73,21 @@ export function HomePageClient({
 
   // 1-Click Lineup handlers
   const handleLineupClick = () => {
-    // Check if user has enough credits
     if (credits <= 0) {
       showToast('Insufficient AI credits. Please recharge.');
       return;
     }
 
-    // If prediction is running, close it
     if (status !== 'idle') {
       reset();
       setPredictionMatchup(null);
     }
 
-    // Deduct credit optimistically
     setCredits(prev => Math.max(0, prev - 1));
-
-    // Always use tomorrow's date for AI feature logic
     lineupStream.startGeneration(getTomorrowTokyoDate());
   };
 
   const handleLineupComplete = useCallback(() => {
-    // We give the user 2 seconds to see the results inline before navigating
     const timer = setTimeout(() => {
       const playerIds = lineupStream.players.map(p => p.player_id).join(',');
       router.push(`/lineup?ai_players=${playerIds}`);
@@ -112,24 +107,23 @@ export function HomePageClient({
     }
   }, [lineupStream.status, lineupStream.players, handleLineupComplete]);
 
-  const handleMatchupClick = (matchup: any) => {
-    // Check if user has enough credits
+  const handleMatchupClick = (matchup: GameResult) => {
     if (credits <= 0) {
       showToast('Insufficient AI credits. Please recharge.');
       return;
     }
 
     setPredictionMatchup(matchup);
-    // If lineup is running, close it
+    setIsModalOpen(false);
+
     if (lineupStream.status !== 'idle') {
       handleLineupClose();
     }
 
-    // Deduct credit optimistically
     setCredits(prev => Math.max(0, prev - 1));
 
-    // Use tomorrow's date for AI matchup prediction as well
-    startPrediction(matchup, getTomorrowTokyoDate());
+    // Correct 3 arguments for startPrediction
+    startPrediction(matchup.homeTeam.name, matchup.awayTeam.name, getTomorrowTokyoDate());
   };
 
   const handleClosePrediction = () => {
@@ -147,18 +141,18 @@ export function HomePageClient({
           </label>
         </div>
         <DateSelector
-          selectedDate={selectedDate}
+          initialDate={selectedDate}
           onDateChange={handleDateChange}
+          isLoading={isLoading}
         />
       </section>
 
       {/* AI Credits Info & Call to Action */}
       <section>
         <PremiumPredictionCard
-          onPredictionClick={() => { }} // Managed via individual match clicks
+          onPredictClick={() => setIsModalOpen(true)}
           onLineupClick={handleLineupClick}
-          userCredits={credits}
-          isStreaming={status === 'streaming' || lineupStream.status === 'streaming'}
+          creditsRemaining={credits}
         />
       </section>
 
@@ -191,8 +185,9 @@ export function HomePageClient({
       {status === 'complete' && result && predictionMatchup && (
         <section>
           <PredictionResultCard
-            matchup={predictionMatchup}
             result={result}
+            homeTeam={predictionMatchup.homeTeam.name}
+            awayTeam={predictionMatchup.awayTeam.name}
             onClose={handleClosePrediction}
           />
         </section>
@@ -210,20 +205,19 @@ export function HomePageClient({
             </div>
           )}
         </div>
-        <GameList
+        <GameResultsList
           games={games}
-          isLoading={isLoading}
           onPredictClick={handleMatchupClick}
         />
       </section>
 
-      {/* Prediction Flow (for match buttons) */}
+      {/* Selection Modal (when clicking Predict Results from Hub) */}
       <PredictionModal
-        isOpen={false} // Managed via inline view
-        onClose={() => { }}
-        matchup={null}
-        onConfirm={() => { }}
-        isSubmitting={false}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        games={games}
+        onSelectGame={handleMatchupClick}
+        isSubmitting={status === 'streaming'}
       />
 
       {/* Notification Toast */}

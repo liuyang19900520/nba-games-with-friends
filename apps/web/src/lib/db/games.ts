@@ -103,16 +103,16 @@ export async function fetchRecentGames(
       .in("id", Array.from(teamIds));
 
     // Create a map of team data
-    const teamsMap = new Map();
+    const teamsMap = new Map<number, { id: number; name: string; code: string; logo_url: string | null }>();
     if (teamsData) {
-      teamsData.forEach((t: any) => teamsMap.set(t.id, t));
+      teamsData.forEach((t) => teamsMap.set(t.id, t));
     }
 
     // Transform to GameResult format
     return simpleData.map((game: GameRow) => {
-      const homeTeam = teamsMap.get(game.home_team_id);
-      const awayTeam = teamsMap.get(game.away_team_id);
-      let gameType = game.is_playoff ? "NBA Playoffs" : (game.season ? `${game.season} Regular Season` : "NBA Regular Season");
+      const homeTeam = teamsMap.get(game.home_team_id || 0);
+      const awayTeam = teamsMap.get(game.away_team_id || 0);
+      const gameType = game.is_playoff ? "NBA Playoffs" : (game.season ? `${game.season} Regular Season` : "NBA Regular Season");
 
       return {
         id: String(game.id),
