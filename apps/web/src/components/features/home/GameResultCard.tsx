@@ -7,13 +7,14 @@ import { formatTokyoTime } from "@/lib/utils/timezone";
 
 interface GameResultCardProps {
   game: GameResult;
+  onPredictClick?: (game: GameResult) => void;
 }
 
 /**
  * Game result card component
  * Displays a single game result with teams, scores, and rating count
  */
-export function GameResultCard({ game }: GameResultCardProps) {
+export function GameResultCard({ game, onPredictClick }: GameResultCardProps) {
   const router = useRouter();
 
   const handleClick = () => {
@@ -42,12 +43,27 @@ export function GameResultCard({ game }: GameResultCardProps) {
 
   return (
     <div
-      className="bg-brand-card border border-brand-card-border rounded-lg p-3 cursor-pointer hover:bg-brand-card/80 transition-colors"
+      className="relative bg-brand-card border border-brand-card-border rounded-lg p-3 cursor-pointer hover:bg-brand-card/80 transition-colors group"
       onClick={handleClick}
     >
+      {onPredictClick && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPredictClick(game);
+          }}
+          className="absolute top-2 right-2 p-1.5 rounded-full bg-brand-blue/10 text-brand-blue opacity-0 group-hover:opacity-100 hover:bg-brand-blue hover:text-white transition-all duration-200 z-10"
+          title="Predict with AI"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </button>
+      )}
+
       {/* Game Type - Top center */}
       <div className="text-center mb-3">
-        <p className="text-xs text-brand-text-dim">{game.gameType}</p>
+        <p className="text-[10px] text-brand-text-dim uppercase tracking-wider">{game.gameType}</p>
       </div>
 
       {/* Flat horizontal layout: Team1 | Status | Team2 */}
@@ -83,11 +99,11 @@ export function GameResultCard({ game }: GameResultCardProps) {
         <div className="flex flex-col items-center justify-center gap-1 flex-shrink-0">
           {displayTime && (
             <>
-              <div className="w-8 h-px bg-brand-blue"></div>
-              <span className="text-xs text-brand-text-dim whitespace-nowrap">
+              <div className="w-8 h-px bg-brand-blue/30"></div>
+              <span className="text-[10px] font-mono text-brand-text-dim whitespace-nowrap">
                 {displayTime}
               </span>
-              <div className="w-8 h-px bg-brand-blue"></div>
+              <div className="w-8 h-px bg-brand-blue/30"></div>
             </>
           )}
           {displayStatus && (

@@ -24,6 +24,22 @@ export function getTokyoDate(): string {
 }
 
 /**
+ * Get tomorrow's date in Tokyo timezone (YYYY-MM-DD format)
+ */
+export function getTomorrowTokyoDate(): string {
+  const now = new Date();
+  // Move to tomorrow
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tokyoDate = new Date(tomorrow.toLocaleString('en-US', { timeZone: TOKYO_TIMEZONE }));
+
+  const year = tokyoDate.getFullYear();
+  const month = String(tokyoDate.getMonth() + 1).padStart(2, '0');
+  const day = String(tokyoDate.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Convert a date string to Tokyo timezone
  * @param dateStr - Date string in any format (ISO, YYYY-MM-DD, etc.)
  * @returns Date string in YYYY-MM-DD format in Tokyo timezone

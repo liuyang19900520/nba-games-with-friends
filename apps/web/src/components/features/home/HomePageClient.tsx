@@ -1,17 +1,19 @@
 'use client';
 
-import { useState, useEffect, useTransition, useRef } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { DateSelector } from './DateSelector';
 import { GameResultsList } from './GameResultsList';
-import { PremiumFeatureCard } from './PremiumFeatureCard';
 import { PremiumPredictionCard } from './PremiumPredictionCard';
+import { PremiumFeatureCard } from './PremiumFeatureCard';
 import { PredictionModal } from './PredictionModal';
 import { PredictionStreamView } from './PredictionStreamView';
 import { PredictionResultCard } from './PredictionResultCard';
-import { NotificationToast } from '@/components/ui/NotificationToast';
+import { LineupStreamView } from './LineupStreamView';
 import { fetchGamesByDate } from '@/app/home/actions';
 import { usePredictionStream } from '@/hooks/usePredictionStream';
+import { useLineupStream } from '@/hooks/useLineupStream';
+import { getTomorrowTokyoDate } from '@/lib/utils/game-date';
 import type { GameResult } from '@/types';
 
 interface HomePageClientProps {
@@ -21,93 +23,111 @@ interface HomePageClientProps {
   creditsRemaining: number;
 }
 
-export function HomePageClient({ initialGames, initialDate, userId, creditsRemaining: initialCredits }: HomePageClientProps) {
-  const [games, setGames] = useState<GameResult[]>(initialGames);
-  const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [credits, setCredits] = useState(initialCredits);
-  const [isPending, startTransition] = useTransition();
-  const searchParams = useSearchParams();
+/**
+ * Home page client-side dashboard logic.
+ * Handles date selection, game listing, and AI prediction streaming.
+ */
+export function HomePageClient({
+  initialGames,
+  initialDate,
+  userId: _userId,
+  creditsRemaining,
+}: HomePageClientProps) {
   const router = useRouter();
-  const hasProcessedPayment = useRef(false);
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [games, setGames] = useState<GameResult[]>(initialGames);
+  const [isLoading, setIsLoading] = useState(false);
+  const [predictionMatchup, setPredictionMatchup] = useState<GameResult | null>(null);
+  const [credits, setCredits] = useState(creditsRemaining);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Handle payment success callback
-  useEffect(() => {
-    const paymentStatus = searchParams?.get('payment');
-    if (paymentStatus === 'success' && !hasProcessedPayment.current) {
-      hasProcessedPayment.current = true;
-      // Optimistically assume 5 credits were added in case webhook is delayed
-      if (credits === 0) {
-        setCredits(5);
-      }
-
-      // Clean up the URL securely with Next.js router
-      router.replace('/home');
-
-      setToast({
-        isVisible: true,
-        message: 'Payment verified! You can now use AI Predictions.'
-      });
-    }
-  }, [searchParams, credits, router]);
-
-  // Prediction Modal State
-  const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
-
-  // Streaming prediction
+  // Matchup prediction streaming
   const { status, steps, result, error, startPrediction, reset } = usePredictionStream();
+
+  // 1-Click Lineup streaming
+  const lineupStream = useLineupStream();
+
+  // Filter games for the prediction modal (Only show tomorrow's games as requested)
+  const tomorrowGames = useMemo(() => {
+    const tomorrow = getTomorrowTokyoDate();
+    return games.filter(game => game.gameDateTokyo === tomorrow);
+  }, [games]);
 
   // Restore credit on error (backend refunds, so UI should match)
   useEffect(() => {
-    if (status === 'error') {
+    if (status === 'error' || lineupStream.status === 'error') {
       setCredits(prev => prev + 1);
     }
-  }, [status]);
+  }, [status, lineupStream.status]);
 
-  // Matchup info for result display
-  const [predictionMatchup, setPredictionMatchup] = useState<{ home: string; away: string } | null>(null);
-
-  // Toast State
-  const [toast, setToast] = useState<{ isVisible: boolean; message: string }>({
-    isVisible: false,
-    message: ''
-  });
-
-  const hideToast = () => {
-    setToast(prev => ({ ...prev, isVisible: false }));
-  };
-
-  const handleDateChange = (date: string) => {
+  const handleDateChange = async (date: string) => {
     setSelectedDate(date);
-
-    startTransition(async () => {
-      try {
-        const newGames = await fetchGamesByDate(date);
-        setGames(newGames);
-      } catch (error) {
-        setToast({
-          isVisible: true,
-          message: 'Failed to fetch games'
-        });
-        // We throw so it can be handled globally instead of silently swallowed
-        throw error;
-      }
-    });
+    setIsLoading(true);
+    try {
+      const newGames = await fetchGamesByDate(date);
+      setGames(newGames);
+    } catch (err) {
+      console.error('Failed to fetch games:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handlePredictClick = () => {
-    setIsPredictionModalOpen(true);
-  };
 
-  const handleGameSelect = (game: GameResult) => {
-    setIsPredictionModalOpen(false);
-    setPredictionMatchup({ home: game.homeTeam.name, away: game.awayTeam.name });
-    // Optimistically decrement credit in UI
+
+  // 1-Click Lineup handlers
+  const handleLineupClick = () => {
+    if (credits <= 0) {
+      router.push('/payment');
+      return;
+    }
+
+    if (status !== 'idle') {
+      reset();
+      setPredictionMatchup(null);
+    }
+
     setCredits(prev => Math.max(0, prev - 1));
-    startPrediction(
-      game.homeTeam.name,
-      game.awayTeam.name,
-      game.gameDate || selectedDate
-    );
+    lineupStream.startGeneration(getTomorrowTokyoDate());
+  };
+
+  const handleLineupComplete = useCallback(() => {
+    const timer = setTimeout(() => {
+      const playerIds = lineupStream.players.map(p => p.player_id).join(',');
+      router.push(`/lineup?ai_players=${playerIds}`);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [lineupStream.players, router]);
+
+  const handleLineupClose = () => {
+    lineupStream.reset();
+  };
+
+  // Auto-navigate when lineup is complete
+  useEffect(() => {
+    if (lineupStream.status === 'complete' && lineupStream.players.length > 0) {
+      const cleanup = handleLineupComplete();
+      return cleanup;
+    }
+  }, [lineupStream.status, lineupStream.players, handleLineupComplete]);
+
+  const handleMatchupClick = (matchup: GameResult) => {
+    if (credits <= 0) {
+      router.push('/payment');
+      return;
+    }
+
+    setPredictionMatchup(matchup);
+    setIsModalOpen(false);
+
+    if (lineupStream.status !== 'idle') {
+      handleLineupClose();
+    }
+
+    setCredits(prev => Math.max(0, prev - 1));
+
+    // Correct 3 arguments for startPrediction
+    startPrediction(matchup.homeTeam.name, matchup.awayTeam.name, getTomorrowTokyoDate());
   };
 
   const handleClosePrediction = () => {
@@ -118,37 +138,33 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
   return (
     <div className="max-w-md mx-auto space-y-6">
       {/* Date Selector */}
-      <DateSelector
-        onDateChange={handleDateChange}
-        isLoading={isPending}
-        initialDate={initialDate}
-      />
-
-      {/* Games Section */}
       <section>
-        <h2 className="text-lg font-semibold text-white mb-4">
-          Recent Games
-        </h2>
-        {isPending ? (
-          <div className="text-center py-8">
-            <div className="inline-block w-6 h-6 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
-            <p className="text-brand-text-dim mt-2">Loading games...</p>
-          </div>
-        ) : (
-          <GameResultsList games={games} />
-        )}
+        <div className="flex items-center justify-between mb-4">
+          <label className="text-sm font-medium text-brand-text-dim uppercase tracking-wider">
+            Date:
+          </label>
+        </div>
+        <DateSelector
+          initialDate={selectedDate}
+          onDateChange={handleDateChange}
+          isLoading={isLoading}
+        />
       </section>
 
-      {/* AI Credits Section */}
+      {/* AI Credits Info & Call to Action or Recharge Card */}
       <section>
         {credits > 0 ? (
-          <PremiumPredictionCard onPredictClick={handlePredictClick} creditsRemaining={credits} />
+          <PremiumPredictionCard
+            onPredictClick={() => setIsModalOpen(true)}
+            onLineupClick={handleLineupClick}
+            creditsRemaining={credits}
+          />
         ) : (
-          <PremiumFeatureCard userId={userId} />
+          <PremiumFeatureCard userId={_userId} />
         )}
       </section>
 
-      {/* AI Thinking Process (streaming) */}
+      {/* AI Thinking Process (streaming Matchup) */}
       {(status === 'streaming' || status === 'error') && (
         <section>
           <PredictionStreamView
@@ -160,33 +176,59 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
         </section>
       )}
 
+      {/* AI Thinking Process (streaming Lineup) */}
+      {(lineupStream.status !== 'idle') && (
+        <section>
+          <LineupStreamView
+            status={lineupStream.status}
+            steps={lineupStream.steps}
+            players={lineupStream.players}
+            error={lineupStream.error}
+            onClose={handleLineupClose}
+          />
+        </section>
+      )}
+
       {/* Final Prediction Result */}
       {status === 'complete' && result && predictionMatchup && (
         <section>
           <PredictionResultCard
             result={result}
-            homeTeam={predictionMatchup.home}
-            awayTeam={predictionMatchup.away}
+            homeTeam={predictionMatchup.homeTeam.name}
+            awayTeam={predictionMatchup.awayTeam.name}
             onClose={handleClosePrediction}
           />
         </section>
       )}
 
-      {/* Prediction Modal */}
+      {/* Games List */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">Recent Games</h2>
+          {isLoading && (
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-brand-blue animate-bounce [animation-delay:-0.3s]"></div>
+              <div className="w-2 h-2 rounded-full bg-brand-blue animate-bounce [animation-delay:-0.15s]"></div>
+              <div className="w-2 h-2 rounded-full bg-brand-blue animate-bounce"></div>
+            </div>
+          )}
+        </div>
+        <GameResultsList
+          games={games}
+          onPredictClick={handleMatchupClick}
+        />
+      </section>
+
+      {/* Selection Modal (when clicking Predict Results from Hub) */}
       <PredictionModal
-        isOpen={isPredictionModalOpen}
-        onClose={() => setIsPredictionModalOpen(false)}
-        games={games}
-        onSelectGame={handleGameSelect}
-        isSubmitting={false}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        games={tomorrowGames}
+        onSelectGame={handleMatchupClick}
+        isSubmitting={status === 'streaming'}
       />
 
-      {/* Notification Toast */}
-      <NotificationToast
-        isVisible={toast.isVisible}
-        message={toast.message}
-        onClose={hideToast}
-      />
+
     </div>
   );
 }

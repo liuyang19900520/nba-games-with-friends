@@ -1,15 +1,15 @@
-import { getTokyoDate, formatTokyoDate, isTodayTokyo } from './timezone';
+import { getTokyoDate, formatTokyoDate, isTodayTokyo, getTomorrowTokyoDate } from './timezone';
 
 /**
  * Utility functions for game date management
  * 
- * Always uses Tokyo timezone (UTC+9).
+ * Always uses Tokyo timezone (Asia/Tokyo, UTC+9).
  * Simulated date feature has been removed.
  */
 
 /**
  * Get the game date to use for data fetching (Server-side)
- * Returns date in Tokyo timezone
+ * Returns current date in Tokyo timezone
  */
 export async function getGameDate(): Promise<string> {
   return getTokyoDate();
@@ -32,3 +32,5 @@ export function formatGameDate(dateStr: string): string {
 export function isToday(dateStr: string): boolean {
   return isTodayTokyo(dateStr);
 }
+
+export { getTomorrowTokyoDate };
