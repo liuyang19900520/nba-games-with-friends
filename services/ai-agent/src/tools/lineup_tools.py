@@ -18,9 +18,10 @@ def _get_supabase() -> Client:
 
 
 def get_today_game_date() -> str:
-    """Get today's date in Tokyo timezone (JST, UTC+9) as YYYY-MM-DD."""
+    """Get tomorrow's date in Tokyo timezone (JST, UTC+9) as YYYY-MM-DD."""
     jst = timezone(timedelta(hours=9))
-    return datetime.now(jst).strftime("%Y-%m-%d")
+    tomorrow = datetime.now(jst) + timedelta(days=1)
+    return tomorrow.strftime("%Y-%m-%d")
 
 
 def get_today_games(game_date: str | None = None, season: str = "2025-26") -> list[dict]:
