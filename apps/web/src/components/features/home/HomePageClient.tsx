@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { DateSelector } from './DateSelector';
 import { GameResultsList } from './GameResultsList';
@@ -46,6 +46,12 @@ export function HomePageClient({
 
   // 1-Click Lineup streaming
   const lineupStream = useLineupStream();
+
+  // Filter games for the prediction modal (Only show tomorrow's games as requested)
+  const tomorrowGames = useMemo(() => {
+    const tomorrow = getTomorrowTokyoDate();
+    return games.filter(game => game.gameDateTokyo === tomorrow);
+  }, [games]);
 
   // Restore credit on error (backend refunds, so UI should match)
   useEffect(() => {
@@ -215,7 +221,7 @@ export function HomePageClient({
       <PredictionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        games={games}
+        games={tomorrowGames}
         onSelectGame={handleMatchupClick}
         isSubmitting={status === 'streaming'}
       />

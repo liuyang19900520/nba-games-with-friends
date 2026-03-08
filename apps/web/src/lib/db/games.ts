@@ -134,6 +134,7 @@ export async function fetchRecentGames(
           score: game.away_score ?? 0,
         },
         gameDate: game.game_datetime,
+        gameDateTokyo: game.game_date_tokyo,
       };
     });
   } catch (err) {

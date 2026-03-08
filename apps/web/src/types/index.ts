@@ -199,6 +199,7 @@ export interface GameResult {
   };
   ratingCount?: number; // Number of ratings (e.g., 118000)
   gameDate?: string; // ISO date string
+  gameDateTokyo?: string; // Format: YYYY-MM-DD in Tokyo timezone
 }
 
 /**
