@@ -11,7 +11,7 @@ on:
 
 jobs:
   deploy-payment:
-    name: Deploy payment to nba-payment-dev (shared)
+    name: Deploy payment to nba-payment (shared)
     runs-on: ubuntu-latest
 
     steps:
@@ -40,11 +40,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy to Lambda (nba-payment-dev)
+      - name: Deploy to Lambda (nba-payment)
         working-directory: ./functions/payment
         run: |
           aws lambda update-function-code \
-            --function-name nba-payment-dev \
+            --function-name nba-payment \
             --zip-file fileb://function.zip
 
-          echo "Deployment to nba-payment-dev completed."
+          echo "Deployment to nba-payment completed."

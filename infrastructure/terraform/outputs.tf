@@ -36,9 +36,7 @@ output "stop_command" {
 # Payment Lambda Outputs
 # =============================================================================
 
-output "payment_api_url_dev" {
-  description = "Payment API URL (dev)"
-  value       = aws_apigatewayv2_api.payment["dev"].api_endpoint
+output "payment_api_url" {
+  description = "Payment API URL"
+  value       = aws_apigatewayv2_api.payment.api_endpoint
 }
-
-

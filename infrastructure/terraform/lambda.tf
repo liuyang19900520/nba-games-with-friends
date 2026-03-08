@@ -3,19 +3,12 @@
 # =============================================================================
 #
 # Creates:
-#   - nba-payment-dev  Lambda + HTTP API Gateway (for dev branch)
-#   - nba-payment-prod Lambda + HTTP API Gateway (for main branch)
+#   - nba-payment  Lambda + HTTP API Gateway
 #   - Shared IAM role with Secrets Manager access
 # =============================================================================
 
-locals {
-  payment_environments = {
-    dev = { name = "nba-payment-dev", description = "Payment Lambda (dev & prod shared)" }
-  }
-}
-
 # =============================================================================
-# IAM Role (shared by dev & prod)
+# IAM Role
 # =============================================================================
 
 resource "aws_iam_role" "payment_lambda" {
@@ -65,7 +58,7 @@ resource "aws_iam_role_policy" "payment_lambda_secrets" {
 }
 
 # =============================================================================
-# Lambda Functions (dev + prod)
+# Lambda Function
 # =============================================================================
 
 # Dummy zip for initial creation (GitHub Actions will deploy real code)
@@ -80,10 +73,8 @@ data "archive_file" "payment_init" {
 }
 
 resource "aws_lambda_function" "payment" {
-  for_each = local.payment_environments
-
-  function_name = each.value.name
-  description   = each.value.description
+  function_name = "nba-payment"
+  description   = "Payment Lambda"
   role          = aws_iam_role.payment_lambda.arn
   handler       = "index.handler"
   runtime       = "nodejs22.x"
@@ -101,21 +92,18 @@ resource "aws_lambda_function" "payment" {
 
   tags = {
     Project     = var.project_name
-    Environment = each.key
     Service     = "payment"
   }
 }
 
 # =============================================================================
-# API Gateway HTTP API (dev + prod)
+# API Gateway HTTP API
 # =============================================================================
 
 resource "aws_apigatewayv2_api" "payment" {
-  for_each = local.payment_environments
-
-  name          = each.value.name
+  name          = "nba-payment"
   protocol_type = "HTTP"
-  description   = "${each.value.description} API"
+  description   = "Payment Lambda API"
 
   cors_configuration {
     allow_origins = ["*"]
@@ -126,58 +114,48 @@ resource "aws_apigatewayv2_api" "payment" {
 
   tags = {
     Project     = var.project_name
-    Environment = each.key
   }
 }
 
 # Lambda integration
 resource "aws_apigatewayv2_integration" "payment" {
-  for_each = local.payment_environments
-
-  api_id                 = aws_apigatewayv2_api.payment[each.key].id
+  api_id                 = aws_apigatewayv2_api.payment.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.payment[each.key].invoke_arn
+  integration_uri        = aws_lambda_function.payment.invoke_arn
   integration_method     = "POST"
   payload_format_version = "2.0"
 }
 
 # Default route (catch-all)
 resource "aws_apigatewayv2_route" "payment" {
-  for_each  = local.payment_environments
-  api_id    = aws_apigatewayv2_api.payment[each.key].id
+  api_id    = aws_apigatewayv2_api.payment.id
   route_key = "ANY /{proxy+}"
-  target    = "integrations/${aws_apigatewayv2_integration.payment[each.key].id}"
+  target    = "integrations/${aws_apigatewayv2_integration.payment.id}"
 }
 
 # Root route
 resource "aws_apigatewayv2_route" "payment_root" {
-  for_each  = local.payment_environments
-  api_id    = aws_apigatewayv2_api.payment[each.key].id
+  api_id    = aws_apigatewayv2_api.payment.id
   route_key = "ANY /"
-  target    = "integrations/${aws_apigatewayv2_integration.payment[each.key].id}"
+  target    = "integrations/${aws_apigatewayv2_integration.payment.id}"
 }
 
 # Auto-deploy stage
 resource "aws_apigatewayv2_stage" "payment" {
-  for_each = local.payment_environments
-
-  api_id      = aws_apigatewayv2_api.payment[each.key].id
+  api_id      = aws_apigatewayv2_api.payment.id
   name        = "$default"
   auto_deploy = true
 
   tags = {
     Project     = var.project_name
-    Environment = each.key
   }
 }
 
 # Permission: allow API Gateway to invoke Lambda
 resource "aws_lambda_permission" "payment_apigw" {
-  for_each = local.payment_environments
-
   statement_id  = "AllowAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.payment[each.key].function_name
+  function_name = aws_lambda_function.payment.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.payment[each.key].execution_arn}/*/*"
+  source_arn    = "${aws_apigatewayv2_api.payment.execution_arn}/*/*"
 }
