@@ -1,7 +1,7 @@
 'use client';
 
-import { useOptimistic, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useOptimistic, useState, useTransition, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { BasketballCourt } from '@/components/lineup/BasketballCourt';
 import { PlayerSearchSection } from '@/components/features/lineup/PlayerSearchSection';
 import { submitLineup } from '@/app/lineup/actions';
@@ -25,6 +25,7 @@ interface LineupPageClientProps {
   players: Player[];
   user: User | null;
   initialLineup?: InitialLineup | null;
+  aiPlayerIds?: string[];
 }
 
 // New position system: 1 C, 2 F, 2 G
@@ -98,8 +99,9 @@ function buildInitialLineup(
  * 
  * Note: If user is null, page is in read-only mode, user needs to log in to save lineup
  */
-export function LineupPageClient({ players, user, initialLineup }: LineupPageClientProps) {
+export function LineupPageClient({ players, user, initialLineup, aiPlayerIds }: LineupPageClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isReadOnly = !user;
 
   // Check if lineup is already submitted
@@ -126,6 +128,60 @@ export function LineupPageClient({ players, user, initialLineup }: LineupPageCli
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [selectedFilterPosition, setSelectedFilterPosition] = useState<'C' | 'F' | 'G' | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Track if AI players were applied
+  const [isAiLineup, setIsAiLineup] = useState(false);
+  const hasAppliedAi = useRef(false);
+
+  // Apply AI-recommended players on mount
+  useEffect(() => {
+    if (hasAppliedAi.current) return;
+    if (isSubmitted) return;
+
+    // Get AI player IDs from props or URL params
+    let playerIdsToApply = aiPlayerIds;
+    if (!playerIdsToApply || playerIdsToApply.length === 0) {
+      const aiPlayersParam = searchParams?.get('ai_players');
+      if (aiPlayersParam) {
+        playerIdsToApply = aiPlayersParam.split(',').filter(Boolean);
+      }
+    }
+
+    if (!playerIdsToApply || playerIdsToApply.length === 0) return;
+
+    hasAppliedAi.current = true;
+
+    // Map AI player IDs to Player objects
+    const playerMap = new Map(players.map(p => [p.id, p]));
+    const positions: Position[] = ['C', 'F1', 'F2', 'G1', 'G2'];
+    const newLineup: LineupState = {};
+    let posIndex = 0;
+
+    for (const pid of playerIdsToApply) {
+      const player = playerMap.get(pid);
+      if (player && posIndex < positions.length) {
+        const pos = positions[posIndex];
+        if (pos) {
+          newLineup[pos] = player;
+          posIndex++;
+        }
+      }
+    }
+
+    if (Object.keys(newLineup).length > 0) {
+      setLineup(newLineup);
+      startTransition(() => {
+        updateOptimisticLineup(newLineup);
+      });
+      setIsAiLineup(true);
+    }
+
+    // Clean up URL params
+    if (searchParams?.get('ai_players')) {
+      router.replace('/lineup', { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSlotClick = (position: Position) => {
     // Don't allow modifications if submitted
@@ -260,6 +316,20 @@ export function LineupPageClient({ players, user, initialLineup }: LineupPageCli
           />
         </div>
       </section>
+
+      {/* AI Recommendation Banner */}
+      {isAiLineup && !isSubmitted && (
+        <section className="px-4 pt-4">
+          <div className="bg-brand-blue/10 border border-brand-blue/30 rounded-lg p-3">
+            <p className="text-sm text-brand-blue text-center">
+              🧠 AI-Recommended Lineup — Powered by Neural Fantasy Engine
+            </p>
+            <p className="text-xs text-brand-text-dim text-center mt-1">
+              You can still adjust players before submitting.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Submitted Notice */}
       {isSubmitted && (

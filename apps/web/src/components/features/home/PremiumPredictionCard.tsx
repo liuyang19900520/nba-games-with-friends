@@ -4,6 +4,7 @@ import { Shirt, Sparkles } from 'lucide-react';
 
 interface PremiumPredictionCardProps {
   onPredictClick?: () => void;
+  onLineupClick?: () => void;
   creditsRemaining: number;
 }
 
@@ -11,7 +12,7 @@ interface PremiumPredictionCardProps {
  * Premium Prediction Card (AI Feature Hub)
  * Displays AI features for users with credits: 1-Click Lineup, Predict Results, AI Chat Mode.
  */
-export function PremiumPredictionCard({ onPredictClick, creditsRemaining }: PremiumPredictionCardProps) {
+export function PremiumPredictionCard({ onPredictClick, onLineupClick, creditsRemaining }: PremiumPredictionCardProps) {
   return (
     <div className="relative rounded-xl border border-brand-blue/30 bg-black/40 p-6 shadow-glow-blue overflow-hidden">
       {/* Background Soft Glow */}
@@ -33,7 +34,7 @@ export function PremiumPredictionCard({ onPredictClick, creditsRemaining }: Prem
         {/* Button 1: 1-Click Lineup */}
         <button
           className="w-full group relative flex items-center justify-between p-4 rounded-xl border border-brand-blue/40 bg-brand-dark/60 hover:bg-brand-blue/10 hover:border-brand-blue transition-all duration-300 shadow-[0_0_15px_rgba(110,226,245,0.15)]"
-          onClick={() => console.log('1-Click Lineup clicked')}
+          onClick={onLineupClick}
         >
           <div className="text-left">
             <div className="text-xl font-medium text-brand-text-light group-hover:text-brand-blue transition-colors drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">

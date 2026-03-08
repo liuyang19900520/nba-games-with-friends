@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition, useRef } from 'react';
+import { useState, useEffect, useTransition, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { DateSelector } from './DateSelector';
 import { GameResultsList } from './GameResultsList';
@@ -9,9 +9,11 @@ import { PremiumPredictionCard } from './PremiumPredictionCard';
 import { PredictionModal } from './PredictionModal';
 import { PredictionStreamView } from './PredictionStreamView';
 import { PredictionResultCard } from './PredictionResultCard';
+import { LineupStreamView } from './LineupStreamView';
 import { NotificationToast } from '@/components/ui/NotificationToast';
 import { fetchGamesByDate } from '@/app/home/actions';
 import { usePredictionStream } from '@/hooks/usePredictionStream';
+import { useLineupStream } from '@/hooks/useLineupStream';
 import type { GameResult } from '@/types';
 
 interface HomePageClientProps {
@@ -55,6 +57,9 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
 
   // Streaming prediction
   const { status, steps, result, error, startPrediction, reset } = usePredictionStream();
+
+  // 1-Click Lineup streaming
+  const lineupStream = useLineupStream();
 
   // Restore credit on error (backend refunds, so UI should match)
   useEffect(() => {
@@ -115,6 +120,37 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
     setPredictionMatchup(null);
   };
 
+  // 1-Click Lineup handlers
+  const handleLineupClick = () => {
+    // If prediction is running, close it
+    if (status !== 'idle') {
+      reset();
+      setPredictionMatchup(null);
+    }
+    lineupStream.startGeneration(selectedDate);
+  };
+
+  const handleLineupComplete = useCallback(() => {
+    // We give the user 2 seconds to see the results inline before navigating
+    const timer = setTimeout(() => {
+      const playerIds = lineupStream.players.map(p => p.player_id).join(',');
+      router.push(`/lineup?ai_players=${playerIds}`);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [lineupStream.players, router]);
+
+  const handleLineupClose = () => {
+    lineupStream.reset();
+  };
+
+  // Auto-navigate when lineup is complete
+  useEffect(() => {
+    if (lineupStream.status === 'complete' && lineupStream.players.length > 0) {
+      const cleanup = handleLineupComplete();
+      return cleanup;
+    }
+  }, [lineupStream.status, lineupStream.players, handleLineupComplete]);
+
   return (
     <div className="max-w-md mx-auto space-y-6">
       {/* Date Selector */}
@@ -142,13 +178,17 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
       {/* AI Credits Section */}
       <section>
         {credits > 0 ? (
-          <PremiumPredictionCard onPredictClick={handlePredictClick} creditsRemaining={credits} />
+          <PremiumPredictionCard
+            onPredictClick={handlePredictClick}
+            onLineupClick={handleLineupClick}
+            creditsRemaining={credits}
+          />
         ) : (
           <PremiumFeatureCard userId={userId} />
         )}
       </section>
 
-      {/* AI Thinking Process (streaming) */}
+      {/* AI Thinking Process (streaming Matchup) */}
       {(status === 'streaming' || status === 'error') && (
         <section>
           <PredictionStreamView
@@ -156,6 +196,19 @@ export function HomePageClient({ initialGames, initialDate, userId, creditsRemai
             steps={steps}
             error={error}
             onClose={handleClosePrediction}
+          />
+        </section>
+      )}
+
+      {/* AI Thinking Process (streaming Lineup) */}
+      {(lineupStream.status !== 'idle') && (
+        <section>
+          <LineupStreamView
+            status={lineupStream.status}
+            steps={lineupStream.steps}
+            players={lineupStream.players}
+            error={lineupStream.error}
+            onClose={handleLineupClose}
           />
         </section>
       )}
