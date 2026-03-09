@@ -33,4 +33,4 @@ export function isToday(dateStr: string): boolean {
   return isTodayTokyo(dateStr);
 }
 
-export { getTomorrowTokyoDate };
+export { getTomorrowTokyoDate, getTokyoDate };

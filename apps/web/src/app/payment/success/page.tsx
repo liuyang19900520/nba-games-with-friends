@@ -34,12 +34,17 @@ async function PaymentSuccessContent({
   return <PaymentSuccessHandler sessionId={params.session_id} />;
 }
 
+import { Header } from '@/components/layout/Header';
+
 function PaymentLoadingUI() {
   return (
-    <div className="min-h-screen bg-brand-bg flex items-center justify-center">
-      <div className="text-center">
-        <div className="inline-block w-8 h-8 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
-        <p className="text-brand-text-light mt-4">Processing payment...</p>
+    <div className="min-h-screen bg-brand-bg flex flex-col">
+      <Header title="Payment Status" />
+      <div className="flex-1 flex items-center justify-center pt-[60px]">
+        <div className="text-center">
+          <div className="inline-block w-8 h-8 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
+          <p className="text-brand-text-light mt-4">Processing payment...</p>
+        </div>
       </div>
     </div>
   );

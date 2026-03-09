@@ -13,7 +13,7 @@ import { LineupStreamView } from './LineupStreamView';
 import { fetchGamesByDate } from '@/app/home/actions';
 import { usePredictionStream } from '@/hooks/usePredictionStream';
 import { useLineupStream } from '@/hooks/useLineupStream';
-import { getTomorrowTokyoDate } from '@/lib/utils/game-date';
+import { getTomorrowTokyoDate, getTokyoDate } from '@/lib/utils/game-date';
 import type { GameResult } from '@/types';
 
 interface HomePageClientProps {
@@ -47,11 +47,34 @@ export function HomePageClient({
   // 1-Click Lineup streaming
   const lineupStream = useLineupStream();
 
-  // Filter games for the prediction modal (Only show tomorrow's games as requested)
-  const tomorrowGames = useMemo(() => {
-    const tomorrow = getTomorrowTokyoDate();
-    return games.filter(game => game.gameDateTokyo === tomorrow);
-  }, [games]);
+  // Target date for AI features: if showing today and all games are finished, suggest tomorrow.
+  const aiTargetDate = useMemo(() => {
+    const today = getTokyoDate();
+    // Only apply 'shift to tomorrow' logic when viewing actual today
+    if (selectedDate !== today) return selectedDate;
+
+    const allGamesFinal = games.length > 0 && games.every(g => g.status === 'Final');
+    return allGamesFinal ? getTomorrowTokyoDate() : today;
+  }, [selectedDate, games]);
+
+  // Games to show in the prediction selection modal (matching aiTargetDate)
+  const [predictedGames, setPredictedGames] = useState<GameResult[]>([]);
+
+  useEffect(() => {
+    if (aiTargetDate === selectedDate) {
+      setPredictedGames(games);
+    } else {
+      const loadPredictedGames = async () => {
+        try {
+          const fetched = await fetchGamesByDate(aiTargetDate);
+          setPredictedGames(fetched);
+        } catch (err) {
+          console.error('Failed to fetch AI target games:', err);
+        }
+      };
+      loadPredictedGames();
+    }
+  }, [aiTargetDate, selectedDate, games]);
 
   // Restore credit on error (backend refunds, so UI should match)
   useEffect(() => {
@@ -88,7 +111,7 @@ export function HomePageClient({
     }
 
     setCredits(prev => Math.max(0, prev - 1));
-    lineupStream.startGeneration(getTomorrowTokyoDate());
+    lineupStream.startGeneration(aiTargetDate);
   };
 
   const handleLineupComplete = useCallback(() => {
@@ -127,7 +150,7 @@ export function HomePageClient({
     setCredits(prev => Math.max(0, prev - 1));
 
     // Correct 3 arguments for startPrediction
-    startPrediction(matchup.homeTeam.name, matchup.awayTeam.name, getTomorrowTokyoDate());
+    startPrediction(matchup.homeTeam.name, matchup.awayTeam.name, aiTargetDate);
   };
 
   const handleClosePrediction = () => {
@@ -139,11 +162,6 @@ export function HomePageClient({
     <div className="max-w-md mx-auto space-y-6">
       {/* Date Selector */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <label className="text-sm font-medium text-brand-text-dim uppercase tracking-wider">
-            Date:
-          </label>
-        </div>
         <DateSelector
           initialDate={selectedDate}
           onDateChange={handleDateChange}
@@ -223,7 +241,7 @@ export function HomePageClient({
       <PredictionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        games={tomorrowGames}
+        games={predictedGames}
         onSelectGame={handleMatchupClick}
         isSubmitting={status === 'streaming'}
       />
