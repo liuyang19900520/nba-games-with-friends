@@ -8,6 +8,8 @@ interface PaymentSuccessHandlerProps {
   sessionId: string;
 }
 
+import { Header } from '@/components/layout/Header';
+
 export function PaymentSuccessHandler({ sessionId }: PaymentSuccessHandlerProps) {
   const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
@@ -33,53 +35,64 @@ export function PaymentSuccessHandler({ sessionId }: PaymentSuccessHandlerProps)
     }
   }, [status, router]);
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-brand-bg flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block w-8 h-8 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
-          <p className="text-brand-text-light mt-4">Verifying payment...</p>
+  const renderContent = () => {
+    if (status === 'loading') {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="inline-block w-8 h-8 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
+            <p className="text-brand-text-light mt-4">Verifying payment...</p>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (status === 'error') {
+    if (status === 'error') {
+      return (
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="max-w-md w-full bg-brand-dark rounded-xl border border-brand-card-border p-8 text-center">
+            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-semibold text-white mb-2">Payment Failed</h1>
+            <p className="text-brand-text-dim mb-6">
+              Something went wrong with your payment. Please try again.
+            </p>
+            <button
+              onClick={() => router.push('/home')}
+              className="w-full py-3 px-6 rounded-lg bg-secondary text-brand-text-light font-medium hover:bg-accent transition-colors"
+            >
+              Return to Home
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="min-h-screen bg-brand-bg flex items-center justify-center px-4">
+      <div className="flex-1 flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-brand-dark rounded-xl border border-brand-card-border p-8 text-center">
-          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-semibold text-white mb-2">Payment Failed</h1>
+          <CheckCircle
+            className="w-16 h-16 text-green-500 mx-auto mb-4"
+            style={{
+              filter: 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.6))',
+            }}
+          />
+          <h1 className="text-2xl font-semibold text-white mb-2">Payment Successful!</h1>
           <p className="text-brand-text-dim mb-6">
-            Something went wrong with your payment. Please try again.
+            You now have 5 AI prediction credits. Use them to get AI-powered game predictions!
           </p>
-          <button
-            onClick={() => router.push('/home')}
-            className="w-full py-3 px-6 rounded-lg bg-secondary text-brand-text-light font-medium hover:bg-accent transition-colors"
-          >
-            Return to Home
-          </button>
+          <p className="text-brand-text-dim text-sm">
+            Redirecting to home...
+          </p>
         </div>
       </div>
     );
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-brand-bg flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-brand-dark rounded-xl border border-brand-card-border p-8 text-center">
-        <CheckCircle
-          className="w-16 h-16 text-green-500 mx-auto mb-4"
-          style={{
-            filter: 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.6))',
-          }}
-        />
-        <h1 className="text-2xl font-semibold text-white mb-2">Payment Successful!</h1>
-        <p className="text-brand-text-dim mb-6">
-          You now have 5 AI prediction credits. Use them to get AI-powered game predictions!
-        </p>
-        <p className="text-brand-text-dim text-sm">
-          Redirecting to home...
-        </p>
+    <div className="min-h-screen bg-brand-bg flex flex-col">
+      <Header title="Payment Status" showBack={status === 'error'} />
+      <div className="flex-1 flex flex-col pt-[60px]">
+        {renderContent()}
       </div>
     </div>
   );

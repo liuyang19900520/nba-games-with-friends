@@ -84,11 +84,20 @@ resource "aws_security_group" "ai_agent" {
     cidr_blocks = [var.allowed_ssh_cidr]
   }
 
-  # AI Agent API (FastAPI on port 8000)
+  # AI Agent API (FastAPI on port 8000 - dev)
   ingress {
-    description = "AI Agent API"
+    description = "AI Agent API Dev"
     from_port   = 8000
     to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # AI Agent API (FastAPI on port 8001 - main)
+  ingress {
+    description = "AI Agent API Main"
+    from_port   = 8001
+    to_port     = 8001
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -218,20 +227,8 @@ resource "aws_iam_role_policy" "scheduler_policy" {
       {
         Effect = "Allow"
         Action = [
-          "ssm:StartAutomationExecution"
-        ]
-        Resource = [
-          "arn:aws:ssm:ap-northeast-1::document/AWS-StartEC2Instance",
-          "arn:aws:ssm:ap-northeast-1::document/AWS-StopEC2Instance"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
           "ec2:StartInstances",
-          "ec2:StopInstances",
-          "ec2:DescribeInstances",
-          "ec2:DescribeInstanceStatus"
+          "ec2:StopInstances"
         ]
         Resource = [
           aws_instance.ai_agent.arn
@@ -262,11 +259,11 @@ resource "aws_scheduler_schedule" "start_ec2_schedule" {
   schedule_expression_timezone = "Asia/Tokyo"
 
   target {
-    arn      = "arn:aws:ssm:ap-northeast-1::document/AWS-StartEC2Instance"
+    arn      = "arn:aws:scheduler:::aws-sdk:ec2:startInstances"
     role_arn = aws_iam_role.scheduler_role.arn
 
     input = jsonencode({
-      InstanceId = [aws_instance.ai_agent.id]
+      InstanceIds = [aws_instance.ai_agent.id]
     })
   }
 }
@@ -284,11 +281,11 @@ resource "aws_scheduler_schedule" "stop_ec2_schedule" {
   schedule_expression_timezone = "Asia/Tokyo"
 
   target {
-    arn      = "arn:aws:ssm:ap-northeast-1::document/AWS-StopEC2Instance"
+    arn      = "arn:aws:scheduler:::aws-sdk:ec2:stopInstances"
     role_arn = aws_iam_role.scheduler_role.arn
 
     input = jsonencode({
-      InstanceId = [aws_instance.ai_agent.id]
+      InstanceIds = [aws_instance.ai_agent.id]
     })
   }
 }
