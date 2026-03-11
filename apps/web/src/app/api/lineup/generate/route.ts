@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/auth/supabase';
 
 const AI_AGENT_URL = process.env.AI_AGENT_URL || 'http://localhost:8000';
 const TIMEOUT_MS = 60_000; // 1 minute
@@ -10,12 +11,55 @@ interface LineupGenerateBody {
 
 /**
  * POST /api/lineup/generate — SSE proxy to AI Agent's lineup generator.
- * No auth/credits required for this endpoint (lightweight data operation).
+ * Requires authentication and consumes 1 AI credit per request.
  */
 export async function POST(request: NextRequest) {
     try {
+        // 1. Authenticate user via Supabase session
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json(
+                { error: 'Authentication required. Please log in.', code: 'AUTH_REQUIRED' },
+                { status: 401 }
+            );
+        }
+
+        // 2. Atomically decrement credit
+        const { data: remainingCredits, error: rpcError } = await supabase
+            .rpc('decrement_ai_credit', { p_user_id: user.id });
+
+        if (rpcError) {
+            console.error('[API /lineup/generate] Credit decrement RPC error:', rpcError);
+            return NextResponse.json(
+                { error: 'Failed to verify credits. Please try again.', code: 'CREDIT_ERROR' },
+                { status: 500 }
+            );
+        }
+
+        if (remainingCredits === -1) {
+            return NextResponse.json(
+                { error: 'No AI credits remaining. Purchase more credits to continue.', code: 'NO_CREDITS' },
+                { status: 403 }
+            );
+        }
+
+        // 3. Parse request body
         const body: LineupGenerateBody = await request.json().catch(() => ({}));
 
+        // Helper: best-effort refund credit on AI failure
+        const refundCredit = async () => {
+            await supabase
+                .from('users')
+                .update({ ai_credits_remaining: remainingCredits + 1 })
+                .eq('id', user.id)
+                .then(({ error }) => {
+                    if (error) console.error('[API /lineup/generate] Credit refund failed:', error);
+                });
+        };
+
+        // 4. Proxy to AI agent
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -35,6 +79,7 @@ export async function POST(request: NextRequest) {
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 console.error('[API /lineup/generate] AI Agent error:', errorData);
+                await refundCredit();
                 return NextResponse.json(
                     { error: errorData.detail || 'AI Agent returned an error' },
                     { status: response.status }
@@ -42,6 +87,7 @@ export async function POST(request: NextRequest) {
             }
 
             if (!response.body) {
+                await refundCredit();
                 return NextResponse.json(
                     { error: 'AI Agent returned no response body' },
                     { status: 502 }
@@ -54,10 +100,12 @@ export async function POST(request: NextRequest) {
                     'Cache-Control': 'no-cache',
                     'Connection': 'keep-alive',
                     'X-Accel-Buffering': 'no',
+                    'X-Credits-Remaining': String(remainingCredits),
                 },
             });
         } catch (fetchError) {
             clearTimeout(timeoutId);
+            await refundCredit();
 
             if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
                 return NextResponse.json(

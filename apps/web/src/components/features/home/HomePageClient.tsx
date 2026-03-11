@@ -44,44 +44,42 @@ export function HomePageClient({
   const [credits, setCredits] = useState(creditsRemaining);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Ref to block server data (0) from overwriting optimistic credits (+5)
   const optimisticLock = useRef(false);
 
-  // Optimistic update for credits if returning from successful payment
+  // Handle return from successful payment — optimistic +5
   useEffect(() => {
     if (paymentSuccess && !optimisticLock.current) {
       optimisticLock.current = true;
-      
-      // Look forward to the new credits
-      const expectedCredits = creditsRemaining + 5;
-      if (creditsRemaining < 5) {
-        setCredits(expectedCredits);
-      }
-      
-      // Force Next.js to re-fetch Server Components securely
+      setCredits(prev => prev < 5 ? 5 : prev);
+
+      // Ask server to re-fetch (webhook may have arrived by now)
       router.refresh();
-      
+
       // Clean up URL
-      setTimeout(() => {
-        router.replace('/home');
-      }, 200);
+      const t1 = setTimeout(() => router.replace('/home'), 300);
 
-      // Release lock after 10 seconds to allow normal syncing again
-      setTimeout(() => {
-        optimisticLock.current = false;
-      }, 10000);
+      // Release lock after 15s — server should have caught up by then
+      const t2 = setTimeout(() => { optimisticLock.current = false; }, 15000);
+
+      return () => { clearTimeout(t1); clearTimeout(t2); };
     }
-  }, [paymentSuccess, creditsRemaining, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentSuccess]);
 
-  // Sync credits with server-provided value when it changes
+  // Sync credits with server-provided value (skip when optimistic lock is active)
   useEffect(() => {
-    if (!optimisticLock.current) {
-      setCredits(creditsRemaining);
-    } else if (creditsRemaining >= credits) {
-      // If server caught up to or exceeded our optimistic expectation
-      optimisticLock.current = false;
-      setCredits(creditsRemaining);
+    if (optimisticLock.current) {
+      // Server caught up — unlock early
+      if (creditsRemaining > 0) {
+        optimisticLock.current = false;
+        setCredits(creditsRemaining);
+      }
+      // Otherwise ignore stale 0 from server
+      return;
     }
-  }, [creditsRemaining, credits]);
+    setCredits(creditsRemaining);
+  }, [creditsRemaining]);
 
   // Matchup prediction streaming
   const { status, steps, result, error, startPrediction, reset } = usePredictionStream();
