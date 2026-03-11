@@ -112,6 +112,13 @@ resource "aws_apigatewayv2_api" "payment" {
     max_age       = 300
   }
 
+  # IMPORTANT: Destroying this resource changes the API URL,
+  # which breaks the Stripe webhook configuration.
+  # To force destroy, temporarily remove this block.
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = {
     Project     = var.project_name
   }

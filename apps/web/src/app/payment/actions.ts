@@ -41,3 +41,4 @@ export async function checkPremiumStatus(): Promise<boolean> {
   const credits = await getCreditsRemaining();
   return credits > 0;
 }
+
