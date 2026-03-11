@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/layout/Header";
 import { HomePageClient } from "@/components/features/home/HomePageClient";
+import { Suspense } from "react";
 import { getRecentGames } from "@/lib/db/games";
 import { getGameDate, getTomorrowTokyoDate } from "@/lib/utils/game-date";
 import { logger } from "@/config/env";
@@ -51,12 +52,14 @@ export default async function HomePage() {
     <div className="flex flex-col h-full">
       <Header title="Home" />
       <div className="flex-1 overflow-y-auto pt-[60px] px-4 pb-4">
-        <HomePageClient
-          initialGames={recentGames}
-          initialDate={today}
-          userId={userId}
-          creditsRemaining={creditsRemaining}
-        />
+        <Suspense fallback={<div className="p-4 text-center">Loading...</div>}>
+          <HomePageClient
+            initialGames={recentGames}
+            initialDate={today}
+            userId={userId}
+            creditsRemaining={creditsRemaining}
+          />
+        </Suspense>
       </div>
     </div>
   );

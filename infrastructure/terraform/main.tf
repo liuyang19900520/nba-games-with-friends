@@ -255,7 +255,7 @@ resource "aws_scheduler_schedule" "start_ec2_schedule" {
     mode = "OFF"
   }
 
-  schedule_expression          = "cron(0 9 * * ? *)"
+  schedule_expression          = "cron(0 8 * * ? *)"
   schedule_expression_timezone = "Asia/Tokyo"
 
   target {
@@ -277,7 +277,7 @@ resource "aws_scheduler_schedule" "stop_ec2_schedule" {
     mode = "OFF"
   }
 
-  schedule_expression          = "cron(0 15 * * ? *)"
+  schedule_expression          = "cron(0 22 * * ? *)"
   schedule_expression_timezone = "Asia/Tokyo"
 
   target {

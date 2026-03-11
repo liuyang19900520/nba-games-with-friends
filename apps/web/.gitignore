@@ -48,3 +48,4 @@ pnpm-lock.yaml
 
 # Documentation (optional - uncomment to ignore)
 # PROJECT_STRUCTURE.md
+.vercel

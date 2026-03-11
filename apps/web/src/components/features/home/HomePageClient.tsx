@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DateSelector } from './DateSelector';
 import { GameResultsList } from './GameResultsList';
 import { PremiumPredictionCard } from './PremiumPredictionCard';
@@ -34,12 +34,54 @@ export function HomePageClient({
   creditsRemaining,
 }: HomePageClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paymentSuccess = searchParams?.get('payment') === 'success';
+  
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [games, setGames] = useState<GameResult[]>(initialGames);
   const [isLoading, setIsLoading] = useState(false);
   const [predictionMatchup, setPredictionMatchup] = useState<GameResult | null>(null);
   const [credits, setCredits] = useState(creditsRemaining);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const optimisticLock = useRef(false);
+
+  // Optimistic update for credits if returning from successful payment
+  useEffect(() => {
+    if (paymentSuccess && !optimisticLock.current) {
+      optimisticLock.current = true;
+      
+      // Look forward to the new credits
+      const expectedCredits = creditsRemaining + 5;
+      if (creditsRemaining < 5) {
+        setCredits(expectedCredits);
+      }
+      
+      // Force Next.js to re-fetch Server Components securely
+      router.refresh();
+      
+      // Clean up URL
+      setTimeout(() => {
+        router.replace('/home');
+      }, 200);
+
+      // Release lock after 10 seconds to allow normal syncing again
+      setTimeout(() => {
+        optimisticLock.current = false;
+      }, 10000);
+    }
+  }, [paymentSuccess, creditsRemaining, router]);
+
+  // Sync credits with server-provided value when it changes
+  useEffect(() => {
+    if (!optimisticLock.current) {
+      setCredits(creditsRemaining);
+    } else if (creditsRemaining >= credits) {
+      // If server caught up to or exceeded our optimistic expectation
+      optimisticLock.current = false;
+      setCredits(creditsRemaining);
+    }
+  }, [creditsRemaining, credits]);
 
   // Matchup prediction streaming
   const { status, steps, result, error, startPrediction, reset } = usePredictionStream();
