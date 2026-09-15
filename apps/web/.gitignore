@@ -17,6 +17,7 @@ dist
 dist-ssr
 build
 .next
+.next-verify
 *.local
 
 # Environment variables

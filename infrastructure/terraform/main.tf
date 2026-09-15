@@ -127,6 +127,10 @@ resource "aws_instance" "ai_agent" {
   vpc_security_group_ids = [aws_security_group.ai_agent.id]
   subnet_id              = data.aws_subnets.default.ids[0]
 
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   # 8GB root volume (gp3 is cheaper and faster than gp2)
   root_block_device {
     volume_size = 8

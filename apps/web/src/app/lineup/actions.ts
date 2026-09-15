@@ -4,6 +4,8 @@ import { createClient } from "@/lib/auth/supabase";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/config/env";
 import { getGameDate } from "@/lib/utils/game-date";
+import { gameDateSchema } from '@/lib/ai/contracts';
+import { canWriteLegacyAccount } from '@/lib/server/config';
 
 /**
  * Server Actions for Lineup operations
@@ -25,7 +27,8 @@ interface SubmitLineupResult {
  * Creates user_daily_lineups record and lineup_items records
  */
 export async function submitLineup(
-  players: LineupPlayer[]
+  players: LineupPlayer[],
+  requestedDate?: string,
 ): Promise<SubmitLineupResult> {
   try {
     const supabase = await createClient();
@@ -44,8 +47,12 @@ export async function submitLineup(
       };
     }
 
+    if (!canWriteLegacyAccount(user.id)) {
+      return { success: false, error: 'Local preview: enable a dedicated test account before submitting to the shared database.' };
+    }
+
     // 2. Validate players
-    if (players.length !== 5) {
+    if (!Array.isArray(players) || players.length !== 5 || new Set(players.map(p => p.playerId)).size !== 5) {
       return {
         success: false,
         error: "You must select exactly 5 players",
@@ -53,7 +60,11 @@ export async function submitLineup(
     }
 
     // 3. Get configured game date
-    const gameDate = await getGameDate();
+    const today = await getGameDate();
+    const gameDate = gameDateSchema.parse(requestedDate || today);
+    if (gameDate !== today) {
+      return { success: false, error: 'Historical and future dates are preview-only. Submit a lineup for today.' };
+    }
 
     // 4. Check if lineup already exists for the configured date
     const { data: existingLineup, error: checkError } = await supabase
@@ -211,7 +222,7 @@ export async function submitLineup(
 /**
  * Get today's lineup for the current user
  */
-export async function getTodayLineup(): Promise<{
+export async function getTodayLineup(requestedDate?: string): Promise<{
   lineup: {
     id: number;
     status: string;
@@ -238,8 +249,8 @@ export async function getTodayLineup(): Promise<{
       return { lineup: null, items: [] };
     }
 
-    // 2. Get configured game date
-    const gameDate = await getGameDate();
+    // 2. Preserve the reviewed date from the assistant.
+    const gameDate = gameDateSchema.parse(requestedDate || await getGameDate());
 
     // 3. Fetch lineup for the configured date
     const { data: lineup, error: lineupError } = await supabase

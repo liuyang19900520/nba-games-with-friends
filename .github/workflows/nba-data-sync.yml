@@ -1,0 +1,70 @@
+name: NBA Data Sync (Serverless Runner)
+
+on:
+  schedule:
+    # 00:00, 02:00, 04:00, 06:00 UTC = 09:00, 11:00, 13:00, 15:00 JST (Game windows)
+    - cron: '0 0,2,4,6 * * *'
+    # 08:00 UTC = 17:00 JST (Daily Wrap-Up)
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Sync Task'
+        required: true
+        default: 'sync-games'
+        type: choice
+        options:
+          - sync-games
+          - daily-wrap-up
+          - data-audit
+          - sync-all
+
+jobs:
+  sync:
+    name: Execute Data Sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'services/data-sync/requirements.txt'
+
+      - name: Install Dependencies
+        working-directory: ./services/data-sync
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Sync Task
+        working-directory: ./services/data-sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ENVIRONMENT: production
+        run: |
+          TASK="${{ inputs.task || 'sync-games' }}"
+          echo "Running task: $TASK"
+
+          if [ "$TASK" = "sync-games" ]; then
+            python cli.py sync-games
+          elif [ "$TASK" = "daily-wrap-up" ]; then
+            python worker.py --task DAILY_WRAP_UP
+          elif [ "$TASK" = "data-audit" ]; then
+            python worker.py --task DATA_AUDIT
+          elif [ "$TASK" = "sync-all" ]; then
+            python main.py
+          else
+            python cli.py sync-games
+          fi
+
+      - name: Sync Status Check
+        if: failure()
+        run: |
+          echo "Sync job failed. Please check logs above."

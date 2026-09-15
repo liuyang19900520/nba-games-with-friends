@@ -22,6 +22,8 @@ interface InitialLineup {
 }
 
 interface LineupPageClientProps {
+  gameDate: string;
+  submissionNotice?: string;
   players: Player[];
   user: User | null;
   initialLineup?: InitialLineup | null;
@@ -99,7 +101,7 @@ function buildInitialLineup(
  * 
  * Note: If user is null, page is in read-only mode, user needs to log in to save lineup
  */
-export function LineupPageClient({ players, user, initialLineup, aiPlayerIds }: LineupPageClientProps) {
+export function LineupPageClient({ players, user, initialLineup, aiPlayerIds, gameDate, submissionNotice }: LineupPageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isReadOnly = !user;
@@ -178,7 +180,7 @@ export function LineupPageClient({ players, user, initialLineup, aiPlayerIds }: 
 
     // Clean up URL params
     if (searchParams?.get('ai_players')) {
-      router.replace('/lineup', { scroll: false });
+      router.replace('/lineup?date=' + encodeURIComponent(gameDate), { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -285,7 +287,7 @@ export function LineupPageClient({ players, user, initialLineup, aiPlayerIds }: 
         };
       });
 
-      const result = await submitLineup(playersToSubmit);
+      const result = await submitLineup(playersToSubmit, gameDate);
 
       if (result.success) {
         setIsSubmitted(true);
@@ -300,12 +302,12 @@ export function LineupPageClient({ players, user, initialLineup, aiPlayerIds }: 
   };
 
   const selectedCount = Object.keys(optimisticLineup).length;
-  const canSubmit = selectedCount === 5 && !isSubmitted && !isSubmitting;
+  const canSubmit = selectedCount === 5 && !isSubmitted && !isSubmitting && !submissionNotice;
 
   return (
     <>
-
-
+      <p className="px-4 pt-4 text-center text-sm text-brand-text-dim">{formatTokyoDate(gameDate)}</p>
+      {submissionNotice && <p className="mx-4 mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200" role="status">{submissionNotice}</p>}
       {/* Basketball Court - using optimistic state */}
       <section className="px-4 pt-4">
         <div className="bg-brand-dark/60 backdrop-blur-sm rounded-xl p-3">
@@ -322,7 +324,7 @@ export function LineupPageClient({ players, user, initialLineup, aiPlayerIds }: 
         <section className="px-4 pt-4">
           <div className="bg-brand-blue/10 border border-brand-blue/30 rounded-lg p-3">
             <p className="text-sm text-brand-blue text-center">
-              🧠 AI-Recommended Lineup — Powered by Neural Fantasy Engine
+              Suggested five-player lineup
             </p>
             <p className="text-xs text-brand-text-dim text-center mt-1">
               You can still adjust players before submitting.
@@ -373,10 +375,10 @@ export function LineupPageClient({ players, user, initialLineup, aiPlayerIds }: 
       <section className="mt-4 px-4">
         <h2 className="text-xl font-bold text-center text-white">
           {isSubmitted ? (
-            <>Your <span className="text-green-400">Lineup</span> for Today</>
+            <>Your <span className="text-green-400">Lineup</span></>
           ) : (
             <>
-              Select <span className="text-brand-blue">5 Players</span> for Today
+              Select <span className="text-brand-blue">5 Players</span>
               {selectedCount > 0 && (
                 <span className="ml-2 text-brand-text-dim">
                   ({selectedCount}/5)

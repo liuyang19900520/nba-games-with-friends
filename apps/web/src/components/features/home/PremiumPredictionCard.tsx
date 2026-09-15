@@ -6,13 +6,14 @@ interface PremiumPredictionCardProps {
   onPredictClick?: () => void;
   onLineupClick?: () => void;
   creditsRemaining: number;
+  disabled?: boolean;
 }
 
 /**
  * Premium Prediction Card (AI Feature Hub)
  * Displays AI features for users with credits: 1-Click Lineup, Predict Results, AI Chat Mode.
  */
-export function PremiumPredictionCard({ onPredictClick, onLineupClick, creditsRemaining }: PremiumPredictionCardProps) {
+export function PremiumPredictionCard({ onPredictClick, onLineupClick, creditsRemaining, disabled }: PremiumPredictionCardProps) {
   return (
     <div className="relative rounded-xl border border-brand-blue/30 bg-black/40 p-6 shadow-glow-blue overflow-hidden">
       {/* Background Soft Glow */}
@@ -35,13 +36,14 @@ export function PremiumPredictionCard({ onPredictClick, onLineupClick, creditsRe
         <button
           className="w-full group relative flex items-center justify-between p-4 rounded-xl border border-brand-blue/40 bg-brand-dark/60 hover:bg-brand-blue/10 hover:border-brand-blue transition-all duration-300 shadow-[0_0_15px_rgba(110,226,245,0.15)]"
           onClick={onLineupClick}
+          disabled={disabled}
         >
           <div className="text-left">
             <div className="text-xl font-medium text-brand-text-light group-hover:text-brand-blue transition-colors drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">
               1-Click Lineup
             </div>
             <div className="text-xs text-brand-text-dim mt-1 group-hover:text-brand-text-light/80 transition-colors">
-              Optimized by Neural Engine
+              Five players, with an explanation
             </div>
           </div>
           <Shirt
@@ -54,13 +56,14 @@ export function PremiumPredictionCard({ onPredictClick, onLineupClick, creditsRe
         <button
           className="w-full group relative flex items-center justify-between p-4 rounded-xl border border-brand-blue/40 bg-brand-dark/60 hover:bg-brand-blue/10 hover:border-brand-blue transition-all duration-300 shadow-[0_0_15px_rgba(110,226,245,0.15)]"
           onClick={onPredictClick}
+          disabled={disabled}
         >
           <div className="text-left">
             <div className="text-xl font-medium text-brand-text-light group-hover:text-brand-blue transition-colors drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">
               Predict Results
             </div>
             <div className="text-xs text-brand-text-dim mt-1 group-hover:text-brand-text-light/80 transition-colors">
-              Real-time Probabilities
+              Analysis from stored game evidence
             </div>
           </div>
           <Sparkles

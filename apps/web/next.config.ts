@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  // Verify a production build without overwriting a running local dev server.
+  distDir: process.env.NBA_BUILD_DIR || '.next',
   // Note: PPR (Partial Prerendering) in Next.js 15 stable requires configuration at the route level
   // Use export const experimental_ppr = true in page files
 

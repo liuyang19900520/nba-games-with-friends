@@ -2,11 +2,13 @@
 
 import { getRecentGames } from '@/lib/db/games';
 import type { GameResult } from '@/types';
+import { gameDateSchema } from '@/lib/ai/contracts';
 
 /**
  * Server Action to fetch recent games for a specific date
  */
 export async function fetchGamesByDate(date: string): Promise<GameResult[]> {
+  if (!gameDateSchema.safeParse(date).success) return [];
   try {
     const games = await getRecentGames(10, date);
     return games;
@@ -19,12 +21,7 @@ export async function fetchGamesByDate(date: string): Promise<GameResult[]> {
 /**
  * Prediction result from the AI Agent
  */
-export interface PredictionResultData {
-  winner: string;
-  confidence: number;
-  key_factors: string[];
-  detailed_analysis: string;
-}
+export type PredictionResultData = import('@/lib/ai/contracts').PredictionOutput;
 
 /**
  * A single streaming step from the AI Agent
