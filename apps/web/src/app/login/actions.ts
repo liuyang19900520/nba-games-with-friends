@@ -4,6 +4,7 @@ import { createClient } from "@/lib/auth/supabase";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { logger } from "@/config/env";
+import { safeLocalRedirect } from '@/lib/auth/redirect';
 
 /**
  * Server Actions for Authentication
@@ -24,7 +25,7 @@ export async function signInWithGoogle(
   const origin = host ? `${protocol}://${host}` : "http://localhost:3000";
 
   const redirectTo = next
-    ? `${origin}/auth/callback?next=${encodeURIComponent(next)}`
+    ? `${origin}/auth/callback?next=${encodeURIComponent(safeLocalRedirect(next))}`
     : `${origin}/auth/callback`;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -129,7 +130,7 @@ export async function verifySMS(
 > {
   const phone = formData.get("phone")?.toString().trim();
   const token = formData.get("token")?.toString().trim();
-  const redirectTo = formData.get("redirectTo")?.toString() || "/lineup";
+  const redirectTo = safeLocalRedirect(formData.get("redirectTo")?.toString());
 
   if (!phone || !token) {
     return { success: false, error: "Phone and code are required" };
@@ -269,7 +270,7 @@ export async function emailLogin(
   }
 
   // Login successful, redirect
-  redirect(next || "/lineup");
+  redirect(safeLocalRedirect(next));
 }
 
 /**
@@ -390,7 +391,7 @@ export async function emailSignup(
     return { success: true, needsEmailConfirmation: true };
   } else {
     // Auto-login, redirect
-    redirect(next || "/lineup");
+    redirect(safeLocalRedirect(next));
   }
 }
 

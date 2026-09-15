@@ -7,6 +7,8 @@ import { fetchPlayersWithGames } from '@/lib/db/players';
 import { getTodayLineup } from '@/app/lineup/actions';
 import { createClient } from '@/lib/auth/supabase';
 import { getGameDate } from '@/lib/utils/game-date';
+import { gameDateSchema, seasonForDate } from '@/lib/ai/contracts';
+import { canWriteLegacyAccount } from '@/lib/server/config';
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +25,13 @@ export const dynamic = "force-dynamic";
  * All interaction logic is handled in LineupPageClient.
  * Note: /lineup is now a public page, unauthenticated users can also access (read-only mode)
  */
-export default async function LineupPage() {
+export default async function LineupPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   try {
     // ✅ Server-side data fetching (in RSC)
     // Get configured game date (from cookie or env var)
-    const gameDate = await getGameDate();
-    const players = await fetchPlayersWithGames(gameDate);
+    const requested = gameDateSchema.safeParse((await searchParams).date);
+    const gameDate = requested.success ? requested.data : await getGameDate();
+    const players = await fetchPlayersWithGames(gameDate, seasonForDate(gameDate));
 
     // ✅ Get user login status and today's lineup (optional)
     // If user is not logged in, user is null, LineupPageClient will handle read-only mode
@@ -42,7 +45,7 @@ export default async function LineupPage() {
 
       // If user is logged in, fetch today's lineup
       if (user) {
-        const lineupData = await getTodayLineup();
+        const lineupData = await getTodayLineup(gameDate);
         if (lineupData.lineup) {
           initialLineup = {
             ...lineupData.lineup,
@@ -63,6 +66,13 @@ export default async function LineupPage() {
         <div className="flex-1 overflow-y-auto pt-[60px]">
           <Suspense fallback={<LineupPageSkeleton />}>
             <LineupPageClient
+              key={gameDate}
+              gameDate={gameDate}
+              submissionNotice={gameDate !== await getGameDate()
+                ? 'Preview date: only today’s lineup can be submitted.'
+                : user && !canWriteLegacyAccount(user.id)
+                  ? 'Local preview: submission is disabled to protect the shared database. Use a dedicated test account to enable it.'
+                  : undefined}
               players={players}
               user={user}
               initialLineup={initialLineup}

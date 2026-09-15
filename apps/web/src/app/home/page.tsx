@@ -1,65 +1,32 @@
-import type { Metadata } from "next";
-import { Header } from "@/components/layout/Header";
-import { HomePageClient } from "@/components/features/home/HomePageClient";
-import { Suspense } from "react";
-import { getRecentGames } from "@/lib/db/games";
-import { getGameDate, getTomorrowTokyoDate } from "@/lib/utils/game-date";
-import { logger } from "@/config/env";
-import { createClient } from "@/lib/auth/supabase";
-import { getCreditsRemaining } from "@/app/payment/actions";
+import type { Metadata } from 'next';
+import { Header } from '@/components/layout/Header';
+import { HomePageClient } from '@/components/features/home/HomePageClient';
+import { getRecentGames } from '@/lib/db/games';
+import { getGameDate } from '@/lib/utils/game-date';
+import { createClient } from '@/lib/auth/supabase';
+import { getCreditsRemaining } from '@/app/payment/actions';
+import { getAppEnvironment } from '@/lib/server/config';
 
-export const metadata: Metadata = {
-  title: "Home - NBA Fantasy Manager",
-  description: "Overview of your NBA fantasy activity and navigation entry.",
-};
+export const metadata: Metadata = { title: 'Home - NBA Fantasy Manager', description: 'NBA games, lineup suggestions and matchup analysis.' };
+export const dynamic = 'force-dynamic';
 
-export const dynamic = "force-dynamic";
-
-/**
- * Home page - Dashboard with date selector and recent game results
- */
 export default async function HomePage() {
-  // Get today's JST date
   const today = await getGameDate();
-  const tomorrow = getTomorrowTokyoDate();
-
-  // Fetch games for both today and tomorrow
-  const recentGames = await getRecentGames(20, [today, tomorrow]);
-
-  // Debug: Log the result
-  logger.info(`[HomePage] Received ${recentGames.length} games`);
-  if (recentGames.length > 0) {
-    logger.info("[HomePage] First game:", JSON.stringify(recentGames[0], null, 2));
-  } else {
-    logger.warn("[HomePage] No games returned from getRecentGames");
-  }
-
-  // Get user info and AI credits
-  let userId: string | null = null;
-  let creditsRemaining = 0;
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      userId = user.id;
-      creditsRemaining = await getCreditsRemaining();
-    }
-  } catch {
-    // Ignore auth errors
-  }
-
+  const userPromise = (async () => {
+    try {
+      const auth = await createClient();
+      const { data: { user } } = await auth.auth.getUser();
+      return user?.id || null;
+    } catch { return null; }
+  })();
+  const [recentGames, userId, creditsRemaining] = await Promise.all([
+    getRecentGames(20, today), userPromise, getCreditsRemaining(),
+  ]);
   return (
     <div className="flex flex-col h-full">
-      <Header title="Home" />
+      <Header title={getAppEnvironment() === 'local' ? 'Home · Local preview' : 'Home'} />
       <div className="flex-1 overflow-y-auto pt-[60px] px-4 pb-4">
-        <Suspense fallback={<div className="p-4 text-center">Loading...</div>}>
-          <HomePageClient
-            initialGames={recentGames}
-            initialDate={today}
-            userId={userId}
-            creditsRemaining={creditsRemaining}
-          />
-        </Suspense>
+        <HomePageClient initialGames={recentGames} initialDate={today} userId={userId} creditsRemaining={creditsRemaining} aiMode={process.env.AI_MODE === 'llm' ? 'llm' : 'demo'} />
       </div>
     </div>
   );

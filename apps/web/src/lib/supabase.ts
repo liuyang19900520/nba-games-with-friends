@@ -1,6 +1,7 @@
 "use client";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from '@supabase/ssr';
 
 /**
  * Client-side Supabase Client
@@ -47,12 +48,8 @@ function getSupabaseClient(): SupabaseClient {
     throw new Error(errorMsg);
   }
 
-  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true, // Client needs to persist session
-      autoRefreshToken: true, // Client needs to auto-refresh token
-    },
-  });
+  // Share the cookie-backed session used by Server Actions and Route Handlers.
+  supabaseInstance = createBrowserClient(supabaseUrl, supabaseAnonKey);
 
   return supabaseInstance;
 }

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { RefreshCw } from 'lucide-react';
 import { DateSelector } from './DateSelector';
 import { GameResultsList } from './GameResultsList';
 import { PremiumPredictionCard } from './PremiumPredictionCard';
@@ -11,282 +12,123 @@ import { PredictionStreamView } from './PredictionStreamView';
 import { PredictionResultCard } from './PredictionResultCard';
 import { LineupStreamView } from './LineupStreamView';
 import { fetchGamesByDate } from '@/app/home/actions';
+import { getCreditsRemaining } from '@/app/payment/actions';
 import { usePredictionStream } from '@/hooks/usePredictionStream';
 import { useLineupStream } from '@/hooks/useLineupStream';
-import { getTomorrowTokyoDate, getTokyoDate } from '@/lib/utils/game-date';
 import type { GameResult } from '@/types';
 
-interface HomePageClientProps {
+interface Props {
   initialGames: GameResult[];
   initialDate: string;
   userId: string | null;
   creditsRemaining: number;
+  aiMode: 'demo' | 'llm';
 }
 
-/**
- * Home page client-side dashboard logic.
- * Handles date selection, game listing, and AI prediction streaming.
- */
-export function HomePageClient({
-  initialGames,
-  initialDate,
-  userId: _userId,
-  creditsRemaining,
-}: HomePageClientProps) {
+export function HomePageClient({ initialGames, initialDate, userId, creditsRemaining, aiMode }: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const paymentSuccess = searchParams?.get('payment') === 'success';
-  
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [games, setGames] = useState<GameResult[]>(initialGames);
+  const [games, setGames] = useState(initialGames);
   const [isLoading, setIsLoading] = useState(false);
-  const [predictionMatchup, setPredictionMatchup] = useState<GameResult | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [credits, setCredits] = useState(creditsRemaining);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [matchup, setMatchup] = useState<GameResult | null>(null);
+  const loadVersion = useRef(0);
+  const prediction = usePredictionStream();
+  const lineup = useLineupStream();
+  const busy = prediction.status === 'streaming' || lineup.status === 'streaming';
+  const busyRef = useRef(false);
 
-  // Ref to block server data (0) from overwriting optimistic credits (+5)
-  const optimisticLock = useRef(false);
-
-  // Handle return from successful payment — optimistic +5
+  useEffect(() => { setCredits(creditsRemaining); }, [creditsRemaining]);
   useEffect(() => {
-    if (paymentSuccess && !optimisticLock.current) {
-      optimisticLock.current = true;
-      setCredits(prev => prev < 5 ? 5 : prev);
-
-      // Ask server to re-fetch (webhook may have arrived by now)
-      router.refresh();
-
-      // Clean up URL
-      const t1 = setTimeout(() => router.replace('/home'), 300);
-
-      // Release lock after 15s — server should have caught up by then
-      const t2 = setTimeout(() => { optimisticLock.current = false; }, 15000);
-
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+    busyRef.current = busy;
+    if (['complete', 'error'].includes(prediction.status) || ['complete', 'error'].includes(lineup.status)) {
+      let active = true;
+      void getCreditsRemaining().then(value => { if (active) setCredits(value); });
+      return () => { active = false; };
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentSuccess]);
+  }, [prediction.status, lineup.status, busy]);
 
-  // Sync credits with server-provided value (skip when optimistic lock is active)
-  useEffect(() => {
-    if (optimisticLock.current) {
-      // Server caught up — unlock early
-      if (creditsRemaining > 0) {
-        optimisticLock.current = false;
-        setCredits(creditsRemaining);
-      }
-      // Otherwise ignore stale 0 from server
-      return;
-    }
-    setCredits(creditsRemaining);
-  }, [creditsRemaining]);
-
-  // Matchup prediction streaming
-  const { status, steps, result, error, startPrediction, reset } = usePredictionStream();
-
-  // 1-Click Lineup streaming
-  const lineupStream = useLineupStream();
-
-  // Target date for AI features: if showing today and all games are finished, suggest tomorrow.
-  const aiTargetDate = useMemo(() => {
-    const today = getTokyoDate();
-    // Only apply 'shift to tomorrow' logic when viewing actual today
-    if (selectedDate !== today) return selectedDate;
-
-    const allGamesFinal = games.length > 0 && games.every(g => g.status === 'Final');
-    return allGamesFinal ? getTomorrowTokyoDate() : today;
-  }, [selectedDate, games]);
-
-  // Games to show in the prediction selection modal (matching aiTargetDate)
-  const [predictedGames, setPredictedGames] = useState<GameResult[]>([]);
-
-  useEffect(() => {
-    if (aiTargetDate === selectedDate) {
-      setPredictedGames(games);
-    } else {
-      const loadPredictedGames = async () => {
-        try {
-          const fetched = await fetchGamesByDate(aiTargetDate);
-          setPredictedGames(fetched);
-        } catch (err) {
-          console.error('Failed to fetch AI target games:', err);
-        }
-      };
-      loadPredictedGames();
-    }
-  }, [aiTargetDate, selectedDate, games]);
-
-  // Restore credit on error (backend refunds, so UI should match)
-  useEffect(() => {
-    if (status === 'error' || lineupStream.status === 'error') {
-      setCredits(prev => prev + 1);
-    }
-  }, [status, lineupStream.status]);
-
-  const handleDateChange = async (date: string) => {
+  const loadDate = async (date: string) => {
+    const version = ++loadVersion.current;
     setSelectedDate(date);
     setIsLoading(true);
+    setLoadError(null);
     try {
-      const newGames = await fetchGamesByDate(date);
-      setGames(newGames);
-    } catch (err) {
-      console.error('Failed to fetch games:', err);
-    } finally {
-      setIsLoading(false);
-    }
+      const nextGames = await fetchGamesByDate(date);
+      if (version === loadVersion.current) setGames(nextGames);
+    } catch {
+      if (version === loadVersion.current) {
+        setGames([]);
+        setLoadError('Could not reload games. Please try again.');
+      }
+    } finally { if (version === loadVersion.current) setIsLoading(false); }
   };
-
-
-
-  // 1-Click Lineup handlers
-  const handleLineupClick = () => {
-    if (credits <= 0) {
-      router.push('/payment');
-      return;
-    }
-
-    if (status !== 'idle') {
-      reset();
-      setPredictionMatchup(null);
-    }
-
-    setCredits(prev => Math.max(0, prev - 1));
-    lineupStream.startGeneration(aiTargetDate);
+  const canStart = () => {
+    if (busyRef.current || isLoading) return false;
+    if (!userId) { router.push('/login?redirect=/home'); return false; }
+    if (credits <= 0) { router.push('/payment'); return false; }
+    busyRef.current = true;
+    return true;
   };
-
-  const handleLineupComplete = useCallback(() => {
-    const timer = setTimeout(() => {
-      const playerIds = lineupStream.players.map(p => p.player_id).join(',');
-      router.push(`/lineup?ai_players=${playerIds}`);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [lineupStream.players, router]);
-
-  const handleLineupClose = () => {
-    lineupStream.reset();
+  const generateLineup = () => {
+    if (!canStart()) return;
+    prediction.reset(); setMatchup(null);
+    lineup.startGeneration(selectedDate);
   };
-
-  // Auto-navigate when lineup is complete
-  useEffect(() => {
-    if (lineupStream.status === 'complete' && lineupStream.players.length > 0) {
-      const cleanup = handleLineupComplete();
-      return cleanup;
-    }
-  }, [lineupStream.status, lineupStream.players, handleLineupComplete]);
-
-  const handleMatchupClick = (matchup: GameResult) => {
-    if (credits <= 0) {
-      router.push('/payment');
-      return;
-    }
-
-    setPredictionMatchup(matchup);
-    setIsModalOpen(false);
-
-    if (lineupStream.status !== 'idle') {
-      handleLineupClose();
-    }
-
-    setCredits(prev => Math.max(0, prev - 1));
-
-    // Correct 3 arguments for startPrediction
-    startPrediction(matchup.homeTeam.name, matchup.awayTeam.name, aiTargetDate);
+  const predict = (game: GameResult) => {
+    if (!canStart()) return;
+    lineup.reset(); setMatchup(game); setIsModalOpen(false);
+    prediction.startPrediction(game.homeTeam.name, game.awayTeam.name, selectedDate);
   };
-
-  const handleClosePrediction = () => {
-    reset();
-    setPredictionMatchup(null);
+  const closePrediction = () => { prediction.reset(); setMatchup(null); busyRef.current = false; };
+  const usePlayers = () => {
+    const params = new URLSearchParams({ ai_players: lineup.players.map(p => p.player_id).join(','), date: lineup.gameDate || selectedDate });
+    router.push('/lineup?' + params);
   };
 
   return (
     <div className="max-w-md mx-auto space-y-6">
-      {/* Date Selector */}
-      <section>
-        <DateSelector
-          initialDate={selectedDate}
-          onDateChange={handleDateChange}
-          isLoading={isLoading}
-        />
-      </section>
-
-      {/* AI Credits Info & Call to Action or Recharge Card */}
-      <section>
+      <DateSelector initialDate={selectedDate} onDateChange={loadDate} isLoading={isLoading || busy} />
+      <section aria-label="Basketball assistant" className="space-y-3">
+        <p className="text-xs text-brand-text-dim">
+          {aiMode === 'demo' ? 'Data demo · no model calls. Uses the statistics already stored for your selected date.' : 'AI analysis · uses stored statistics. Missing injury and news data are disclosed in the result.'}
+        </p>
         {credits > 0 ? (
-          <PremiumPredictionCard
-            onPredictClick={() => setIsModalOpen(true)}
-            onLineupClick={handleLineupClick}
-            creditsRemaining={credits}
-          />
-        ) : (
-          <PremiumFeatureCard userId={_userId} />
-        )}
+          <PremiumPredictionCard onPredictClick={() => setIsModalOpen(true)} onLineupClick={generateLineup} creditsRemaining={credits} disabled={busy || isLoading} />
+        ) : <PremiumFeatureCard userId={userId} />}
       </section>
-
-      {/* AI Thinking Process (streaming Matchup) */}
-      {(status === 'streaming' || status === 'error') && (
-        <section>
-          <PredictionStreamView
-            status={status}
-            steps={steps}
-            error={error}
-            onClose={handleClosePrediction}
-          />
-        </section>
+      {(prediction.status === 'streaming' || prediction.status === 'error') && (
+        <PredictionStreamView status={prediction.status} steps={prediction.steps} error={prediction.error} onClose={closePrediction} />
       )}
-
-      {/* AI Thinking Process (streaming Lineup) */}
-      {(lineupStream.status !== 'idle') && (
-        <section>
-          <LineupStreamView
-            status={lineupStream.status}
-            steps={lineupStream.steps}
-            players={lineupStream.players}
-            error={lineupStream.error}
-            onClose={handleLineupClose}
-          />
-        </section>
+      {prediction.status === 'complete' && prediction.result && matchup && (
+        <PredictionResultCard result={prediction.result} homeTeam={matchup.homeTeam.name} awayTeam={matchup.awayTeam.name} onClose={closePrediction} />
       )}
-
-      {/* Final Prediction Result */}
-      {status === 'complete' && result && predictionMatchup && (
-        <section>
-          <PredictionResultCard
-            result={result}
-            homeTeam={predictionMatchup.homeTeam.name}
-            awayTeam={predictionMatchup.awayTeam.name}
-            onClose={handleClosePrediction}
-          />
-        </section>
-      )}
-
-      {/* Games List */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">Recent Games</h2>
-          {isLoading && (
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-brand-blue animate-bounce [animation-delay:-0.3s]"></div>
-              <div className="w-2 h-2 rounded-full bg-brand-blue animate-bounce [animation-delay:-0.15s]"></div>
-              <div className="w-2 h-2 rounded-full bg-brand-blue animate-bounce"></div>
+      {lineup.status !== 'idle' && (
+        <section className="space-y-3">
+          <LineupStreamView status={lineup.status} steps={lineup.steps} players={lineup.players} error={lineup.error} onClose={lineup.reset} />
+          {lineup.status === 'complete' && (
+            <div className="rounded-xl border border-brand-card-border bg-brand-dark p-4 space-y-3">
+              <p className="text-xs text-brand-blue">{lineup.mode === 'demo' ? 'Data demo' : 'AI explanation'} · {lineup.gameDate}</p>
+              <p className="text-sm text-brand-text-dim">{lineup.explanation}</p>
+              <button onClick={usePlayers} className="w-full rounded-lg bg-brand-blue py-3 text-brand-dark">Review these five players</button>
             </div>
           )}
+        </section>
+      )}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">Games</h2>
+          <button onClick={() => loadDate(selectedDate)} disabled={isLoading || busy} className="flex items-center gap-2 text-sm text-brand-blue disabled:opacity-50">
+            <RefreshCw className={isLoading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} /> Reload data
+          </button>
         </div>
-        <GameResultsList
-          games={games}
-          onPredictClick={handleMatchupClick}
-        />
+        <p className="mb-3 text-xs text-brand-text-dim">Reloads stored data. NBA source updates are managed separately.</p>
+        {loadError && <p role="alert" className="mb-3 text-sm text-red-400">{loadError}</p>}
+        <GameResultsList games={games} onPredictClick={predict} />
       </section>
-
-      {/* Selection Modal (when clicking Predict Results from Hub) */}
-      <PredictionModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        games={predictedGames}
-        onSelectGame={handleMatchupClick}
-        isSubmitting={status === 'streaming'}
-      />
-
-
+      <PredictionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} games={games} onSelectGame={predict} isSubmitting={busy || isLoading} />
     </div>
   );
 }

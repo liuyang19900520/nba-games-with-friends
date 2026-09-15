@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { Zap, Sparkles, X, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import type { LineupStreamStatus, LineupProgressStep, LineupPlayer } from '@/hooks/useLineupStream';
 
@@ -40,7 +41,7 @@ export function LineupStreamView({
             <div className="flex items-center justify-between p-4 border-b border-brand-blue/20 bg-gradient-to-r from-brand-blue/10 to-transparent">
                 <div className="flex items-center gap-2">
                     <Zap className="w-5 h-5 text-brand-blue" />
-                    <h3 className="text-base font-bold text-white">Neural Fantasy Engine</h3>
+                    <h3 className="text-base font-bold text-white">Lineup assistant</h3>
                     {status === 'streaming' && (
                         <span className="relative flex h-2.5 w-2.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-blue opacity-75" />
@@ -51,6 +52,7 @@ export function LineupStreamView({
                 {(status === 'error' || status === 'complete') && (
                     <button
                         onClick={onClose}
+                        aria-label="Close lineup result"
                         className="p-1 rounded-full hover:bg-white/10 text-brand-text-dim hover:text-white transition-colors"
                     >
                         <X className="w-4 h-4" />
@@ -119,7 +121,7 @@ export function LineupStreamView({
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-sm font-bold text-green-400 flex items-center gap-1.5">
                                     <Sparkles className="w-4 h-4" />
-                                    Optimal Fantasy Lineup
+                                    Suggested Five Players
                                 </p>
                                 <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400 uppercase tracking-wider font-bold">
                                     Recommended
@@ -131,7 +133,7 @@ export function LineupStreamView({
                                     <div key={p.player_id} className="flex items-center gap-3 p-2 rounded-lg bg-black/40 border border-white/5 group hover:border-brand-blue/30 transition-colors">
                                         <div className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden bg-brand-dark flex items-center justify-center border border-white/10 group-hover:border-brand-blue/50">
                                             {p.headshot_url ? (
-                                                <img src={p.headshot_url} alt={p.player_name} className="w-full h-full object-cover" />
+                                                <Image unoptimized src={p.headshot_url} alt={p.player_name} width={32} height={32} className="w-full h-full object-cover" />
                                             ) : (
                                                 <span className="text-xs text-brand-text-dim">#{i + 1}</span>
                                             )}

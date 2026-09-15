@@ -50,7 +50,7 @@ export function PredictionStreamView({ status, steps, error, onClose }: Predicti
             <div className="flex items-center justify-between p-4 border-b border-brand-blue/20 bg-gradient-to-r from-brand-blue/10 to-transparent">
                 <div className="flex items-center gap-2">
                     <Brain className="w-5 h-5 text-brand-blue" />
-                    <h3 className="text-base font-bold text-white">AI Agent Thinking...</h3>
+                    <h3 className="text-base font-bold text-white">Analysis progress</h3>
                     {status === 'streaming' && (
                         <span className="relative flex h-2.5 w-2.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-blue opacity-75" />
@@ -60,6 +60,7 @@ export function PredictionStreamView({ status, steps, error, onClose }: Predicti
                 </div>
                 <button
                     onClick={onClose}
+                    aria-label="Close analysis progress"
                     className="p-1 rounded-full hover:bg-white/10 text-brand-text-dim hover:text-white transition-colors"
                 >
                     <X className="w-4 h-4" />
@@ -129,7 +130,7 @@ export function PredictionStreamView({ status, steps, error, onClose }: Predicti
                         <div className="flex flex-col items-center justify-center py-8 gap-3">
                             <div className="w-8 h-8 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
                             <p className="text-sm text-brand-text-dim animate-pulse">
-                                Initializing AI Agent...
+                                Preparing analysis...
                             </p>
                         </div>
                     )}

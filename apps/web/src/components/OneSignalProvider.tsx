@@ -11,8 +11,7 @@ export function OneSignalProvider({ children }: { children: React.ReactNode }) {
       if (isInitialized) return;
 
       const appId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
-      if (!appId) {
-        console.warn('OneSignal App ID not configured');
+      if (!appId || process.env.NEXT_PUBLIC_ENABLE_NOTIFICATIONS !== 'true') {
         return;
       }
 
@@ -49,7 +48,7 @@ export function OneSignalProvider({ children }: { children: React.ReactNode }) {
               prompts: [
                 {
                   type: 'push',
-                  autoPrompt: true,
+                  autoPrompt: false,
                   text: {
                     actionMessage: '订阅比赛通知，第一时间获取比赛结果',
                     acceptButton: '允许',

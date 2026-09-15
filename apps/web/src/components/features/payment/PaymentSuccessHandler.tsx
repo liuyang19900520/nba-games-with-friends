@@ -1,47 +1,35 @@
 'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { CheckCircle } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { getTestCheckoutStatus } from '@/app/payment/actions';
 import { Header } from '@/components/layout/Header';
 
-interface PaymentSuccessHandlerProps {
-  sessionId: string;
-}
-
-/**
- * Simple payment success page.
- * Shows a success message and redirects to home after 1.5s.
- * Credits are handled optimistically on the home page.
- */
-export function PaymentSuccessHandler({ sessionId: _sessionId }: PaymentSuccessHandlerProps) {
-  const router = useRouter();
-
+export function PaymentSuccessHandler({ sessionId }: { sessionId: string }) {
+  const [balance, setBalance] = useState<number | null>(null);
+  const [waiting, setWaiting] = useState(true);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.push('/home?payment=success');
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [router]);
-
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    const check = async () => {
+      try {
+        const result = await getTestCheckoutStatus(sessionId);
+        if (cancelled) return;
+        if (result.paid) { setBalance(result.balance ?? 0); setWaiting(false); return; }
+      } catch { if (cancelled) return; }
+      if (++attempts < 8) timer = setTimeout(check, 2000);
+      else setWaiting(false);
+    };
+    void check();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [sessionId]);
   return (
-    <div className="min-h-screen bg-brand-bg flex flex-col">
-      <Header title="Payment" />
-      <div className="flex-1 flex items-center justify-center pt-[60px] px-4">
-        <div className="max-w-md w-full bg-brand-dark rounded-xl border border-brand-card-border p-8 text-center">
-          <CheckCircle
-            className="w-16 h-16 text-green-500 mx-auto mb-4"
-            style={{ filter: 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.6))' }}
-          />
-          <h1 className="text-2xl font-semibold text-white mb-2">Payment Successful!</h1>
-          <p className="text-brand-text-dim mb-4">
-            Your AI prediction credits have been added.
-          </p>
-          <p className="text-brand-text-dim text-sm">
-            Redirecting...
-          </p>
-        </div>
+    <div className="min-h-screen bg-brand-dark">
+      <Header title="Test checkout" />
+      <div className="pt-24 px-6 space-y-4 text-center">
+        <h1 className="text-xl font-semibold">{balance !== null ? 'Credits confirmed' : waiting ? 'Confirming your test checkout...' : 'Confirmation is still pending'}</h1>
+        <p className="text-sm text-brand-text-dim">{balance !== null ? `Your current balance is ${balance} credits.` : 'Your balance updates only after the server receives payment confirmation. You can return here to check again.'}</p>
+        <Link href="/home" className="inline-block rounded-lg bg-brand-blue text-brand-dark px-5 py-3">Back to home</Link>
       </div>
     </div>
   );
