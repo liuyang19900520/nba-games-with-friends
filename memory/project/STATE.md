@@ -34,3 +34,10 @@ If the agent crashes or exceeds token limits:
 1. Reload this `STATE.md` file.
 2. Read `task_id` and find the first unchecked item in "Current Phase Progress".
 3. Verify test states and resume from that unchecked item.
+## 2026-10-02 Production maintenance page
+
+- Isolated checkout based on remote main so the unfinished serverless refactor branch stays independent.
+- The custom domain currently presents a Let's Encrypt certificate that expired on 2026-09-26. The domain CNAME points at Vercel; HTML cannot repair TLS before the browser loads a page.
+- Added a self-contained, dependency-free public/index.html and Vercel static output configuration. The page explains the friends' NBA game's serverless migration without promising a reopening date.
+- User requested English; all page copy and accessibility labels now use English.
+- Next: validate desktop/mobile rendering and routing, then publish only the maintenance change and check certificate/domain status.
