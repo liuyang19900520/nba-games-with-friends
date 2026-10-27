@@ -49,3 +49,12 @@ python3 -m pip install --upgrade pip
 pip install -r services/ai-agent/requirements.txt
 pip install -r services/data-sync/requirements.txt
 ```
+
+## Release flow (Yang's standard)
+- `develop` is where work is integrated and tested; `master` always equals production. (Branch names may still be `dev`/`main` until Yang approves renaming them.)
+- Every change goes `feature/*` / `claude/*` / `codex/*` → PR into `develop`. Verify on the Vercel Preview URL of the PR/`develop`.
+- After Yang approves, merge `develop` into `master`: that deploys to production. Tag `vX.Y.Z`. No release branches.
+- If production breaks, roll back first (Vercel instant rollback / revert), then fix.
+- Keep database changes backward compatible (add first, remove later). For changes that depend on live data (payments, webhooks), warn Yang before merging and verify on production right after.
+- Urgent fix: `hotfix/*` from the production branch → PR, tag, then merge back into `develop`.
+- Never merge, delete branches, or change secrets/default branch without Yang's explicit approval.
