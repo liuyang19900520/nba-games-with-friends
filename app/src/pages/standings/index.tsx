@@ -5,6 +5,7 @@ import { t, getLang } from '../../lib/i18n'
 import { useFetch, useTabPage, go } from '../../lib/hooks'
 import { teamName, logoOf } from '../../lib/teams'
 import { Loader, Img, Table, Seg } from '../../components/ui'
+import BottomNav from '../../components/BottomNav'
 
 const COLS = ['wins', 'losses', 'win_pct', 'games_behind', 'home', 'away', 'conf', 'div', 'last10', 'streak', 'ppg', 'opp_ppg', 'diff', 'seed']
 export default function Standings() {
@@ -34,6 +35,7 @@ export default function Standings() {
           </View>
         </View>
       </Loader>
+      <BottomNav active='leagues' />
     </View>
   )
 }

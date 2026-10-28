@@ -2,7 +2,7 @@ import Taro from '@tarojs/taro'
 import { useEffect, useState } from 'react'
 export type Lang = 'zh' | 'en'
 const D: Record<string, [string, string]> = {
-  schedule: ['赛程', 'Games'], standings: ['球队榜', 'Standings'], leaders: ['球员榜', 'Leaders'], more: ['数据', 'More'],
+  schedule: ['赛程', 'Games'], standings: ['球队榜', 'Standings'], leaders: ['球员榜', 'Leaders'], more: ['我的', 'Profile'],
   today: ['今天', 'Today'], noGames: ['当天没有比赛', 'No games on this day'], loading: ['加载中…', 'Loading…'],
   error: ['加载失败', 'Failed to load'], retry: ['重试', 'Retry'], empty: ['暂无数据', 'No data'],
   final: ['已结束', 'Final'], live: ['进行中', 'Live'], scheduled: ['未开始', 'Scheduled'],

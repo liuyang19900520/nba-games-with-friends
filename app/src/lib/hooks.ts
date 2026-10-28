@@ -14,13 +14,11 @@ export function useFetch<T = any>(fn: () => Promise<T>, deps: any[]) {
   return { ...s, reload: useCallback(() => setN((x) => x + 1), []) }
 }
 
-const TABS = ['schedule', 'standings', 'leaders', 'more']
-/** tab pages: keep tab bar labels + title in current language */
+/** top-level pages: keep title in current language */
 export function useTabPage(titleKey: string) {
   const lang = useLang()
   const apply = () => {
     Taro.setNavigationBarTitle({ title: t(titleKey) }).catch(() => {})
-    TABS.forEach((k, index) => { Taro.setTabBarItem({ index, text: t(k) }).catch(() => {}) })
   }
   useDidShow(apply)
   useEffect(apply, [lang])

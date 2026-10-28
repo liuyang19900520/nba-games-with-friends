@@ -9,6 +9,7 @@ import { addDays, dayLabel, etToday, localTime } from '../../lib/fmt'
 import { teamName, logoOf } from '../../lib/teams'
 import { Loader, Img } from '../../components/ui'
 import { GameCard } from '../../components/game'
+import BottomNav from '../../components/BottomNav'
 import './index.less'
 
 export default function Index() {
@@ -34,6 +35,7 @@ export default function Index() {
       <Loader loading={q.loading && !q.data} error={q.error} onRetry={q.reload}>
         {games.length === 0 ? <View className='state dim'>{t('noGames')}</View> : games.map((g) => <GameCard key={g.id} g={g} />)}
       </Loader>
+      <BottomNav active='home' />
     </View>
   )
 }

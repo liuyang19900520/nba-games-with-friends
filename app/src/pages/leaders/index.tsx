@@ -9,6 +9,7 @@ import { teamName, headshotOf } from '../../lib/teams'
 import { num } from '../../lib/fmt'
 import { Loader, Seg, Img } from '../../components/ui'
 import { LeaderRow, catName } from '../../components/leader'
+import BottomNav from '../../components/BottomNav'
 import './index.less'
 
 export default function Leaders() {
@@ -64,6 +65,7 @@ export default function Leaders() {
           </Loader>
         </ScrollView>
       </View>
+      <BottomNav active='matchups' />
     </View>
   )
 }
