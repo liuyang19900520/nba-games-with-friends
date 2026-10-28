@@ -33,9 +33,9 @@ export function autoCols(rows: any[], prefer: string[] = []): string[] {
 
 const ST: Record<string, [string, string]> = { 1: ['季前赛', 'Preseason'], 2: ['常规赛', 'Regular Season'], 3: ['季后赛', 'Playoffs'], 5: ['附加赛', 'Play-In'] }
 export const seasonTypeLabel = (n: any) => (ST[n] ? ST[n][getLang() === 'zh' ? 0 : 1] : '')
-/** merge server-provided labels (/meta stat_labels) */
+/** add server-provided labels (/meta stat_labels) for keys we do not label locally (local short labels fit table headers) */
 export function mergeLabels(m: Record<string, any> = {}) {
-  Object.keys(m).forEach((k) => { const v = m[k]; if (v && (v.zh || v.abbr)) L[k] = [v.zh || v.abbr, v.abbr || v.en || k] })
+  Object.keys(m).forEach((k) => { const v = m[k]; if (v && (v.zh || v.abbr) && !L[k]) L[k] = [v.zh || v.abbr, v.abbr || v.en || k] })
 }
 export const FALLBACK_CATS = {
   basic: [['pts', '得分', 'Points'], ['reb', '篮板', 'Rebounds'], ['oreb', '前场篮板', 'Off Reb'], ['dreb', '后场篮板', 'Def Reb'], ['ast', '助攻', 'Assists'],
