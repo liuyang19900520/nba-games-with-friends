@@ -1,0 +1,31 @@
+@import '../../theme.less';
+@import '../../components/game.less';
+.ghead { padding: 10px 10px 8px; }
+.gh-type { text-align: center; font-size: 11px; color: @dim; }
+.gh-row { display: flex; align-items: center; margin-top: 8px; }
+.gh-team { width: 80px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.gh-n { font-size: 14px; font-weight: 700; color: #fff; }
+.gh-s { flex: 1; text-align: center; font-size: 32px; font-weight: 800; color: #fff; }
+.gh-mid { display: flex; flex-direction: column; align-items: center; }
+.qs { margin: 10px 6px 0; background: rgba(0,0,0,.3); border-radius: 8px; padding: 4px 8px; }
+.qs-r { display: flex; font-size: 12px; padding: 3px 0; }
+.qs-t { width: 50px; }
+.qs-c { flex: 1; text-align: center; }
+.dnp { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid @line; font-size: 13px; }
+.cmp { padding: 4px 10px; }
+.cmp-r { display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid @line; font-size: 13px; }
+.cmp-r.head { font-weight: 700; color: #fff; }
+.cmp-v { width: 70px; text-align: center; }
+.cmp-k { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.bar { display: flex; width: 100%; height: 4px; margin-top: 3px; border-radius: 2px; overflow: hidden; background: #1d273d; }
+.play { display: flex; gap: 6px; align-items: flex-start; padding: 7px 8px; border-bottom: 1px solid @line; font-size: 12px; }
+.play.scoring .pl-t { color: #fff; font-weight: 600; }
+.pl-c { width: 40px; font-family: monospace; }
+.pl-dot { width: 6px; height: 6px; border-radius: 3px; margin-top: 5px; }
+.pl-t { color: @dim; }
+.pl-s { width: 54px; text-align: right; color: @blue; font-family: monospace; }
+.wp { display: flex; padding: 8px; height: 140px; }
+.wp-l { width: 56px; display: flex; flex-direction: column; justify-content: space-between; color: @dim; }
+.wp-c { flex: 1; position: relative; display: flex; align-items: stretch; }
+.wp-mid { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: @card-border; }
+.wp-b { flex: 1; position: relative; min-width: 1px; opacity: .85; }

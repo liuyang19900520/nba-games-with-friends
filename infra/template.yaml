@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: nba-games-with-friends v2 - serverless API (Lambda Function URL) + static web (S3) behind CloudFront, ESPN sync via EventBridge Scheduler. Region ap-northeast-1.
+
+Parameters:
+  DatabaseUrlParam:
+    Type: String
+    Default: /nba/prod/database_url
+    Description: SSM Parameter Store name holding the Supabase *transaction pooler* URL (port 6543, ?sslmode=require). Value is NOT in this repo.
+  SyncCron:
+    Type: String
+    Default: "cron(*/10 0-7,23 * * ? *)"   # every 10 min during US-evening game windows (UTC 23:00-07:59)
+    Description: EventBridge Scheduler expression for the ESPN sync
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+    MemorySize: 256
+    Environment:
+      Variables:
+        # Resolved at deploy time from SSM (String/standard tier = free). For SecureString, read it at cold start with the SDK instead.
+        DATABASE_URL: !Sub "{{resolve:ssm:${DatabaseUrlParam}}}"
+        NODE_OPTIONS: --enable-source-maps
+
+Resources:
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../dist/api
+      Handler: index.handler
+      Timeout: 10
+      ReservedConcurrentExecutions: 10      # caps DB connections + cost
+      FunctionUrlConfig:
+        AuthType: NONE                       # public read-only JSON; CloudFront caches in front
+        InvokeMode: BUFFERED
+
+  SyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../dist/sync
+      Handler: index.handler
+      Timeout: 900                           # Lambda max; the one-off season backfill (--full, ~30 min) runs from a laptop/CI instead
+      MemorySize: 512
+      Environment:
+        Variables:
+          ESPN_CACHE_DIR: /tmp/espn-cache
+      ReservedConcurrentExecutions: 1        # never overlap runs
+      Events:
+        Every10Min:
+          Type: ScheduleV2                   # EventBridge Scheduler
+          Properties:
+            ScheduleExpression: !Ref SyncCron
+            Input: '{"args":["--games-only","--days-back=1","--ahead=1"]}'
+        Nightly:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: "cron(0 9 * * ? *)" # 18:00 JST: teams/rosters/bio/salaries/standings/injuries/team stats/zh names + core stats of players who played
+            Input: '{"args":["--days-back=2","--team-stats","--zh-names"]}'
+
+  WebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+
+  WebOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig: { Name: !Sub "${AWS::StackName}-web", OriginAccessControlOriginType: s3, SigningBehavior: always, SigningProtocol: sigv4 }
+
+  ApiCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${AWS::StackName}-api"
+        DefaultTTL: 0           # honour Cache-Control s-maxage from the handler
+        MinTTL: 0
+        MaxTTL: 86400
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig: { HeaderBehavior: none }
+          CookiesConfig: { CookieBehavior: none }
+          QueryStringsConfig: { QueryStringBehavior: all }   # 17 params > the 10-per-policy whitelist quota; handler ignores unknown params
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        PriceClass: PriceClass_200   # includes Japan/HK/Asia edges
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        Origins:
+          - Id: web
+            DomainName: !GetAtt WebBucket.RegionalDomainName
+            S3OriginConfig: { OriginAccessIdentity: "" }
+            OriginAccessControlId: !GetAtt WebOAC.Id
+          - Id: api
+            DomainName: !Select [2, !Split ["/", !GetAtt ApiFunctionUrl.FunctionUrl]]
+            CustomOriginConfig: { OriginProtocolPolicy: https-only, OriginSSLProtocols: [TLSv1.2] }
+        DefaultCacheBehavior:
+          TargetOriginId: web
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6   # Managed-CachingOptimized
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref ApiCachePolicy
+
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub "${WebBucket.Arn}/*"
+            Condition: { StringEquals: { AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}" } }
+
+Outputs:
+  SiteUrl: { Value: !Sub "https://${Distribution.DomainName}" }
+  ApiFunctionUrl: { Value: !GetAtt ApiFunctionUrl.FunctionUrl }
+  WebBucketName: { Value: !Ref WebBucket }
+  DistributionId: { Value: !Ref Distribution }

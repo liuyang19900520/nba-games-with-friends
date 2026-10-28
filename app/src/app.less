@@ -1,0 +1,23 @@
+@import './theme.less';
+page, body { background: @dark; color: @text; font-family: Inter, -apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif; font-size: 14px; }
+.page { min-height: 100vh; background: radial-gradient(ellipse at top, rgba(13,18,29,.98) 0%, #0d121d 50%), @dark; padding-bottom: 24px; }
+.dim { color: @dim; }
+.blue { color: @blue; }
+.orange { color: @orange; }
+.bold { font-weight: 700; }
+.row { display: flex; align-items: center; }
+.flex1 { flex: 1; min-width: 0; }
+.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-red { display: inline-block; background: @red; color: #fff; font-size: 10px; border-radius: 3px; padding: 0 4px; margin-top: 3px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; }
+.h-title { font-size: 18px; font-weight: 700; color: #fff; }
+.picker { font-size: 12px; color: @text; border: 1px solid @card-border; border-radius: 14px; padding: 4px 10px; background: @card; }
+.sgrid { display: flex; flex-wrap: wrap; padding: 6px 0; }
+.sg { width: 25%; display: flex; flex-direction: column; align-items: center; padding: 8px 2px; box-sizing: border-box; }
+.sg-v { font-size: 17px; font-weight: 700; color: #fff; }
+.sg-l { font-size: 10px; color: #7A8B99; margin-top: 2px; text-align: center; }
+
+.pad { padding: 10px 8px; }
+.small { font-size: 10px; }
+.win { color: #6EE2F5; font-weight: 700; }
+.loss { color: #FF4D4F; font-weight: 700; }

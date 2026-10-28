@@ -1,49 +1,30 @@
-# NBA Game With Friends - Monorepo Workspace
+# NBA v2 (redo) — ESPN data app, WeChat mini program + H5
 
-This repository serves as the root workspace for the NBA Game With Friends project.
-It contains infrastructure configuration and independent sub-projects.
+> v1 is preserved at tag `legacy-v1` / branch `dev` (see LEGACY.md). This branch (`v2`) is the redo.
 
-## Structure
+## Architecture
+```
+ESPN public APIs ──(sync/, scheduled Lambda)──▶ Postgres (Supabase; supabase/migrations)
+                                                   │
+                         api/ (AWS Lambda Function URL, JSON /api/v1, CORS)  ◀── also: static JSON snapshot (scripts/export-snapshot.ts)
+                                                   │
+app/ (Taro 4 + React + TS) ── one codebase ──▶ WeChat mini program (dist/weapp)
+                                           └─▶ H5 (dist/h5, Vercel `nba-v2`; overseas, English default for non-zh browsers)
+```
+- Frontend modes (`app/.env.*`, `TARO_APP_API_MODE`): `mock` (bundled fake data, current default, no backend), `request` (HTTP API), `cloud` (WeChat cloud-function proxy).
+- Images (team logos + headshots) are downloaded and served from our own static path `/img/...` (`app/scripts/localize-images.py`). They are ESPN-owned → non-commercial MVP only.
 
-### 1. Applications (`apps/`)
-- **[apps/web](./apps/web)**: Next.js Frontend.
-  - Tech: Next.js 15, React, Supabase, Tailwind.
-  - Deployment: Vercel.
+## Quick start
+```bash
+cd app && npm ci
+npm run build:h5          # mock data, output app/dist/h5 (serve statically)
+npm run build:weapp       # app/dist/weapp → open app/ in WeChat DevTools
+# backend (optional): npm ci && npm run pglite & && npm run local   → http://127.0.0.1:8787
+```
+## CI/CD
+- GitHub Actions `ci.yml`: on PRs and pushes to `v2` → typecheck, H5 build (mock), weapp compile, main package < 2MB, H5 artifact.
+- Vercel project **nba-v2** (root `app/`): push to `v2` → production deploy; any other branch / PR → preview URL.
+- Rule: verify the preview before merging to `v2`.
 
-### 2. Services (`services/`)
-- **[services/data-sync](./services/data-sync)**: Data Ingestion Worker.
-  - Tech: Python, Supabase.
-  - Deployment: AWS Lambda (Sync functions).
-- **[services/ai-agent](./services/ai-agent)**: LangChain AI Agent.
-  - Tech: Python, LangChain v0.3, LangGraph.
-  - Deployment: Railway.
-
-### 3. Functions & Infra
-- **[functions/payment](./functions/payment)**: Node.js serverless payment handler (Stripe).
-  - Deployment: AWS Lambda.
-- **[infrastructure/n8n](./infrastructure/n8n)**: n8n workflow orchestration (Docker).
-  - Deployment: AWS Lightsail/Railway.
-
-## Environment & Deployment
-
-We follow a two-tier environment strategy:
-
-| Environment | Branch | Deployment | Purpose |
-|-------------|--------|------------|---------|
-| **Local** | N/A | Localhost | Development & Debugging |
-| **Preview** | `dev` | AWS (dev) / Railway (dev) | Integration testing with Prod keys |
-| **Production**| `main` | AWS (prod) / Railway (prod)| Live production environment |
-
-### CI/CD Workflows
-- Check `.github/workflows/` for automated deployment logic.
-- Web: Auto-deployed via Vercel integration.
-- Services: GitHub Actions for AWS Lambda and Railway.
-
-## Development Guide
-
-This is a **Monorepo Workspace**. All code is tracked in one Git repository.
-
-1. **Local Setup**: Copy `.env.example` to `.env` in respective folders.
-2. **Commit Policy**: Follow Conventional Commits (`feat:`, `fix:`, etc.).
-3. **Environment**: Use `dev` branch for pushing to the preview environment.
-
+## Docs
+`docs/API-CONTRACT.md` · `docs/backend.md` (API/Lambda/deploy/cost) · `docs/sync.md` · `docs/nba-v2-schema-final-test.md` · `docs/nba-espn-mapping.md` · `docs/nba-data-gap.md` · `docs/hupu-ui-notes.md` · `docs/hupu-vs-espn.md` · `app/README.md`

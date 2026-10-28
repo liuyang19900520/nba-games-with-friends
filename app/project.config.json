@@ -1,0 +1,1 @@
+{ "miniprogramRoot": "dist/weapp/", "projectname": "nba-mvp", "description": "NBA data MVP", "appid": "touristappid", "setting": { "urlCheck": false, "es6": false, "postcss": false, "minified": true }, "compileType": "miniprogram" }

@@ -1,0 +1,20 @@
+{
+  "name": "nba-v2-backend",
+  "private": true,
+  "type": "module",
+  "description": "NBA v2 backend: JSON API (AWS Lambda), ESPN sync, migrations. Frontend lives in app/ (separate package).",
+  "scripts": {
+    "build": "node build.mjs",
+    "local": "tsx local/server.ts",
+    "pglite": "tsx local/pglite.ts",
+    "sync": "tsx sync/src/sync.ts",
+    "sync:full": "tsx sync/src/sync.ts --full",
+    "snapshot": "tsx scripts/export-snapshot.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": { "pg": "^8.16.3", "opencc-js": "^1.4.2" },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.12", "@electric-sql/pglite-socket": "^0.2.15", "@types/node": "^22", "@types/pg": "^8",
+    "esbuild": "^0.25.0", "playwright": "^1.55.0", "tsx": "^4.20.0", "typescript": "^5.9.2"
+  }
+}

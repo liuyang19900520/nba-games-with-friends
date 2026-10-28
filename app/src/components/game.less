@@ -1,0 +1,17 @@
+@import '../theme.less';
+.game { margin: 0 12px 10px; padding: 10px 12px; }
+.g-type { text-align: center; font-size: 10px; letter-spacing: 1px; margin-bottom: 6px; text-transform: uppercase; }
+.g-row { display: flex; align-items: center; }
+.g-team { width: 76px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.g-name { font-size: 13px; color: #fff; font-weight: 600; max-width: 76px; }
+.g-rec { font-size: 10px; }
+.g-score { flex: 1; text-align: center; font-size: 24px; font-weight: 700; color: @dim; }
+.g-score.win { color: #fff; }
+.g-mid { width: 78px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.g-line { width: 32px; height: 1px; background: @blue; }
+.g-line.faint { background: rgba(110,226,245,.3); }
+.g-st { font-size: 12px; white-space: nowrap; }
+.g-st.final { color: @blue; font-weight: 600; }
+.g-st.live { color: @orange; font-weight: 700; }
+.g-st.pre { color: @dim; font-family: monospace; font-size: 14px; }
+.g-foot { text-align: center; font-size: 10px; margin-top: 6px; }

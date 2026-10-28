@@ -1,0 +1,1 @@
+{ "compilerOptions": { "target": "es2017", "module": "commonjs", "moduleResolution": "node", "jsx": "react-jsx", "strict": false, "esModuleInterop": true, "skipLibCheck": true, "baseUrl": ".", "typeRoots": ["node_modules/@types"], "allowSyntheticDefaultImports": true, "resolveJsonModule": true }, "include": ["src", "types"] }
