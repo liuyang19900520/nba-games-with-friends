@@ -53,7 +53,7 @@ export default function More() {
           ))}
         </Loader>
       )}
-      <View className='dim foot'>{t('about')} · {process.env.TARO_APP_API_MODE === 'mock' ? (getLang() === 'zh' ? '演示数据（离线快照）' : 'Demo data (offline snapshot)') : `API: ${process.env.TARO_APP_API_BASE}`}</View>
+      <View className='dim foot'>{t('about')} · v2 · {process.env.TARO_APP_API_MODE === 'mock' ? (getLang() === 'zh' ? '演示数据（离线快照）' : 'Demo data (offline snapshot)') : `API: ${process.env.TARO_APP_API_BASE}`}</View>
     </View>
   )
 }
