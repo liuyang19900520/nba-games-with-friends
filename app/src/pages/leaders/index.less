@@ -1,7 +1,7 @@
 @import '../../theme.less';
 .lead-page { padding-bottom: 0; }
 .filter { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid @line; }
-.lead-body { display: flex; height: calc(100vh - 48px); }
+.lead-body { display: flex; height: calc(100vh - 48px - 96px); }
 .side { width: 84px; height: 100%; background: rgba(13,18,29,.9); border-right: 1px solid @line; }
 .side-i { padding: 12px 8px; font-size: 12px; color: @dim; border-left: 3px solid transparent; }
 .side-i.on { color: @blue; border-left-color: @blue; background: rgba(110,226,245,.08); font-weight: 600; }
@@ -14,8 +14,8 @@
 .lr-rank { width: 18px; text-align: center; color: @dim; font-weight: 700; font-size: 13px; }
 .lr-rank.top { color: @orange; }
 .lr-mid { display: flex; flex-direction: column; }
-.lr-name { font-size: 13px; color: #fff; }
-.lr-sub { font-size: 10px; }
+.lr-name { font-size: 13px; line-height: 16px; color: #fff; word-break: break-word; }
+.lr-sub { font-size: 10px; line-height: 13px; }
 .lr-team { width: 44px; font-size: 11px; text-align: center; }
 .lr-val { width: 46px; text-align: right; font-size: 17px; font-weight: 700; color: @blue; }
 .more { text-align: center; color: @dim; font-size: 12px; padding: 8px 0 4px; }

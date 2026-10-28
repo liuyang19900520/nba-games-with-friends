@@ -44,23 +44,35 @@ export function fmtCell(k: string, v: any) {
   return num(v)
 }
 
-/** horizontally scrollable stat table. first column fixed-width (rendered by `first`) */
-export function Table({ rows, cols, first, firstHead = '', onRow, firstWidth = 120 }: {
-  rows: any[]; cols: string[]; first: (r: any, i: number) => any; firstHead?: string; onRow?: (r: any) => void; firstWidth?: number
+/** fixed column widths: header and body cells use the SAME width, padding and alignment */
+export function colWidth(k: string): number {
+  if (k === 'salary') return 78
+  if (k === 'score' || k === 'gp_gs' || k === 'home' || k === 'away' || k === 'conf' || k === 'div' || k === 'last10') return 56
+  if (k === 'streak' || k === 'result' || k === 'ha') return 44
+  if (/pct|rate|plus_minus|games_behind|diff/.test(k)) return 54
+  if (k === 'age' || k === 'experience' || k === 'starter' || k === 'gp' || k === 'gs') return 40
+  return 46
+}
+/** Horizontally scrollable stat table with a fixed (sticky) first column.
+ *  Every row has the same fixed height in both halves, every column a fixed width → header/body always aligned. */
+export function Table({ rows, cols, first, firstHead = '', onRow, firstWidth = 120, rowHeight = 40, fmt = fmtCell }: {
+  fmt?: (k: string, v: any) => string; rows: any[]; cols: string[]; first: (r: any, i: number) => any; firstHead?: string; onRow?: (r: any) => void; firstWidth?: number; rowHeight?: number
 }) {
   if (!rows.length) return <Loader empty />
+  const rh = { height: `${rowHeight}px` }
+  const inner = cols.reduce((s, c) => s + colWidth(c), 0)
   return (
     <View className='tbl'>
       <View className='tbl-first' style={{ width: `${firstWidth}px` }}>
-        <View className='tr th'><View className='td'>{firstHead}</View></View>
-        {rows.map((r, i) => <View key={i} className='tr' onClick={() => onRow?.(r)}><View className='td left'>{first(r, i)}</View></View>)}
+        <View className='tr th'><View className='td left'>{firstHead}</View></View>
+        {rows.map((r, i) => <View key={i} className={'tr' + (r._h ? ' sep' : '') + (r._t ? ' tot' : '')} style={rh} onClick={() => onRow?.(r)}><View className='td left'>{first(r, i)}</View></View>)}
       </View>
       <ScrollView scrollX className='tbl-scroll'>
-        <View className='tbl-inner'>
-          <View className='tr th'>{cols.map((c) => <View key={c} className='td'>{label(c)}</View>)}</View>
+        <View className='tbl-inner' style={{ width: `${inner}px` }}>
+          <View className='tr th'>{cols.map((c) => <View key={c} className='td' style={{ width: `${colWidth(c)}px` }}>{label(c)}</View>)}</View>
           {rows.map((r, i) => (
-            <View key={i} className='tr' onClick={() => onRow?.(r)}>
-              {cols.map((c) => <View key={c} className='td'>{fmtCell(c, r[c])}</View>)}
+            <View key={i} className={'tr' + (r._h ? ' sep' : '') + (r._t ? ' tot' : '')} style={rh} onClick={() => onRow?.(r)}>
+              {cols.map((c) => <View key={c} className='td' style={{ width: `${colWidth(c)}px` }}>{r._h ? '' : fmt(c, r[c])}</View>)}
             </View>
           ))}
         </View>

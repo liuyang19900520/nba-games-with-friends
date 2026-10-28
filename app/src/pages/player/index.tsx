@@ -7,6 +7,7 @@ import { useFetch, go } from '../../lib/hooks'
 import { teamName, teamColor, logoOf, headshotOf } from '../../lib/teams'
 import { money, num, stat } from '../../lib/fmt'
 import { autoCols, label } from '../../lib/stats'
+import { fullName } from '../../lib/names'
 import { Loader, Img, Tabs, Table, KV, Section, Seg } from '../../components/ui'
 import './index.less'
 
@@ -57,7 +58,7 @@ export default function Player() {
             <View className='row'>
               <Img src={headshotOf(p)} size={84} className='ph-img' />
               <View className='flex1' style={{ marginLeft: '12px' }}>
-                <Text className='ph-name'>{(lang === 'zh' && p.name_zh) || p.name}</Text>
+                <Text className='ph-name'>{fullName(p)}</Text>
                 <Text className='ph-sub'>{p.name}</Text>
                 {p.team && <View className='ph-team' onClick={() => go(`/pages/team/index?id=${p.team.id}`)}><Img src={logoOf(p.team)} size={16} round={false} /><Text>{teamName(p.team, true)}</Text></View>}
               </View>

@@ -5,13 +5,14 @@ import { api } from '../../lib/api'
 import { t, getLang, useLang } from '../../lib/i18n'
 import { useFetch, go } from '../../lib/hooks'
 import { teamName, teamColor, logoOf, headshotOf } from '../../lib/teams'
-import { localDateTime, money, num } from '../../lib/fmt'
+import { localDateTime, money, num, stat } from '../../lib/fmt'
 import { autoCols, label } from '../../lib/stats'
+import { fullName, tableName, dupeLastNames } from '../../lib/names'
 import { Loader, Img, Tabs, Table, KV, Section } from '../../components/ui'
 import './index.less'
 
 const wl = (r: any) => (r ? `${r.wins ?? '-'}/${r.losses ?? '-'}` : '-')
-const pname = (p: any) => (getLang() === 'zh' && p.name_zh) || p.name
+const pname = fullName
 
 export default function Team() {
   const { id } = useRouter().params as any
@@ -20,7 +21,8 @@ export default function Team() {
   const q = useFetch(() => api.team(id), [id])
   const tm = q.data?.team
   useEffect(() => { if (tm) Taro.setNavigationBarTitle({ title: teamName(tm, true) }) }, [tm, lang])
-  const roster: any[] = (q.data?.roster || []).map((p: any) => ({ ...p, ...(p.averages || {}), salary: p.salary }))
+  const roster: any[] = (q.data?.roster || []).map((p: any) => ({ ...p, ...(p.averages || {}), salary: p.salary, gp_gs: p.averages?.gp != null ? `${p.averages.gp}/${p.averages.gs ?? 0}` : '-' }))
+  const dupes = dupeLastNames(roster)
   roster.sort((a, b) => (b.pts ?? -1) - (a.pts ?? -1))
   const rec = tm?.record || {}
   const st = tm?.standing || {}
@@ -53,13 +55,13 @@ export default function Team() {
             {(q.data?.team?.coaches || []).length > 0 && (
               <View className='coaches'>{tm.coaches.map((c: any) => <View key={c.id} className='coach card'><Text>{c.name}</Text><Text className='dim small'>{c.role || 'Coach'}</Text></View>)}</View>
             )}
-            <Table rows={roster} firstWidth={140} firstHead={t('players')}
-              cols={autoCols(roster, ['gp', 'gs', 'min', 'pts', 'reb', 'oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf', 'fg_pct', 'fg3_pct', 'ft_pct', 'salary', 'age', 'experience'])}
+            <Table rows={roster} firstWidth={124} rowHeight={48} fmt={(k, v) => (k === 'salary' ? money(v) : k === 'gp_gs' ? String(v) : stat(k, v))} firstHead={t('players')}
+              cols={['gp_gs', ...autoCols(roster, ['min', 'pts', 'reb', 'oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf', 'fg_pct', 'fg3_pct', 'ft_pct', 'salary', 'age', 'experience']).filter((c) => c !== 'gp' && c !== 'gs')]}
               onRow={(p) => go(`/pages/player/index?id=${p.id}`)}
               first={(p) => (<>
-                <Img src={headshotOf(p)} size={26} />
-                <View className='flex1'><Text className='ell' style={{ display: 'block' }}>{pname(p)}</Text>
-                  <Text className='dim small'>#{p.jersey ?? '-'} · {(getLang() === 'zh' && p.position_zh) || p.position}{p.injury ? ' 🚑' : ''}</Text></View>
+                <Img src={headshotOf(p)} size={30} />
+                <View className='flex1'><Text className='nm' style={{ display: 'block' }}>{tableName(p, dupes)}{p.injury ? ' 🚑' : ''}</Text>
+                  <Text className='nm-sub'>{getLang() === 'zh' ? `${p.jersey ?? '-'}号·${p.position_zh || p.position || ''}` : `#${p.jersey ?? '-'} · ${p.position || ''}`}</Text></View>
               </>)} />
           </View>
         )}

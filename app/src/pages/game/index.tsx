@@ -8,6 +8,7 @@ import { teamName, logoOf, teamColor } from '../../lib/teams'
 import { localDateTime, num } from '../../lib/fmt'
 import { autoCols, seasonTypeLabel, label } from '../../lib/stats'
 import { status } from '../../components/game'
+import { fullName, tableName, dupeLastNames } from '../../lib/names'
 import { Loader, Img, Tabs, Table, KV, Section, Seg } from '../../components/ui'
 import './index.less'
 
@@ -74,16 +75,16 @@ function Box({ d }: { d: any }) {
   const played = ps.filter((p) => !p.dnp)
   const starters = played.filter((p) => p.starter), bench = played.filter((p) => !p.starter), dnp = ps.filter((p) => p.dnp)
   const cols = autoCols(played.length ? played : ps, BOX).filter((c) => !['starter', 'dnp', 'jersey'].includes(c))
-  const nm = (p: any) => (getLang() === 'zh' && p.name_zh) || p.name
-  const first = (p: any) => (<><Text className='ell' style={{ maxWidth: '100px' }}>{nm(p)}</Text><Text className='dim small'>{p.position}</Text></>)
+  const nm = fullName
+  const dupes = dupeLastNames(ps)
+  const first = (p: any) => (<View><Text className='nm' style={{ display: 'block' }}>{tableName(p, dupes)}</Text><Text className='nm-sub'>{[p.jersey && `#${p.jersey}`, p.position].filter(Boolean).join(' · ')}</Text></View>)
   const rows = [...starters, ...(bench.length ? [{ _h: t('bench') }] : []), ...bench]
   const totals = tb?.totals ? [{ ...tb.totals, _t: true }] : []
   return (
     <View className='pad'>
       <View style={{ marginBottom: '8px' }}><Seg items={[['away', teamName(g.away)], ['home', teamName(g.home)]]} value={side} onChange={setSide} /></View>
       <Loader empty={!ps.length}>
-        <Text className='dim small'>{t('starters')}</Text>
-        <Table rows={[...rows, ...totals]} cols={cols} firstWidth={130} firstHead={t('players')}
+        <Table rows={[...rows, ...totals]} cols={cols} firstWidth={112} rowHeight={42} firstHead={t('starters')}
           onRow={(p) => p.player_id && go(`/pages/player/index?id=${p.player_id}`)}
           first={(p) => (p._h ? <Text className='blue small'>{p._h}</Text> : p._t ? <Text className='bold'>{getLang() === 'zh' ? '合计' : 'Totals'}</Text> : first(p))} />
         {dnp.length > 0 && (
@@ -128,7 +129,7 @@ function Compare({ d }: { d: any }) {
           <View className='card'>{leaders.flatMap((L) => (L.categories || []).map((c: any, i: number) => (
             <View key={L.team_id + '-' + i} className='dnp' onClick={() => c.player_id && go(`/pages/player/index?id=${c.player_id}`)}>
               <Text className='dim small'>{L.team_id === g.home.id ? g.home.abbr : g.away.abbr} · {(getLang() === 'zh' && c.zh) || c.name}</Text>
-              <Text>{c.player_name || c.athlete || c.name_player || ''} <Text className='blue bold'>{c.value || c.display}</Text></Text>
+              <Text>{fullName({ name: c.player_name, name_zh: c.name_zh }) || ''} <Text className='blue bold'>{c.value || c.display}</Text></Text>
             </View>)))}</View>
         </Section>
       )}

@@ -4,6 +4,7 @@ import { go } from '../lib/hooks'
 import { teamName, headshotOf } from '../lib/teams'
 import { num, stat } from '../lib/fmt'
 import { Img } from './ui'
+import { tableName } from '../lib/names'
 export const catName = (c: any) => (getLang() === 'zh' ? c.zh : c.en) || c.key
 export function fmtVal(key: string, v: any) {
   return stat(key, v)
@@ -26,8 +27,8 @@ export function LeaderRow({ l, cat }: { l: any; cat: string }) {
       <Text className={'lr-rank' + (l.rank <= 3 ? ' top' : '')}>{l.rank}</Text>
       <Img src={headshotOf(p)} size={36} />
       <View className='flex1 lr-mid'>
-        <Text className='lr-name ell'>{(getLang() === 'zh' && p.name_zh) || p.name}</Text>
-        <Text className='lr-sub dim ell'>{subLine(l)}</Text>
+        <Text className='lr-name'>{tableName(p)}</Text>
+        <Text className='lr-sub dim'>{subLine(l)}</Text>
       </View>
       <Text className='lr-team dim ell'>{teamName(l.team)}</Text>
       <Text className='lr-val'>{fmtVal(cat, l.value)}</Text>
