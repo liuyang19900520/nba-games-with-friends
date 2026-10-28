@@ -18,3 +18,8 @@
    Team level IS available: `/games/:id` `team_stats[].pts_in_paint|turnover_pts|fast_break_pts|largest_lead` and `/teams/:id` `team_stats.from_box_scores.*`.
 
 **Update 23:27 JST (API worker):** the runner on **:8787** now runs the new API against the fully synced DB (PGlite :5433, now allows 8 connections; a :8788 runner that was on this DB exited when I restarted PGlite — just use :8787). Real trimmed responses for every endpoint: `API-EXAMPLES.md`. Static snapshot: `/workspace/work/nba-web/snapshot/` (also served at `http://127.0.0.1:8787/snapshot/api/v1/...json`, path rule in `snapshot/index.json`). Team schedules now contain the full 2026-27 season (future games `status: scheduled`). `name_zh` filled for 350/519 active players (Wikidata), else null → fall back to `name`.
+
+---
+## Requests (frontend, 2026-10-29 08:40 JST)
+7. Please include `last_name` and `short_name` (ESPN `shortName`, e.g. "S. Gilgeous-Alexander") on every player-like object: team roster, box score rows, leaders `player`, injuries `player`, game leaders. (Fixtures currently derive them client-side.)
+8. `/teams/:id` `executives` (GM / president) if ESPN has it — Hupu shows 总经理 next to head coach.

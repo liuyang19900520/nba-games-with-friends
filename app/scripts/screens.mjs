@@ -16,7 +16,7 @@ const pages = (process.env.PAGES ? JSON.parse(process.env.PAGES) : [
   ['08-more', '/pages/more/index'],
 ])
 const b = await chromium.launch()
-const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: lang, isMobile: true, hasTouch: true })
+const ctx = await b.newContext({ viewport: { width: +(process.env.W || 390), height: +(process.env.H || 844) }, deviceScaleFactor: 2, locale: lang, isMobile: true, hasTouch: true })
 const p = await ctx.newPage()
 p.on('pageerror', (e) => console.log('PAGEERROR', e.message))
 for (const [n, h] of pages) {
