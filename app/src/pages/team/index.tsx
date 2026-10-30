@@ -120,8 +120,10 @@ export default function Team() {
 }
 
 function TeamStats({ ts, rec }: { ts: any; rec: any }) {
-  const s = ts?.stats || {}
+  const s = ts?.espn?.stats || ts?.stats || {}
   const keys = Object.keys(s)
+  const bx = ts?.from_box_scores || {}
+  const bkeys = Object.keys(bx).filter((k) => k !== 'gp' && bx[k] != null)
   const ov = rec?.overall || {}
   const extra = Object.keys(ov).filter((k) => typeof ov[k] === 'number')
   return (
@@ -132,13 +134,20 @@ function TeamStats({ ts, rec }: { ts: any; rec: any }) {
             {keys.map((k) => (
               <View key={k} className='sg'>
                 <Text className='sg-v'>{s[k]?.display ?? num(s[k]?.value ?? s[k])}</Text>
-                <Text className='sg-l'>{label(k)}</Text>
+                <Text className='sg-l'>{label(k.split('.').pop() as string)}</Text>
                 {s[k]?.rank != null && <Text className='chip-red'>{getLang() === 'zh' ? `联盟第${s[k].rank}` : `#${s[k].rank}`}</Text>}
               </View>
             ))}
           </View>
         </Loader>
       </Section>
+      {bkeys.length > 0 && (
+        <Section title={(getLang() === 'zh' ? '场均（比赛数据）' : 'Per game (box scores)') + (bx.gp ? ` · ${bx.gp}${getLang() === 'zh' ? '场' : ' GP'}` : '')}>
+          <View className='sgrid card'>
+            {bkeys.map((k) => (<View key={k} className='sg'><Text className='sg-v'>{stat(k, bx[k])}</Text><Text className='sg-l'>{label(k)}</Text></View>))}
+          </View>
+        </Section>
+      )}
       {extra.length > 0 && <Section title='ESPN record stats'><KV items={extra.map((k) => [k, num(ov[k])])} /></Section>}
     </View>
   )
