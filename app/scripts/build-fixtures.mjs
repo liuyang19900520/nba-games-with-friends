@@ -7,7 +7,12 @@ const API = process.argv[2] || 'http://127.0.0.1:8787'
 const OUT = path.resolve('static/mock')
 const SEASON = 2027, ST = 2
 // all 30 teams get a full team page; every rostered player gets a (trimmed) player page
-const DATES = ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28']
+// "today" of the mock world (= app TARO_APP_DEFAULT_DATE). Home fetches ?from=&to= ranges relative to it.
+const TODAY = process.env.MOCK_TODAY || '2026-10-29'
+const addDays = (d, n) => { const t = new Date(d + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10) }
+const UPCOMING_DAYS = 14, RECENT_DAYS = 7
+const DATES = Array.from({ length: 4 }, (_, i) => addDays(TODAY, i - 4)) // single-day pages (date picker) for recent days
+
 const MAX_GAMES = 14, MAX_PLAYS = 160, LEADER_LIMIT = 30
 // add short_name ("S. Gilgeous-Alexander") / last_name to player-like objects that lack them (UI rule: lib/names.ts)
 const SUF = /^(jr\.?|sr\.?|ii|iii|iv|v)$/i
@@ -70,5 +75,29 @@ for (const date of [...DATES].reverse()) {
     })
   }
 }
-fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify({ generated_from: API, today: DATES[DATES.length - 1], dates: DATES, files: n, bytes }))
+// Home: upcoming (today .. +13) and recent (-7 .. -1) ranges; single days for the jump-to-date control
+const up = await dump('/api/v1/games', { from: TODAY, to: addDays(TODAY, UPCOMING_DAYS - 1) }, withShortNames)
+await dump('/api/v1/games', { from: addDays(TODAY, -RECENT_DAYS), to: addDays(TODAY, -1) }, withShortNames)
+for (let i = 0; i < UPCOMING_DAYS; i++) await dump('/api/v1/games', { date: addDays(TODAY, i) })
+// pre-game detail pages for the next 3 days (small: no box/plays yet)
+for (const g of (up?.games || []).filter((g) => g.date <= addDays(TODAY, 2))) await dump(`/api/v1/games/${g.id}`, {}, withShortNames)
+// Lineup picker: all active players with season averages + salary
+await dump('/api/v1/players', { limit: 600 }, withShortNames)
+// Team stat rankings (PROPOSED endpoint /api/v1/stats/teams — FRONTEND-REQUESTS #9); derived here from /teams/:id from_box_scores
+const TEAM_CATS = [['pts', '得分', 'Points'], ['reb', '篮板', 'Rebounds'], ['ast', '助攻', 'Assists'], ['stl', '抢断', 'Steals'], ['blk', '盖帽', 'Blocks'],
+  ['tov', '失误', 'Turnovers', 'asc'], ['fg_pct', '投篮命中率', 'FG%'], ['fg3_pct', '三分命中率', '3P%'], ['ft_pct', '罚球命中率', 'FT%'], ['oreb', '前场篮板', 'Off reb'],
+  ['pts_in_paint', '内线得分', 'Paint pts'], ['fast_break_pts', '快攻得分', 'Fast break'], ['opp_pts', '失分', 'Opp pts', 'asc']]
+const tstats = []
+for (const t of teams.teams) {
+  const d = JSON.parse(fs.readFileSync(path.join(OUT, snapshotPath(`/api/v1/teams/${t.id}`)), 'utf8'))
+  const f = d.team_stats?.from_box_scores || {}
+  tstats.push({ team: { id: t.id, abbr: t.abbr, name: t.name, name_zh: t.name_zh, short_name_zh: t.short_name_zh, logo_url: t.logo_url }, gp: f.gp, ...f, opp_pts: d.team?.record?.overall?.avgPointsAgainst })
+}
+const categories = TEAM_CATS.map(([key, zh, en, order]) => {
+  const rows = tstats.filter((x) => x[key] != null).sort((a, b) => (order === 'asc' ? a[key] - b[key] : b[key] - a[key]))
+  let rank = 0, prev
+  return { key, zh, en, order: order || 'desc', teams: rows.map((x, i) => { if (x[key] !== prev) rank = i + 1; prev = x[key]; return { rank, team: x.team, value: x[key], gp: x.gp } }) }
+})
+save('/api/v1/stats/teams', { season: SEASON }, { season: SEASON, season_type: ST, source: 'derived from box scores (mock)', categories })
+fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify({ generated_from: API, today: TODAY, dates: DATES, files: n, bytes }))
 console.log(`fixtures: ${n} files, ${(bytes / 1024).toFixed(0)} KB, stars=${want.size}, players=${new Set([...want, ...rostered]).size}, games=${games}`)

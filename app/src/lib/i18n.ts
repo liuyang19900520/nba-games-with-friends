@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 export type Lang = 'zh' | 'en'
 const D: Record<string, [string, string]> = {
   schedule: ['赛程', 'Games'], standings: ['球队榜', 'Standings'], leaders: ['球员榜', 'Leaders'], more: ['我的', 'Profile'],
-  today: ['今天', 'Today'], noGames: ['当天没有比赛', 'No games on this day'], loading: ['加载中…', 'Loading…'],
+  today: ['今天', 'Today'], lineup: ['阵容', 'Lineup'], upcoming: ['即将开始', 'Upcoming'], results: ['最近结果', 'Results'], pickDate: ['选日期', 'Date'], tomorrow: ['明天', 'Tomorrow'], localTz: ['时间为本地时间', 'Times in your local time zone'], liveNow: ['进行中', 'Live now'], nGames: ['场', 'games'], noGames: ['当天没有比赛', 'No games on this day'], loading: ['加载中…', 'Loading…'],
   error: ['加载失败', 'Failed to load'], retry: ['重试', 'Retry'], empty: ['暂无数据', 'No data'],
   final: ['已结束', 'Final'], live: ['进行中', 'Live'], scheduled: ['未开始', 'Scheduled'],
   east: ['东部', 'East'], west: ['西部', 'West'], team: ['球队', 'Team'], value: ['数据', 'Value'],

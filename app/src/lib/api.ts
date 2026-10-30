@@ -67,6 +67,9 @@ export async function get<T = any>(path: string, ttl = 60): Promise<T> {
 export const api = {
   meta: () => get('/api/v1/meta', 3600),
   games: (date: string) => get(`/api/v1/games?date=${date}`, 30),
+  gamesRange: (from: string, to: string) => get(`/api/v1/games?from=${from}&to=${to}`, 60),
+  teamStats: (season: number) => get(`/api/v1/stats/teams?season=${season}`, 600),
+  allPlayers: () => get('/api/v1/players?limit=600', 3600),
   game: (id: string) => get(`/api/v1/games/${id}`, 30),
   teams: () => get('/api/v1/teams', 600),
   team: (id: string) => get(`/api/v1/teams/${id}`, 300),

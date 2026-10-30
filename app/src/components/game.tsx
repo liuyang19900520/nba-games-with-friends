@@ -21,7 +21,7 @@ export function GameCard({ g }: { g: any }) {
   const hw = Number(hs) > Number(as), aw = Number(as) > Number(hs)
   return (
     <View className='game card' onClick={() => go(`/pages/game/index?id=${g.id}`)}>
-      <View className='g-type dim'>{seasonTypeLabel(g.season_type)}</View>
+      <View className='g-type dim'><Text className={'g-badge ' + k}>{k === 'pre' ? t('scheduled') : k === 'live' ? t('live') : t('final')}</Text> {seasonTypeLabel(g.season_type)}</View>
       <View className='g-row'>
         <View className='g-team'>
           <Img src={logoOf(g.away)} size={36} round={false} />
