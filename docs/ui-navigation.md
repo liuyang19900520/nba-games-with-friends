@@ -11,12 +11,13 @@ WeChat and H5 look the same; icons rendered from the lucide paths by `app/script
 |---|---|---|---|
 | Home | recent games | `pages/index` 赛程 | date switcher, game cards → 比赛详情 |
 | Leagues | leagues / standings | `pages/standings` 球队榜 | East/West standings → 球队页 |
-| **Lineup** (center) | build a lineup | `pages/teams` 球队 | all 30 teams by conference/division → 球队页 (roster = "lineup") |
+| **Lineup** (center) | pick 5 players to play with friends | `pages/lineup` 阵容 | v1 neon court, slots C/F/F/G/G → picker (search, position, tonight-only, team); saved locally; share = copy text. **UI only, no scoring** |
 | Matchups | head-to-head | `pages/leaders` 球员榜 | category leaders, 基础/进阶 → 完整榜单 → 球员页 |
 | Profile | user / settings | `pages/more` 我的 | language toggle, shortcut links (球队/球队榜/球员榜/赛程), 伤病报告, data source |
 
 Detail pages (pushed, back button): 球队页 `pages/team`, 球员页 `pages/player`, 比赛详情 `pages/game`, 完整榜单 `pages/leaderlist`.
-Team page entry points: standings rows, Lineup grid, game header logos, player header team chip, Profile links.
+30-teams page (`pages/teams`) entry points: Leagues → 球队 → 全部球队 ›, Lineup → 全部球队 ›, Profile links.
+Team page entry points: standings rows, team stat ranks, game header logos, player header team chip, Profile links.
 
 ## Player names (`app/src/lib/names.ts`)
 - Detail headers: full name (zh `name_zh`, else ESPN name).
@@ -30,3 +31,8 @@ Team page entry points: standings rows, Lineup grid, game header logos, player h
 One component for every stat table: fixed first column (sticky, never scrolls) + horizontally scrollable body.
 Every column has a fixed width from `colWidth(key)` applied identically to header and body cells, same padding and
 center alignment; every row has the same fixed height in both halves → header and body always line up.
+
+## Task 4 (2026-10-30)
+- **Home**: no date strip. Default = upcoming 14 days grouped by local day (今天/明天 headers, live pinned on top); Seg 即将开始 / 最近结果; 📅 picker = single day.
+- **Leagues** (`pages/standings`): Seg 球队 / 球员. 球队 → 排名 (东/西 × 分区/赛区) or 数据榜 (team category chips → ranked Table, from proposed `/api/v1/stats/teams`). 球员 → 基础/进阶 chips → top 10 → 查看全部 (`pages/leaderlist`).
+- **Lineup** (`pages/lineup`): Storage key `lineup:v2`. Total salary is information only. No points, no cap, no rooms, no accounts.

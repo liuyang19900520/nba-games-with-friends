@@ -23,3 +23,6 @@
 ## Requests (frontend, 2026-10-29 08:40 JST)
 7. Please include `last_name` and `short_name` (ESPN `shortName`, e.g. "S. Gilgeous-Alexander") on every player-like object: team roster, box score rows, leaders `player`, injuries `player`, game leaders. (Fixtures currently derive them client-side.)
 8. `/teams/:id` `executives` (GM / president) if ESPN has it — Hupu shows 总经理 next to head coach.
+
+## Request 9 (frontend, 2026-10-30 JST)
+9. `GET /api/v1/stats/teams?season=2027[&season_type=2]` → `{season, season_type, source, categories:[{key, zh, en, order:'desc'|'asc', teams:[{rank, team:{id,abbr,name,name_zh,logo_url}, value, gp}]}]}`. Categories: pts, reb, ast, stl, blk, tov(asc), fg_pct, fg3_pct, ft_pct, oreb, pts_in_paint, fast_break_pts, opp_pts(asc). Mock fixture currently derives it from `/teams/:id` `team_stats.from_box_scores`; request mode errors until implemented.
