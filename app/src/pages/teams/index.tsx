@@ -5,10 +5,9 @@ import { t, getLang } from '../../lib/i18n'
 import { useFetch, useTabPage, go } from '../../lib/hooks'
 import { teamName, logoOf } from '../../lib/teams'
 import { Loader, Img, Seg, Section } from '../../components/ui'
-import BottomNav from '../../components/BottomNav'
 import '../more/index.less'
 
-/** "Lineup" (v1 center tab) → all 30 teams by conference / division → team page */
+/** All 30 teams (reached from Leagues → 球队 → 全部球队, Lineup, Profile) by conference / division → team page */
 export default function Teams() {
   useTabPage('allTeams')
   const [conf, setConf] = useState('East')
@@ -35,7 +34,6 @@ export default function Teams() {
           </Section>
         ))}
       </Loader>
-      <BottomNav active='lineup' />
     </View>
   )
 }

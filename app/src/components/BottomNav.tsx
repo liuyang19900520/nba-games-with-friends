@@ -14,7 +14,7 @@ export type NavKey = 'home' | 'leagues' | 'lineup' | 'matchups' | 'profile'
 const ITEMS: { key: NavKey; label: string; url: string; icon: [string, string]; center?: boolean }[] = [
   { key: 'home', label: 'Home', url: '/pages/index/index', icon: [home, homeOn] },
   { key: 'leagues', label: 'Leagues', url: '/pages/standings/index', icon: [trophy, trophyOn] },
-  { key: 'lineup', label: 'Lineup', url: '/pages/teams/index', icon: [ball, ballOn], center: true },
+  { key: 'lineup', label: 'Lineup', url: '/pages/lineup/index', icon: [ball, ballOn], center: true },
   { key: 'matchups', label: 'Matchups', url: '/pages/leaders/index', icon: [users, usersOn] },
   { key: 'profile', label: 'Profile', url: '/pages/more/index', icon: [user, userOn] },
 ]
