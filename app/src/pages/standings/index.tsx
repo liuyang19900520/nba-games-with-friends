@@ -1,6 +1,6 @@
-// Leagues tab: team standings/stat ranks plus the shared game schedule.
+// Leagues tab: team standings/stat ranks, player leaders, and the shared game schedule.
 //   球队: 排名 (conference / division standings) · 数据榜 (team stat category chips → ranked list)
-//   比赛: same schedule view as Home.
+//   球员: shared player leaderboard. 比赛: same schedule view as Home.
 import { View, Text, ScrollView } from '@tarojs/components'
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
@@ -11,6 +11,7 @@ import { stat } from '../../lib/fmt'
 import { loadMeta, fallbackMeta } from '../../lib/meta'
 import { Loader, Img, Table, Seg } from '../../components/ui'
 import Schedule from '../../components/Schedule'
+import PlayerLeaders from '../../components/PlayerLeaders'
 import BottomNav from '../../components/BottomNav'
 import './index.less'
 
@@ -92,10 +93,10 @@ export default function Leagues() {
   const [teamView, setTeamView] = useState('standings')
   const season = meta.current_season || 2027
   return (
-    <View className='page'>
+    <View className={'page' + (top === 'players' ? ' league-players' : '')}>
       <View className='topbar'>
-        <Seg items={[['teams', zh() ? '球队' : 'Teams'], ['matches', zh() ? '比赛' : 'Matches']]} value={top} onChange={setTop} />
-        <Text className='dim small'>{season - 1}-{String(season).slice(2)} {zh() ? '常规赛' : 'Regular'}</Text>
+        <Seg items={[['teams', zh() ? '球队' : 'Teams'], ['players', zh() ? '球员' : 'Players'], ['matches', zh() ? '比赛' : 'Matches']]} value={top} onChange={setTop} />
+        {top !== 'players' && <Text className='dim small'>{season - 1}-{String(season).slice(2)} {zh() ? '常规赛' : 'Regular'}</Text>}
       </View>
       {top === 'teams' && (
         <View>
@@ -106,6 +107,7 @@ export default function Leagues() {
           {teamView === 'standings' ? <TeamStandings /> : <TeamStatRanks season={season} />}
         </View>
       )}
+      {top === 'players' && <PlayerLeaders />}
       {top === 'matches' && <Schedule />}
       <BottomNav active='leagues' />
     </View>
