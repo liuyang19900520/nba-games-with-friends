@@ -1,6 +1,6 @@
-// Leagues tab: ONE page for team AND player rankings (v1 "Leagues" + Hupu 数据 tab).
+// Leagues tab: team standings/stat ranks plus the shared game schedule.
 //   球队: 排名 (conference / division standings) · 数据榜 (team stat category chips → ranked list)
-//   球员: 基础/进阶 category chips → top 10 (LeaderRow) → 查看全部 (pages/leaderlist)
+//   比赛: same schedule view as Home.
 import { View, Text, ScrollView } from '@tarojs/components'
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
@@ -10,7 +10,7 @@ import { teamName, logoOf } from '../../lib/teams'
 import { stat } from '../../lib/fmt'
 import { loadMeta, fallbackMeta } from '../../lib/meta'
 import { Loader, Img, Table, Seg } from '../../components/ui'
-import { LeaderRow, catName } from '../../components/leader'
+import Schedule from '../../components/Schedule'
 import BottomNav from '../../components/BottomNav'
 import './index.less'
 
@@ -84,29 +84,6 @@ function TeamStatRanks({ season }: { season: number }) {
   )
 }
 
-function PlayerRanks({ meta, season, stype }: { meta: any; season: number; stype: number }) {
-  const [kind, setKind] = useState('basic')
-  const cats: any[] = meta.leader_categories?.[kind] || []
-  const [cat, setCat] = useState('pts')
-  useEffect(() => { if (!cats.some((c) => c.key === cat)) setCat(cats[0]?.key) }, [kind, meta])
-  const c = cats.find((x) => x.key === cat) || cats[0]
-  const q = useFetch(() => (c ? api.leaders(season, stype, c.key) : Promise.resolve(null)), [c?.key, season, stype])
-  const rows: any[] = (q.data?.leaders || []).slice(0, 10)
-  return (
-    <View>
-      <View className='bar2'><Seg items={[['basic', t('basic')], ['advanced', t('advanced')]]} value={kind} onChange={setKind} /></View>
-      <Chips items={cats.map((x) => [x.key, catName(x)])} value={c?.key} onChange={setCat} />
-      <Loader loading={q.loading && !q.data} error={q.error} onRetry={q.reload} empty={!q.loading && !rows.length}>
-        <View className='card blockp'>
-          <View className='blockp-h'><Text className='bold'>{c && catName(c)}{zh() ? '榜' : ''}</Text><Text className='dim small'>{t('team')}　{t('value')}</Text></View>
-          {rows.map((l, i) => <LeaderRow key={i} l={l} cat={c.key} />)}
-          <View className='more' onClick={() => go(`/pages/leaderlist/index?cat=${c.key}&season=${season}&type=${stype}&name=${encodeURIComponent(catName(c))}`)}>{t('viewAll')} ›</View>
-        </View>
-      </Loader>
-    </View>
-  )
-}
-
 export default function Leagues() {
   useTabPage('standings')
   const [meta, setMeta] = useState<any>(fallbackMeta)
@@ -117,7 +94,7 @@ export default function Leagues() {
   return (
     <View className='page'>
       <View className='topbar'>
-        <Seg items={[['teams', zh() ? '球队' : 'Teams'], ['players', zh() ? '球员' : 'Players']]} value={top} onChange={setTop} />
+        <Seg items={[['teams', zh() ? '球队' : 'Teams'], ['matches', zh() ? '比赛' : 'Matches']]} value={top} onChange={setTop} />
         <Text className='dim small'>{season - 1}-{String(season).slice(2)} {zh() ? '常规赛' : 'Regular'}</Text>
       </View>
       {top === 'teams' && (
@@ -129,7 +106,7 @@ export default function Leagues() {
           {teamView === 'standings' ? <TeamStandings /> : <TeamStatRanks season={season} />}
         </View>
       )}
-      {top === 'players' && <PlayerRanks meta={meta} season={season} stype={2} />}
+      {top === 'matches' && <Schedule />}
       <BottomNav active='leagues' />
     </View>
   )

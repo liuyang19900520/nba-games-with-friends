@@ -10,9 +10,9 @@ WeChat and H5 look the same; icons rendered from the lucide paths by `app/script
 | v1 item | v1 meaning | v2 page | what's there |
 |---|---|---|---|
 | Home | recent games | `pages/index` 赛程 | date switcher, game cards → 比赛详情 |
-| Leagues | leagues / standings | `pages/standings` 球队榜 | East/West standings → 球队页 |
+| Leagues | leagues / standings | `pages/standings` 球队 / 比赛 | 球队 → East/West standings and team stat ranks → 球队页; 比赛 → shared schedule view |
 | **Lineup** (center) | pick 5 players to play with friends | `pages/lineup` 阵容 | v1 neon court, slots C/F/F/G/G → picker (search, position, tonight-only, team); saved locally; share = copy text. **UI only, no scoring** |
-| Matchups | head-to-head | `pages/leaders` 球员榜 | category leaders, 基础/进阶 → 完整榜单 → 球员页 |
+| Matchups | head-to-head | `pages/leaders` 球员榜 | category leaders, 基础/进阶 → 完整榜单 → 球员页 (unchanged) |
 | Profile | user / settings | `pages/more` 我的 | language toggle, shortcut links (球队/球队榜/球员榜/赛程), 伤病报告, data source |
 
 Detail pages (pushed, back button): 球队页 `pages/team`, 球员页 `pages/player`, 比赛详情 `pages/game`, 完整榜单 `pages/leaderlist`.
@@ -32,7 +32,11 @@ One component for every stat table: fixed first column (sticky, never scrolls) +
 Every column has a fixed width from `colWidth(key)` applied identically to header and body cells, same padding and
 center alignment; every row has the same fixed height in both halves → header and body always line up.
 
+## League matches (2026-10-31)
+- **Leagues** (`pages/standings`): top-level 球队 / 比赛. 球队 keeps standings and team stat ranks. 比赛 reuses the Home schedule component, including upcoming/results, date picker, live games, grouping, and loading/error/empty states.
+- **Matchups** (`pages/leaders`) remains the player leaders page.
+
 ## Task 4 (2026-10-30)
 - **Home**: no date strip. Default = upcoming 14 days grouped by local day (今天/明天 headers, live pinned on top); Seg 即将开始 / 最近结果; 📅 picker = single day.
-- **Leagues** (`pages/standings`): Seg 球队 / 球员. 球队 → 排名 (东/西 × 分区/赛区) or 数据榜 (team category chips → ranked Table, from proposed `/api/v1/stats/teams`). 球员 → 基础/进阶 chips → top 10 → 查看全部 (`pages/leaderlist`).
+- **Leagues** (`pages/standings`): Seg 球队 / 比赛. 球队 → 排名 (东/西 × 分区/赛区) or 数据榜 (team category chips → ranked Table, from proposed `/api/v1/stats/teams`). 比赛 → shared schedule.
 - **Lineup** (`pages/lineup`): Storage key `lineup:v2`. Total salary is information only. No points, no cap, no rooms, no accounts.
