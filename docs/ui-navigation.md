@@ -31,11 +31,14 @@ One component for every stat table: fixed first column (sticky, never scrolls) +
 Every column has a fixed width from `colWidth(key)` applied identically to header and body cells, same padding and
 center alignment; every row has the same fixed height in both halves → header and body always line up.
 
-## League teams and players (2026-10-31)
-- **Leagues** (`pages/standings`): top-level 球队 / 球员. 球队 keeps standings and team stat ranks. 球员 reuses the existing leaderboard with season, season type, basic/advanced, category navigation, and full-list links.
+## League teams and players (2026-11-01)
+- **Leagues** (`pages/standings`): 球队 / 球员 is the only primary Seg. 球队 opens directly to East standings, with one horizontally scrollable chip row: 东部 / 西部 / 赛区 / 数据榜. East/West shows that conference immediately; there is no separate 排名/数据榜 or 分区/赛区 Seg.
+- **赛区** shows all six divisions as table groups, labelled with their conference. Row ranks and playoff colors refer to conference standings. A context label states the active view; 全部球队 remains a separate 44px entry beside it.
+- **数据榜** replaces standings with team stat leaders; metric chips appear only in this view. Team filters and metric chips have at least 44px touch height; overflowing rows scroll horizontally. Table rows still open team details.
+- **球员** reuses PlayerLeaders unchanged, including season, season type, basic/advanced, category navigation, and full-list links.
 - **Matchups** is removed from the bottom menu. `pages/leaders` remains accessible as the player leaders page and highlights Leagues; its shared content also appears under Leagues → 球员.
 
 ## Task 4 (2026-10-30)
 - **Home**: no date strip. Default = upcoming 14 days grouped by local day (今天/明天 headers, live pinned on top); Seg 即将开始 / 最近结果; 📅 picker = single day.
-- **Leagues** (`pages/standings`): Seg 球队 / 球员. 球队 → 排名 (东/西 × 分区/赛区) or 数据榜 (team category chips → ranked Table, from proposed `/api/v1/stats/teams`). 球员 → shared player leaders.
+- **Leagues** (`pages/standings`): Seg 球队 / 球员. 球队 → 东部 / 西部 / 赛区 / 数据榜 chips (interaction updated above; metric chips appear only in 数据榜, from proposed `/api/v1/stats/teams`). 球员 → shared player leaders.
 - **Lineup** (`pages/lineup`): Storage key `lineup:v2`. Total salary is information only. No points, no cap, no rooms, no accounts.
