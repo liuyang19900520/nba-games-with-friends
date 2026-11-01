@@ -13,7 +13,7 @@ const L: Record<string, [string, string]> = {
   points_in_paint: ['内线得分', 'Paint PTS'], points_off_turnovers: ['利用失误得分', 'Pts off TO'], fast_break_points: ['快攻得分', 'Fast break'],
   ast_to: ['助攻失误比', 'AST/TO'], season: ['赛季', 'Season'], team_abbr: ['球队', 'Team'], date: ['日期', 'Date'], opp: ['对手', 'OPP'],
   starter: ['首发', 'Start'], result: ['胜负', 'W/L'], home_away: ['主客', 'H/A'], w: ['胜', 'W'], l: ['负', 'L'], win_pct: ['胜率', 'PCT'], gb: ['胜场差', 'GB'],
-  streak: ['连胜/负', 'STRK'], home_record: ['主场', 'Home'], away_record: ['客场', 'Away'], last_ten: ['近10场', 'L10'], ppg_diff: ['分差', 'DIFF'],
+  streak: ['连胜/负', 'STRK'], home_record: ['主场', 'Home'], away_record: ['客场', 'Away'], last_ten: ['近10场', 'L10'], ppg_diff: ['分差', 'DIFF'], fantasy: ['范特西', 'Fantasy'],
   opp_ppg: ['失分', 'OPP PTS'], conf_rank: ['排名', 'Rank'], gp_gs: ['出场/首发', 'GP/GS'], ha: ['主客', 'H/A'], wins: ['胜', 'W'], losses: ['负', 'L'], games_behind: ['胜场差', 'GB'], home: ['主场', 'Home'], away: ['客场', 'Away'], conf: ['分区内', 'Conf'], div: ['赛区内', 'Div'], last10: ['近10场', 'L10'], diff: ['分差', 'DIFF'], seed: ['种子', 'Seed'], age: ['年龄', 'Age'], experience: ['球龄', 'Exp'], jersey: ['号码', '#'], nba_rating: ['NBA评分', 'Rating'], usage_rate: ['使用率', 'USG%'], vorp: ['VORP', 'VORP'], reb_rate: ['篮板率', 'REB%'], pts_per_poss: ['每回合得分', 'PTS/Poss'], stl_to: ['抢断失误比', 'STL/TO'], pts_total: ['总得分', 'PTS'], label: ['赛季', 'Season'], score: ['比分', 'Score'],
 }
 export const label = (k: string) => (L[k] ? L[k][getLang() === 'zh' ? 0 : 1] : k.replace(/_/g, ' ').toUpperCase())

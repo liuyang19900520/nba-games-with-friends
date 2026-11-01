@@ -1,0 +1,37 @@
+@import '../../theme.less';
+.fantasy-page { padding: 16px 14px 96px; }
+.f-head { padding: 3px 2px 16px; }
+.f-title { display: block; color: @text; font-size: 20px; font-weight: 700; line-height: 1.35; }
+.f-sub { display: block; color: @dim; font-size: 12px; line-height: 1.5; margin-top: 5px; }
+.f-sheet, .f-result { background: @card; border: 1px solid @card-border; border-radius: 12px; padding: 4px 14px; }
+.f-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; border-bottom: 1px solid @line; }
+.f-colhead { min-height: 38px; color: @dim; font-size: 11px; }
+.f-label { color: @text; font-size: 14px; flex: 1; }
+.f-en { display: block; color: @dim; font-size: 11px; margin-top: 2px; }
+.f-input { width: 82px; min-height: 38px; box-sizing: border-box; padding: 0 10px; color: @text; font-size: 14px; text-align: right; border: 1px solid rgba(224,239,255,.18); border-radius: 7px; background: rgba(13,18,29,.72); }
+.f-input:focus { border-color: @blue; outline: 2px solid rgba(110,226,245,.22); }
+.f-input.invalid { border-color: @orange; }
+.f-divider { height: 1px; margin: 5px 0; background: @card-border; }
+.f-note { display: block; color: @dim; font-size: 11px; padding: 11px 0 9px; line-height: 1.5; }
+.f-message { display: block; min-height: 18px; color: @blue; font-size: 12px; padding: 8px 2px 0; }
+.f-message.error { color: @orange; }
+.f-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 12px; }
+.f-reset, .f-save { margin: 0; line-height: 40px; min-height: 42px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; padding: 0 16px; border-radius: 8px; font-size: 14px; }
+.f-reset { color: @text; border: 1px solid @card-border; background: transparent; }
+.f-save { color: @dark; border: 0; background: @blue; font-weight: 700; }
+.f-reset::after, .f-save::after, .f-side::after { border: 0; }
+.f-reset:focus, .f-save:focus, .f-player-select:focus, .f-side:focus { outline: 2px solid @orange; outline-offset: 2px; }
+.f-test-head { padding: 26px 2px 13px; }
+.f-selectors { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.f-switch { display: flex; border: 1px solid @card-border; border-radius: 8px; overflow: hidden; }
+.f-side { margin: 0; border: 0; border-radius: 0; display: flex; align-items: center; min-height: 38px; line-height: normal; padding: 0 12px; color: @dim; font-size: 12px; background: transparent; }
+.f-side.on { color: @dark; background: @blue; }
+.f-player-select { min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 14px; max-width: calc(100vw - 155px); padding: 0 12px; border: 1px solid @card-border; border-radius: 8px; color: @text; font-size: 13px; }
+.f-result { padding: 9px 14px 5px; }
+.f-player { display: flex; align-items: center; gap: 10px; padding: 6px 0 11px; border-bottom: 1px solid @line; }
+.f-player-name { display: block; color: @text; font-size: 14px; }
+.f-total { margin-left: auto; color: @orange; font-size: 20px; font-weight: 700; }
+.f-detail { display: flex; justify-content: space-between; gap: 12px; min-height: 37px; align-items: center; color: @text; font-size: 12px; border-bottom: 1px solid @line; }
+.f-detail .dim { font-size: 11px; }
+.f-sum { border: 0; font-weight: 700; padding-top: 3px; }
+@media (max-width: 350px) { .fantasy-page { padding-left: 10px; padding-right: 10px; } .f-sheet, .f-result { padding-left: 10px; padding-right: 10px; } .f-input { width: 72px; } .f-player-select { max-width: calc(100vw - 137px); } }

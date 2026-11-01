@@ -46,6 +46,7 @@ export function fmtCell(k: string, v: any) {
 
 /** fixed column widths: header and body cells use the SAME width, padding and alignment */
 export function colWidth(k: string): number {
+  if (k === 'fantasy') return 62
   if (k === 'salary') return 78
   if (k === 'score' || k === 'gp_gs' || k === 'home' || k === 'away' || k === 'conf' || k === 'div' || k === 'last10') return 56
   if (k === 'streak' || k === 'result' || k === 'ha') return 44
