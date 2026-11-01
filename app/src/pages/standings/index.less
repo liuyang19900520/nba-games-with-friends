@@ -6,8 +6,43 @@
 .chips { white-space: nowrap; padding: 0 8px 8px; width: 100%; }
 .chip { display: inline-block; padding: 5px 12px; margin-right: 6px; border-radius: 14px; font-size: 12px; color: @dim; border: 1px solid @card-border; background: @card; }
 .chip.on { color: @dark; background: @blue; border-color: @blue; font-weight: 600; }
-.blockp { margin: 0 8px; padding: 6px 8px; }
-.blockp-h { display: flex; justify-content: space-between; padding: 4px 2px 6px; border-bottom: 1px solid @line; }
 .small { font-size: 11px; }
 .more { text-align: center; color: @dim; font-size: 12px; padding: 8px 0 4px; }
 @import '../leaders/index.less';
+
+.league-players { padding-bottom: 0; }
+.league-players .lead-body { height: calc(100vh - 48px - 96px - 46px); }
+
+// Larger controls are local to teams; PlayerLeaders retains its layout.
+.league-page:not(.league-players) {
+  .topbar .seg-i { min-height: 44px; display: flex; align-items: center; box-sizing: border-box; }
+  .chips { box-sizing: border-box; padding: 0 12px 4px; }
+  .chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    box-sizing: border-box; width: auto; min-width: 0; min-height: 44px; margin: 0 6px 0 0;
+    padding: 8px 14px; border-radius: 22px; font-size: 13px; line-height: 20px;
+    vertical-align: middle; font-family: inherit;
+    &::after { border: 0; }
+    &:focus-visible { outline: 2px solid @blue; outline-offset: 2px; }
+  }
+}
+.league-page:not(.league-players) {
+  .team-filters {
+    display: flex; flex-flow: row nowrap; gap: 6px; box-sizing: border-box;
+    width: 100%; padding: 0 12px 4px;
+    .chip {
+      flex: 1 1 0; width: auto; min-width: 0; margin: 0;
+      padding-left: 4px; padding-right: 4px; white-space: nowrap;
+    }
+  }
+}
+.team-context { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 4px; }
+.team-context-label { min-width: 0; white-space: nowrap; }
+.teams-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto; width: auto; min-width: 0; min-height: 44px; margin: 0; padding: 0 8px;
+  background: transparent; border: 0; color: @blue; font-size: 12px;
+  line-height: 20px; font-family: inherit; white-space: nowrap;
+  &::after { border: 0; }
+  &:focus-visible { outline: 2px solid @blue; outline-offset: 2px; }
+}
