@@ -1,4 +1,6 @@
 import Taro from '@tarojs/taro'
+import { FantasyRules, calcFantasyScore, cloneDefaultRules } from './fantasy'
+import { readFantasyRules, saveFantasyRules } from './fantasyStorage'
 
 export type Slot = 'C' | 'F1' | 'F2' | 'G1' | 'G2'
 
@@ -10,62 +12,30 @@ export const LINEUP_SLOTS: { key: Slot; base: 'C' | 'F' | 'G'; labelZh: string; 
   { key: 'G2', base: 'G', labelZh: '分卫', labelEn: 'G2' },
 ]
 
-export interface ScoringRule {
+export interface RulePreset {
   key: string
   nameZh: string
   nameEn: string
-  pts: number
-  reb: number
-  ast: number
-  stl: number
-  blk: number
-  fg3m: number
-  tov: number
+  rules: FantasyRules
 }
 
-export const RULE_PRESETS: ScoringRule[] = [
-  {
-    key: 'std',
-    nameZh: '标准综合分',
-    nameEn: 'Standard',
-    pts: 1.0,
-    reb: 1.2,
-    ast: 1.5,
-    stl: 3.0,
-    blk: 3.0,
-    fg3m: 0.0,
-    tov: -1.0,
-  },
-  {
-    key: 'off',
-    nameZh: '进攻狂潮',
-    nameEn: 'Offense Surge',
-    pts: 1.5,
-    reb: 1.0,
-    ast: 1.5,
-    stl: 2.0,
-    blk: 2.0,
-    fg3m: 2.0,
-    tov: -1.0,
-  },
-  {
-    key: 'def',
-    nameZh: '攻防铁血',
-    nameEn: 'Two-Way Grit',
-    pts: 1.0,
-    reb: 1.5,
-    ast: 1.5,
-    stl: 4.5,
-    blk: 4.5,
-    fg3m: 0.0,
-    tov: -2.0,
-  },
+function makePreset(key: string, nameZh: string, nameEn: string, overrides: Record<string, number>, dd2 = 1.5, td3 = 3): RulePreset {
+  const base = cloneDefaultRules()
+  base.stats = base.stats.map((s) => (overrides[s.key] !== undefined ? { ...s, weight: overrides[s.key] } : s))
+  base.doubleDouble = dd2
+  base.tripleDouble = td3
+  return { key, nameZh, nameEn, rules: base }
+}
+
+export const RULE_PRESETS: RulePreset[] = [
+  makePreset('std', '标准综合分', 'Standard', { pts: 1, reb: 1.2, ast: 1.5, stl: 3, blk: 3, fg3m: 0, tov: -1 }),
+  makePreset('off', '进攻狂潮', 'Offense Surge', { pts: 1.5, reb: 1.0, ast: 1.5, stl: 2, blk: 2, fg3m: 2, tov: -1 }),
+  makePreset('def', '攻防铁血', 'Two-Way Grit', { pts: 1, reb: 1.5, ast: 1.5, stl: 4.5, blk: 4.5, fg3m: 0, tov: -2 }),
 ]
 
 export const DEFAULT_SALARY_CAP = 185_000_000 // $185.0M
 
 const KEY_LINEUP = 'lineup:v2'
-const KEY_RULE = 'scoring:rule:v2'
 const KEY_CAP = 'scoring:cap:v2'
 const KEY_ROOM = 'scoring:room:v2'
 
@@ -92,6 +62,8 @@ export interface DailyBox {
 
 export interface ScoreResult {
   total: number
+  bonusPoints: number
+  bonusKey?: string
   breakdown: {
     pts: number
     reb: number
@@ -125,9 +97,7 @@ export function loadLineup(): SavedLineup {
 }
 
 export function saveLineup(data: SavedLineup) {
-  try {
-    Taro.setStorageSync(KEY_LINEUP, data)
-  } catch (e) {}
+  try { Taro.setStorageSync(KEY_LINEUP, data) } catch (e) {}
 }
 
 export function loadCap(): number {
@@ -139,24 +109,11 @@ export function loadCap(): number {
 }
 
 export function saveCap(cap: number) {
-  try {
-    Taro.setStorageSync(KEY_CAP, cap)
-  } catch (e) {}
+  try { Taro.setStorageSync(KEY_CAP, cap) } catch (e) {}
 }
 
-export function loadRule(): ScoringRule {
-  try {
-    const v = Taro.getStorageSync(KEY_RULE)
-    if (v && typeof v === 'object' && typeof v.pts === 'number') return v
-  } catch (e) {}
-  return RULE_PRESETS[0]
-}
-
-export function saveRule(rule: ScoringRule) {
-  try {
-    Taro.setStorageSync(KEY_RULE, rule)
-  } catch (e) {}
-}
+export const loadRule = (): FantasyRules => readFantasyRules()
+export const saveRule = (rules: FantasyRules): void => saveFantasyRules(rules)
 
 export function loadRoom(): RoomState {
   try {
@@ -167,19 +124,14 @@ export function loadRoom(): RoomState {
 }
 
 export function saveRoom(room: RoomState) {
-  try {
-    Taro.setStorageSync(KEY_ROOM, room)
-  } catch (e) {}
+  try { Taro.setStorageSync(KEY_ROOM, room) } catch (e) {}
 }
 
-export function formatRuleFormula(r: ScoringRule): string {
-  const parts = [`PTS×${r.pts}`, `REB×${r.reb}`, `AST×${r.ast}`, `STL×${r.stl}`, `BLK×${r.blk}`]
-  if (r.fg3m) parts.push(`3PM×${r.fg3m}`)
-  parts.push(`TOV×${r.tov}`)
-  return parts.join(' + ').replace('+ TOV×-', '- TOV×')
+export function formatRuleFormula(r: FantasyRules): string {
+  const active = r.stats.filter((s) => s.weight !== 0)
+  return active.map((s) => `${s.key.toUpperCase()}×${s.weight}`).join(' + ').replace(/\+ ([A-Z0-9_]+)×-/g, '- $1×')
 }
 
-/** Deterministic PRNG seeded by player ID + date + tick so mock live stats are consistent and reproducible */
 function hashSeed(str: string): number {
   let h = 2166136261
   for (let i = 0; i < str.length; i++) {
@@ -202,7 +154,7 @@ export function getPlayerDailyBox(p: any, date: string, tick = 0): DailyBox {
   const baseBlk = Number(p?.blk) || 0.5
   const baseMin = Number(p?.min) || 26
 
-  const mult = 0.78 + r1 * 0.52 // 0.78x ~ 1.30x daily variance
+  const mult = 0.78 + r1 * 0.52
   const pts = Math.max(2, Math.round(basePts * mult))
   const reb = Math.max(0, Math.round(baseReb * (0.7 + r2 * 0.65)))
   const ast = Math.max(0, Math.round(baseAst * (0.7 + r3 * 0.65)))
@@ -216,37 +168,33 @@ export function getPlayerDailyBox(p: any, date: string, tick = 0): DailyBox {
   const isLive = r4 > 0.45
 
   return {
-    min,
-    pts,
-    reb,
-    ast,
-    stl,
-    blk,
-    tov,
-    fg3m,
+    min, pts, reb, ast, stl, blk, tov, fg3m,
     fg: `${fgm}/${fga}`,
     status: isLive ? 'live' : 'final',
     statusText: isLive ? `LIVE Q4 0${Math.floor(r1 * 8) + 1}:${String(Math.floor(r2 * 50) + 10)}` : 'FINAL',
   }
 }
 
-export function calcPlayerScore(box: DailyBox, rule: ScoringRule): ScoreResult {
-  const bPts = Math.round(box.pts * rule.pts * 10) / 10
-  const bReb = Math.round(box.reb * rule.reb * 10) / 10
-  const bAst = Math.round(box.ast * rule.ast * 10) / 10
-  const bDef = Math.round((box.stl * rule.stl + box.blk * rule.blk) * 10) / 10
-  const bFg3 = Math.round(box.fg3m * rule.fg3m * 10) / 10
-  const bTov = Math.round(box.tov * rule.tov * 10) / 10
-  const total = Math.round((bPts + bReb + bAst + bDef + bFg3 + bTov) * 10) / 10
+export function calcPlayerScore(box: DailyBox, rules: FantasyRules): ScoreResult {
+  const res = calcFantasyScore(box, rules)
+  const get = (k: string) => Math.round((res.breakdown.find((x) => x.key === k)?.points || 0) * 10) / 10
   return {
-    total,
-    breakdown: { pts: bPts, reb: bReb, ast: bAst, def: bDef, fg3m: bFg3, tov: bTov },
+    total: Math.round(res.score * 10) / 10,
+    bonusPoints: Math.round((res.bonus?.points || 0) * 10) / 10,
+    bonusKey: res.bonus?.key,
+    breakdown: {
+      pts: get('pts'),
+      reb: get('reb'),
+      ast: get('ast'),
+      def: Math.round((get('stl') + get('blk')) * 10) / 10,
+      fg3m: get('fg3m'),
+      tov: get('tov'),
+    },
   }
 }
 
 const fitsPos = (p: any, base: 'C' | 'F' | 'G') => String(p?.position || '').toUpperCase().includes(base)
 
-/** Pick a valid 5-player lineup under salaryCap using a greedy + value strategy */
 export function buildAutoLineup(players: any[], cap: number, seedOffset = 0): Partial<Record<Slot, any>> {
   const pool = players.filter((p) => p && p.salary > 0 && p.pts != null)
   if (!pool.length) return {}
@@ -260,7 +208,6 @@ export function buildAutoLineup(players: any[], cap: number, seedOffset = 0): Pa
         return vb - va
       })
     if (!cands.length) {
-      // fallback cheapest
       const fallback = pool.filter((p) => fitsPos(p, base) && !used.has(p.id)).sort((a, b) => Number(a.salary) - Number(b.salary))
       return fallback[0] || null
     }

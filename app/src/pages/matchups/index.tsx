@@ -1,7 +1,7 @@
-// Matchups — Step 2 & Step 3 of core gameplay (Mock Flow):
-//  - My Starting 5: today's full box-score stats + rule-based score calculation & breakdown
-//  - Friends Room PK: leaderboard + click any friend for 5v5 slot-by-slot head-to-head stat comparison
-//  - Rules Tab: switch presets or tweak per-stat weights & recalculate all scores live
+// Matchups — Step 2 & Step 3 of core gameplay (Unified with PR #31 FantasyRules):
+//  - My Starting 5: today's full box-score stats + calcFantasyScore calculation & breakdown
+//  - Friends Room PK: leaderboard + click any friend for 5v5 slot-by-slot head-to-head comparison
+//  - Rules Tab: switch presets, tweak weights, or open full 17-stat editor (/pages/fantasy/index)
 import { View, Text, Input } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import { useMemo, useState } from 'react'
@@ -11,8 +11,9 @@ import { useFetch, useTabPage, go } from '../../lib/hooks'
 import { etToday, money } from '../../lib/fmt'
 import { headshotOf } from '../../lib/teams'
 import { fullName, tableName } from '../../lib/names'
+import { FantasyRules } from '../../lib/fantasy'
 import {
-  LINEUP_SLOTS, RULE_PRESETS, ScoringRule,
+  LINEUP_SLOTS, RULE_PRESETS,
   loadLineup, saveLineup, loadCap, loadRule, saveRule, loadRoom, saveRoom,
   formatRuleFormula, getPlayerDailyBox, calcPlayerScore, buildAutoLineup, buildMockFriends,
 } from '../../lib/scoring'
@@ -28,7 +29,7 @@ export default function Matchups() {
   const [tab, setTab] = useState<'my5' | 'friends' | 'rules'>('my5')
   const [saved, setSaved] = useState(() => loadLineup())
   const [cap] = useState(() => loadCap())
-  const [rule, setRule] = useState<ScoringRule>(() => loadRule())
+  const [rule, setRule] = useState<FantasyRules>(() => loadRule())
   const [room, setRoom] = useState(() => loadRoom())
   const [joinCode, setJoinCode] = useState('')
   const [tick, setTick] = useState(0)
@@ -44,7 +45,6 @@ export default function Matchups() {
   const allPlayers = playersQ.data?.players || []
   const gameDate = saved.date || TODAY
 
-  // If user hasn't picked 5 players yet, show CTA + allow 1-tap demo fill
   const mySlots = saved.slots || {}
   const myPicked = LINEUP_SLOTS.map((s) => mySlots[s.key]).filter(Boolean)
   const hasLineup = myPicked.length > 0
@@ -58,21 +58,22 @@ export default function Matchups() {
     Taro.showToast({ title: zh() ? '已生成并锁定演示 5 人阵容' : 'Demo 5-player lineup locked', icon: 'none' })
   }
 
-  const applyRule = (r: ScoringRule) => {
+  const applyRule = (r: FantasyRules) => {
     setRule(r)
     saveRule(r)
   }
 
-  const updateWeight = (field: keyof Pick<ScoringRule, 'pts' | 'reb' | 'ast' | 'stl' | 'blk' | 'fg3m' | 'tov'>, delta: number) => {
-    const next: ScoringRule = {
+  const getWeight = (key: string) => rule.stats.find((s) => s.key === key)?.weight ?? 0
+
+  const updateWeight = (key: string, delta: number) => {
+    const next: FantasyRules = {
       ...rule,
-      key: 'custom',
-      nameZh: '自定义规则',
-      nameEn: 'Custom',
-      [field]: Math.round((rule[field] + delta) * 10) / 10,
+      stats: rule.stats.map((s) => (s.key === key ? { ...s, weight: Math.round((s.weight + delta) * 10) / 10 } : s)),
     }
     applyRule(next)
   }
+
+  const activePreset = RULE_PRESETS.find((p) => formatRuleFormula(p.rules) === formatRuleFormula(rule))
 
   // Compute My Starting 5 daily box scores & rule scores
   const myRows = useMemo(() => {
@@ -98,7 +99,6 @@ export default function Matchups() {
     { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0 }
   )
 
-  // Compute Friends Room
   const friends = useMemo(() => buildMockFriends(allPlayers, cap), [allPlayers, cap])
 
   const leaderboard = useMemo(() => {
@@ -150,7 +150,6 @@ export default function Matchups() {
 
   return (
     <View className='page'>
-      {/* Header */}
       <View className='mu-h'>
         <View className='mu-top'>
           <View>
@@ -199,7 +198,6 @@ export default function Matchups() {
         {/* TAB 1: MY STARTING 5 SCORING */}
         {tab === 'my5' && hasLineup && (
           <View className='mu-sec'>
-            {/* Hero Total Score Card */}
             <View className='hero-card card'>
               <View className='hero-top'>
                 <View>
@@ -218,7 +216,6 @@ export default function Matchups() {
                 </View>
               </View>
 
-              {/* Team Aggregate Stats */}
               <View className='agg-grid'>
                 {[
                   [zh() ? '得分' : 'PTS', myAgg.pts, 'blue'],
@@ -236,12 +233,11 @@ export default function Matchups() {
               </View>
 
               <View className='formula-bar' onClick={() => setTab('rules')}>
-                <Text className='dim small'>{zh() ? '当前规则：' : 'Rule: '}{zh() ? rule.nameZh : rule.nameEn}</Text>
+                <Text className='dim small'>{zh() ? '当前规则：' : 'Rule: '}{activePreset ? (zh() ? activePreset.nameZh : activePreset.nameEn) : (zh() ? '自定义规则' : 'Custom')}</Text>
                 <Text className='blue small'>{zh() ? '调整规则 ›' : 'Edit ›'}</Text>
               </View>
             </View>
 
-            {/* 5 Player Cards with Full Box Score & Breakdown */}
             <View className='row' style={{ justifyContent: 'space-between', margin: '10px 2px 6px' }}>
               <Text className='dim small'>{zh() ? '球员当日比赛数据 & 得分拆解' : 'Daily Box Score & Breakdown'}</Text>
               <Text className='blue small' onClick={() => Taro.redirectTo({ url: '/pages/lineup/index' })}>
@@ -294,6 +290,7 @@ export default function Matchups() {
                       {' · '}{zh() ? '板' : 'REB'}<Text className='blue'>+{score.breakdown.reb}</Text>
                       {' · '}{zh() ? '助' : 'AST'}<Text className='blue'>+{score.breakdown.ast}</Text>
                       {' · '}{zh() ? '防' : 'DEF'}<Text className='green'>+{score.breakdown.def}</Text>
+                      {score.bonusPoints ? <> {' · '}{score.bonusKey === 'tripleDouble' ? '三双' : '两双'}<Text className='orange'>+{score.bonusPoints}</Text></> : null}
                       {' · '}{zh() ? '失' : 'TOV'}<Text className='err'>{score.breakdown.tov}</Text>
                     </Text>
                   </View>
@@ -306,7 +303,6 @@ export default function Matchups() {
         {/* TAB 2: FRIENDS LEADERBOARD & 5v5 HEAD-TO-HEAD PK */}
         {tab === 'friends' && (
           <View className='mu-sec'>
-            {/* Room Invite / Switch */}
             <View className='card room-bar'>
               <View className='row' style={{ justifyContent: 'space-between', marginBottom: '8px' }}>
                 <View>
@@ -328,7 +324,6 @@ export default function Matchups() {
               </View>
             </View>
 
-            {/* Leaderboard */}
             <View className='card lb-card'>
               <Text className='bold' style={{ color: '#fff', fontSize: '13px', display: 'block', marginBottom: '8px' }}>
                 {zh() ? '今日好友积分榜（点击任意好友查看 5v5 对位）' : 'Friends Leaderboard (Tap to compare 5v5)'}
@@ -369,7 +364,6 @@ export default function Matchups() {
               })}
             </View>
 
-            {/* 5v5 Head-to-Head Comparison */}
             {myEntry && oppEntry && (
               <View className='card pk-card'>
                 <View className='pk-head'>
@@ -394,7 +388,6 @@ export default function Matchups() {
                   </View>
                 </View>
 
-                {/* 5 Category Team Totals */}
                 <View className='pk-cats'>
                   {[
                     [zh() ? '得分' : 'PTS', 'pts'],
@@ -418,7 +411,6 @@ export default function Matchups() {
                   })}
                 </View>
 
-                {/* Slot by Slot Rows */}
                 {LINEUP_SLOTS.map((s) => {
                   const m = myEntry.slotItems[s.key]
                   const o = oppEntry.slotItems[s.key]
@@ -467,28 +459,36 @@ export default function Matchups() {
           </View>
         )}
 
-        {/* TAB 3: SCORING RULES */}
+        {/* TAB 3: SCORING RULES (UNIFIED WITH /pages/fantasy/index) */}
         {tab === 'rules' && (
           <View className='mu-sec'>
             <View className='card rule-card'>
-              <Text className='bold' style={{ color: '#fff', fontSize: '14px', display: 'block', marginBottom: '6px' }}>
-                {zh() ? '预设技术统计计分规则（切换即时生效）' : 'Scoring Rule Presets'}
-              </Text>
+              <View className='row' style={{ justifyContent: 'space-between', marginBottom: '8px' }}>
+                <Text className='bold' style={{ color: '#fff', fontSize: '14px' }}>
+                  {zh() ? '预设技术统计计分规则' : 'Scoring Rule Presets'}
+                </Text>
+                <Text className='blue small' onClick={() => go('/pages/fantasy/index')}>
+                  {zh() ? '完整 17 项规则编辑器 ›' : 'Full 17-Stat Editor ›'}
+                </Text>
+              </View>
               <View className='rule-presets'>
-                {RULE_PRESETS.map((p) => (
-                  <View key={p.key} className={'preset-item' + (rule.key === p.key ? ' on' : '')} onClick={() => applyRule(p)}>
-                    <Text className='bold' style={{ color: rule.key === p.key ? '#6EE2F5' : '#fff', fontSize: '13px', display: 'block' }}>
-                      {zh() ? p.nameZh : p.nameEn}
-                    </Text>
-                    <Text className='dim small'>{formatRuleFormula(p)}</Text>
-                  </View>
-                ))}
+                {RULE_PRESETS.map((p) => {
+                  const isOn = activePreset?.key === p.key
+                  return (
+                    <View key={p.key} className={'preset-item' + (isOn ? ' on' : '')} onClick={() => applyRule(p.rules)}>
+                      <Text className='bold' style={{ color: isOn ? '#6EE2F5' : '#fff', fontSize: '13px', display: 'block' }}>
+                        {zh() ? p.nameZh : p.nameEn}
+                      </Text>
+                      <Text className='dim small'>{formatRuleFormula(p.rules)}</Text>
+                    </View>
+                  )
+                })}
               </View>
             </View>
 
             <View className='card rule-card'>
               <Text className='bold' style={{ color: '#fff', fontSize: '14px', display: 'block', marginBottom: '6px' }}>
-                {zh() ? '微调单项技术统计权重' : 'Customize Stat Weights'}
+                {zh() ? '快捷微调核心权重（同步至全局范特西规则）' : 'Quick Weight Adjustments (Synced Globally)'}
               </Text>
               {([
                 ['pts', zh() ? '得分 (PTS)' : 'Points (PTS)', 0.5],
@@ -498,12 +498,12 @@ export default function Matchups() {
                 ['blk', zh() ? '盖帽 (BLK)' : 'Blocks (BLK)', 0.5],
                 ['fg3m', zh() ? '三分命中 (3PM)' : '3-Pointers (3PM)', 0.5],
                 ['tov', zh() ? '失误 (TOV)' : 'Turnovers (TOV)', 0.5],
-              ] as [keyof Pick<ScoringRule, 'pts' | 'reb' | 'ast' | 'stl' | 'blk' | 'fg3m' | 'tov'>, string, number][]).map(([field, label, step]) => (
+              ] as [string, string, number][]).map(([field, label, step]) => (
                 <View key={field} className='w-row'>
                   <Text style={{ color: '#E0EFFF', fontSize: '13px' }}>{label}</Text>
                   <View className='row' style={{ gap: '10px' }}>
                     <View className='cap-step' onClick={() => updateWeight(field, -step)}>-</View>
-                    <Text className='w-val'>{rule[field]}</Text>
+                    <Text className='w-val'>{getWeight(field)}</Text>
                     <View className='cap-step' onClick={() => updateWeight(field, step)}>+</View>
                   </View>
                 </View>
