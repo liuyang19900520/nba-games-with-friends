@@ -1,6 +1,7 @@
 import { View, Text } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
 import { useEffect, useState } from 'react'
+import { useDidShow } from '@tarojs/taro'
 import { api } from '../../lib/api'
 import { t, getLang, useLang } from '../../lib/i18n'
 import { useFetch, go } from '../../lib/hooks'
@@ -9,6 +10,8 @@ import { localDateTime, num } from '../../lib/fmt'
 import { autoCols, seasonTypeLabel, label } from '../../lib/stats'
 import { status } from '../../components/game'
 import { fullName, tableName, dupeLastNames } from '../../lib/names'
+import { calcFantasyScore } from '../../lib/fantasy'
+import { readFantasyRules } from '../../lib/fantasyStorage'
 import { Loader, Img, Tabs, Table, KV, Section, Seg } from '../../components/ui'
 import './index.less'
 
@@ -19,6 +22,8 @@ export default function Game() {
   const { id } = useRouter().params as any
   const lang = useLang()
   const [tab, setTab] = useState('box')
+  const [fantasyRules, setFantasyRules] = useState(readFantasyRules)
+  useDidShow(() => setFantasyRules(readFantasyRules()))
   const q = useFetch(() => api.game(id), [id])
   const d = q.data || {}
   const g = d.game
@@ -28,7 +33,7 @@ export default function Game() {
       <Loader loading={q.loading && !q.data} error={q.error} onRetry={q.reload}>
         {g && <Header g={g} />}
         <Tabs sticky value={tab} onChange={setTab} items={[['box', t('boxscore')], ['compare', t('compare')], ['pbp', t('pbp')], ['info', t('info')]]} />
-        {g && tab === 'box' && <Box d={d} />}
+        {g && tab === 'box' && <Box d={d} rules={fantasyRules} />}
         {g && tab === 'compare' && <Compare d={d} />}
         {g && tab === 'pbp' && <Plays d={d} />}
         {g && tab === 'info' && <Info d={d} />}
@@ -65,16 +70,16 @@ function Header({ g }: { g: any }) {
 }
 const lang = getLang
 
-function Box({ d }: { d: any }) {
+function Box({ d, rules }: { d: any; rules: ReturnType<typeof readFantasyRules> }) {
   const g = d.game
   const [side, setSide] = useState('away')
   const boxes: any[] = d.box || []
   let tb = boxes.find((b) => b.team_id === g[side].id)
   if (!tb && d.players) tb = { players: d.players.filter((p: any) => p.team_id === g[side].id) } // legacy shape
   const ps: any[] = tb?.players || []
-  const played = ps.filter((p) => !p.dnp)
+  const played = ps.filter((p) => !p.dnp).map((p) => ({ ...p, fantasy: calcFantasyScore(p, rules).score }))
   const starters = played.filter((p) => p.starter), bench = played.filter((p) => !p.starter), dnp = ps.filter((p) => p.dnp)
-  const cols = autoCols(played.length ? played : ps, BOX).filter((c) => !['starter', 'dnp', 'jersey'].includes(c))
+  const cols = Array.from(new Set([...autoCols(played.length ? played : ps, BOX).filter((c) => !['starter', 'dnp', 'jersey'].includes(c)), ...(played.length ? ['fantasy'] : [])]))
   const nm = fullName
   const dupes = dupeLastNames(ps)
   const first = (p: any) => (<View><Text className='nm' style={{ display: 'block' }}>{tableName(p, dupes)}</Text><Text className='nm-sub'>{[p.jersey && `#${p.jersey}`, p.position].filter(Boolean).join(' · ')}</Text></View>)

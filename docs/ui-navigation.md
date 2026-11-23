@@ -12,9 +12,11 @@ WeChat and H5 look the same; icons rendered from the lucide paths by `app/script
 | Home | recent games | `pages/index` 赛程 | date switcher, game cards → 比赛详情 |
 | Leagues | leagues / standings | `pages/standings` 球队 / 球员 | 球队 → East/West standings and team stat ranks → 球队页; 球员 → shared category leaders, 基础/进阶 → 完整榜单 → 球员页 |
 | **Lineup** (center) | pick 5 players to play with friends | `pages/lineup` 阵容 | v1 neon court, slots C/F/F/G/G → picker (search, position, tonight-only, team); saved locally; share = copy text. **UI only, no scoring** |
-| Profile | user / settings | `pages/more` 我的 | language toggle, shortcut links (球队/球队榜/球员榜/赛程), 伤病报告, data source |
+| Profile | user / settings | `pages/more` 我的 | language toggle, shortcut links (球队/球队榜/球员榜/赛程), 范特西规则, 伤病报告, data source |
 
 Detail pages (pushed, back button): 球队页 `pages/team`, 球员页 `pages/player`, 比赛详情 `pages/game`, 完整榜单 `pages/leaderlist`.
+
+范特西规则页 `pages/fantasy` 从 Profile 进入。统计权重和双双/三双奖励保存在本机 `fantasy:rules:v1`；比赛 Box 和球员逐场数据按球员统计展示范特西分。三双奖励与双双奖励互斥，球队总计不触发里程碑奖励。
 30-teams page (`pages/teams`) entry points: Leagues → 球队 → 全部球队 ›, Lineup → 全部球队 ›, Profile links.
 Team page entry points: standings rows, team stat ranks, game header logos, player header team chip, Profile links.
 

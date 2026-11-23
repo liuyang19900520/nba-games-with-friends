@@ -24,6 +24,7 @@ export default function More() {
         {[['/pages/teams/index', t('allTeams')], ['/pages/standings/index', t('standings')], ['/pages/leaders/index', t('leaders')], ['/pages/index/index', t('schedule')]].map(([u, l]) => (
           <View key={u} className='link' onClick={() => Taro.redirectTo({ url: u })}><Text>{l}</Text><Text className='dim'>›</Text></View>
         ))}
+        <View className='link' onClick={() => Taro.navigateTo({ url: '/pages/fantasy/index' })}><Text>范特西分规则</Text><Text className='dim'>›</Text></View>
       </View>
       <Tabs items={[['injuries', t('injuries')]]} value={tab} onChange={setTab} />
       {tab === 'injuries' && (
