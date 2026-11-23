@@ -1,7 +1,5 @@
-// Leagues tab: team standings/stat ranks and player leaders.
-//   球队: one filter row (East / West / divisions / team stats), standings by default
-//   球员: shared player leaderboard.
-import { View, Text, ScrollView, Button } from '@tarojs/components'
+// Leagues tab: sleek neon-underline primary tabs (Teams | Players) + glassmorphic pill sub-filters
+import { View, Text, ScrollView } from '@tarojs/components'
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { t, getLang } from '../../lib/i18n'
@@ -9,7 +7,7 @@ import { useFetch, useTabPage, go } from '../../lib/hooks'
 import { teamName, logoOf } from '../../lib/teams'
 import { stat } from '../../lib/fmt'
 import { loadMeta, fallbackMeta } from '../../lib/meta'
-import { Loader, Img, Table, Seg } from '../../components/ui'
+import { Loader, Img, Table } from '../../components/ui'
 import PlayerLeaders from '../../components/PlayerLeaders'
 import BottomNav from '../../components/BottomNav'
 import './index.less'
@@ -20,7 +18,11 @@ const zh = () => getLang() === 'zh'
 function Chips({ items, value, onChange }: { items: [string, string][]; value: string; onChange: (k: string) => void }) {
   return (
     <ScrollView scrollX className='chips'>
-      {items.map(([k, l]) => <Button key={k} className={'chip' + (k === value ? ' on' : '')} ariaLabel={l} onClick={() => onChange(k)}>{l}</Button>)}
+      {items.map(([k, l]) => (
+        <View key={k} className={'chip' + (k === value ? ' on' : '')} onClick={() => onChange(k)}>
+          <Text>{l}</Text>
+        </View>
+      ))}
     </ScrollView>
   )
 }
@@ -95,24 +97,55 @@ export default function Leagues() {
   const season = meta.current_season || 2027
   return (
     <View className={'page league-page' + (top === 'players' ? ' league-players' : '')}>
-      <View className='topbar'>
-        <Seg items={[['teams', zh() ? '球队' : 'Teams'], ['players', zh() ? '球员' : 'Players']]} value={top} onChange={setTop} />
-        {top === 'teams' && <Text className='dim small'>{season - 1}-{String(season).slice(2)} {zh() ? '常规赛' : 'Regular'}</Text>}
+      {/* Level 1: Sleek Neon-Underline Primary Tab Header */}
+      <View className='lg-header'>
+        <View className='lg-tabs'>
+          {[
+            ['teams', zh() ? '球队榜' : 'Teams'],
+            ['players', zh() ? '球员榜' : 'Players'],
+          ].map(([k, label]) => (
+            <View key={k} className={'lg-tab' + (top === k ? ' on' : '')} onClick={() => setTop(k)}>
+              <Text className='lg-tab-t'>{label}</Text>
+              {top === k && <View className='lg-tab-bar' />}
+            </View>
+          ))}
+        </View>
+        <View className='lg-season'>
+          <Text>{season - 1}-{String(season).slice(2)} {zh() ? '常规赛' : 'REG'}</Text>
+        </View>
       </View>
+
       {top === 'teams' && (
         <View>
-          <View className='team-filters'>
-            {[
-              ['East', t('east')], ['West', t('west')],
-              ['div', zh() ? '赛区' : 'Divisions'], ['stats', zh() ? '数据榜' : 'Team stats'],
-            ].map(([key, label]) => (
-              <Button key={key} className={'chip' + (key === teamView ? ' on' : '')} ariaLabel={label} onClick={() => setTeamView(key)}>{label}</Button>
-            ))}
+          {/* Level 2: Unified Glassmorphic Pill Track */}
+          <View className='lg-subwrap'>
+            <View className='lg-subtrack'>
+              {[
+                ['East', t('east')],
+                ['West', t('west')],
+                ['div', zh() ? '赛区' : 'Divisions'],
+                ['stats', zh() ? '数据榜' : 'Stats'],
+              ].map(([key, label]) => (
+                <View key={key} className={'lg-subpill' + (key === teamView ? ' on' : '')} onClick={() => setTeamView(key)}>
+                  <Text>{label}</Text>
+                </View>
+              ))}
+            </View>
           </View>
+
           <View className='team-context'>
-            <Text className='team-context-label dim small'>{teamView === 'stats' ? (zh() ? '球队数据榜' : 'Team stat leaders') : teamView === 'div' ? (zh() ? '按赛区分组 · 东/西部排名' : 'By division · conference ranks') : `${teamView === 'East' ? t('east') : t('west')} ${zh() ? '排名' : 'standings'}`}</Text>
-            <Button className='teams-link' onClick={() => go('/pages/teams/index')}>{t('allTeams')} ›</Button>
+            <Text className='dim small'>
+              {teamView === 'stats'
+                ? (zh() ? '30 队场均技术统计排行' : 'Team stat leaders')
+                : teamView === 'div'
+                  ? (zh() ? '六大赛区分组 · 东/西部排名' : 'By division · conference ranks')
+                  : `${teamView === 'East' ? t('east') : t('west')} ${zh() ? '战绩排名' : 'standings'}`}
+            </Text>
+            <View className='teams-link' onClick={() => go('/pages/teams/index')}>
+              <Text>{t('allTeams')} ›</Text>
+            </View>
           </View>
+
           {teamView === 'stats' ? <TeamStatRanks season={season} /> : <TeamStandings filter={teamView} />}
         </View>
       )}

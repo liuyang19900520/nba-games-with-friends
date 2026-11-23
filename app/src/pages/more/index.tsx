@@ -1,36 +1,113 @@
 import { View, Text } from '@tarojs/components'
-import Taro from '@tarojs/taro'
-import { useState } from 'react'
+import Taro, { useDidShow } from '@tarojs/taro'
+import { useMemo, useState } from 'react'
 import { api } from '../../lib/api'
 import { t, setLang, getLang } from '../../lib/i18n'
 import { useFetch, useTabPage, go } from '../../lib/hooks'
-import { teamName, logoOf, headshotOf } from '../../lib/teams'
-import { Loader, Img, Section, Tabs } from '../../components/ui'
+import { teamName, headshotOf } from '../../lib/teams'
 import { fullName } from '../../lib/names'
+import { etToday, money } from '../../lib/fmt'
+import { LINEUP_SLOTS, loadLineup, loadCap, loadRule, loadRoom, formatRuleFormula, getPlayerDailyBox, calcPlayerScore } from '../../lib/scoring'
+import { Loader, Img, Section } from '../../components/ui'
 import BottomNav from '../../components/BottomNav'
 import './index.less'
 
+const TODAY = process.env.TARO_APP_DEFAULT_DATE || etToday()
+
 export default function More() {
   const lang = useTabPage('more')
-  const [tab, setTab] = useState('injuries')
-    const inj = useFetch(() => (tab === 'injuries' ? api.injuries() : Promise.resolve(null)), [tab])
+  const zh = lang === 'zh'
+  const [saved, setSaved] = useState(() => loadLineup())
+  const [cap, setCap] = useState(() => loadCap())
+  const [rule, setRule] = useState(() => loadRule())
+  const [room, setRoom] = useState(() => loadRoom())
+
+  useDidShow(() => {
+    setSaved(loadLineup())
+    setCap(loadCap())
+    setRule(loadRule())
+    setRoom(loadRoom())
+  })
+
+  const inj = useFetch(() => api.injuries(), [])
+
+  const picked = useMemo(() => LINEUP_SLOTS.map((s) => saved.slots?.[s.key]).filter(Boolean), [saved])
+  const gameDay = saved.date || TODAY
+  const simScore = picked.reduce((s, p) => s + calcPlayerScore(getPlayerDailyBox(p, gameDay), rule).total, 0)
+
   return (
     <View className='page'>
-      <View className='topbar'>
-        <Text className='h-title'>NBA</Text>
-        <View className='picker' onClick={() => setLang(getLang() === 'zh' ? 'en' : 'zh')}>{t('lang')}</View>
+      {/* Manager Hero Card */}
+      <View className='pr-hero card'>
+        <View className='row' style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View className='row' style={{ gap: '10px' }}>
+            <View className='pr-avatar'><Text>🏀</Text></View>
+            <View>
+              <Text className='bold' style={{ fontSize: '16px', color: '#fff', display: 'block' }}>
+                {zh ? '球队经理 · 演示账号' : 'Team Manager · Demo'}
+              </Text>
+              <Text className='dim small' style={{ display: 'block', marginTop: '2px' }}>
+                {room.name} #{room.code}
+              </Text>
+            </View>
+          </View>
+          <View className='picker' onClick={() => setLang(zh ? 'en' : 'zh')}>{t('lang')}</View>
+        </View>
+
+        <View className='pr-stats'>
+          <View className='pr-stat' onClick={() => Taro.redirectTo({ url: '/pages/lineup/index' })}>
+            <Text className='pr-stat-v'>{picked.length}/5</Text>
+            <Text className='pr-stat-l'>{saved.locked ? (zh ? '已锁阵容' : 'Locked') : (zh ? '今日阵容' : 'Lineup')}</Text>
+          </View>
+          <View className='pr-stat' onClick={() => Taro.redirectTo({ url: '/pages/matchups/index' })}>
+            <Text className='pr-stat-v blue'>{picked.length ? simScore.toFixed(1) : '—'}</Text>
+            <Text className='pr-stat-l'>{zh ? '今日模拟分' : 'Today Pts'}</Text>
+          </View>
+          <View className='pr-stat' onClick={() => Taro.redirectTo({ url: '/pages/lineup/index' })}>
+            <Text className='pr-stat-v orange'>{money(cap)}</Text>
+            <Text className='pr-stat-l'>{zh ? '薪资帽' : 'Salary Cap'}</Text>
+          </View>
+        </View>
       </View>
-      <View className='card links'>
-        {[['/pages/teams/index', t('allTeams')], ['/pages/standings/index', t('standings')], ['/pages/leaders/index', t('leaders')], ['/pages/index/index', t('schedule')]].map(([u, l]) => (
-          <View key={u} className='link' onClick={() => Taro.redirectTo({ url: u })}><Text>{l}</Text><Text className='dim'>›</Text></View>
+
+      {/* Active Fantasy Scoring Rules Card */}
+      <View className='pr-rule card' onClick={() => Taro.navigateTo({ url: '/pages/fantasy/index' })}>
+        <View className='row' style={{ justifyContent: 'space-between', marginBottom: '4px' }}>
+          <Text className='bold' style={{ color: '#fff', fontSize: '14px' }}>
+            📐 {zh ? '当前计分规则（范特西分）' : 'Active Scoring Rules'}
+          </Text>
+          <Text className='blue small bold'>{zh ? '编辑 17 项规则 ›' : 'Edit Rules ›'}</Text>
+        </View>
+        <Text className='dim small' style={{ display: 'block', lineHeight: '16px' }}>
+          {formatRuleFormula(rule)} · {zh ? `两双 +${rule.doubleDouble} / 三双 +${rule.tripleDouble}` : `DD2 +${rule.doubleDouble} / TD3 +${rule.tripleDouble}`}
+        </Text>
+      </View>
+
+      {/* 2x2 Quick Navigation Grid */}
+      <View className='pr-grid'>
+        {[
+          ['⚡', zh ? '好友对战 PK' : 'Matchups PK', '/pages/matchups/index', true],
+          ['🏀', t('allTeams'), '/pages/teams/index', false],
+          ['🏆', t('standings'), '/pages/standings/index', true],
+          ['⭐', t('leaders'), '/pages/leaders/index', false],
+        ].map(([ico, label, url, isTab]) => (
+          <View
+            key={String(url)}
+            className='pr-tile card'
+            onClick={() => (isTab ? Taro.redirectTo({ url: String(url) }) : go(String(url)))}
+          >
+            <Text className='pr-tile-ico'>{ico}</Text>
+            <Text className='pr-tile-lbl'>{label}</Text>
+          </View>
         ))}
-        <View className='link' onClick={() => Taro.navigateTo({ url: '/pages/fantasy/index' })}><Text>范特西分规则</Text><Text className='dim'>›</Text></View>
       </View>
-      <Tabs items={[['injuries', t('injuries')]]} value={tab} onChange={setTab} />
-      {tab === 'injuries' && (
+
+      {/* Injuries Section */}
+      <Section title={t('injuries')}>
         <Loader loading={inj.loading} error={inj.error} onRetry={inj.reload} empty={!inj.loading && !(inj.data?.teams || []).length}>
           {(inj.data?.teams || []).map((g: any) => (
-            <Section key={g.team?.id} title={teamName(g.team, true)}>
+            <View key={g.team?.id} className='inj-group'>
+              <Text className='inj-team-t'>{teamName(g.team, true)}</Text>
               <View className='card'>
                 {g.injuries.map((i: any, k: number) => (
                   <View key={k} className='inj' onClick={() => i.player?.id && go(`/pages/player/index?id=${i.player.id}`)}>
@@ -44,11 +121,12 @@ export default function More() {
                   </View>
                 ))}
               </View>
-            </Section>
+            </View>
           ))}
         </Loader>
-      )}
-      <View className='dim foot'>{t('about')} · v2 · {process.env.TARO_APP_API_MODE === 'mock' ? (getLang() === 'zh' ? '演示数据（离线快照）' : 'Demo data (offline snapshot)') : `API: ${process.env.TARO_APP_API_BASE}`}</View>
+      </Section>
+
+      <View className='dim foot'>{t('about')} · v2 · {process.env.TARO_APP_API_MODE === 'mock' ? (zh ? '演示数据（离线快照）' : 'Demo data (offline snapshot)') : `API: ${process.env.TARO_APP_API_BASE}`}</View>
       <BottomNav active='profile' />
     </View>
   )
