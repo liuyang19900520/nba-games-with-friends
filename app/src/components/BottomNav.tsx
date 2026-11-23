@@ -4,14 +4,16 @@ import Taro from '@tarojs/taro'
 import home from '../assets/nav/home.png'; import homeOn from '../assets/nav/home-on.png'
 import trophy from '../assets/nav/trophy.png'; import trophyOn from '../assets/nav/trophy-on.png'
 import ball from '../assets/nav/ball.png'; import ballOn from '../assets/nav/ball-on.png'
+import users from '../assets/nav/users.png'; import usersOn from '../assets/nav/users-on.png'
 import user from '../assets/nav/user.png'; import userOn from '../assets/nav/user-on.png'
 import './BottomNav.less'
 
-export type NavKey = 'home' | 'leagues' | 'lineup' | 'profile'
+export type NavKey = 'home' | 'leagues' | 'lineup' | 'matchups' | 'profile'
 const ITEMS: { key: NavKey; label: string; url: string; icon: [string, string]; center?: boolean }[] = [
   { key: 'home', label: 'Home', url: '/pages/index/index', icon: [home, homeOn] },
   { key: 'leagues', label: 'Leagues', url: '/pages/standings/index', icon: [trophy, trophyOn] },
   { key: 'lineup', label: 'Lineup', url: '/pages/lineup/index', icon: [ball, ballOn], center: true },
+  { key: 'matchups', label: 'Matchups', url: '/pages/matchups/index', icon: [users, usersOn] },
   { key: 'profile', label: 'Profile', url: '/pages/more/index', icon: [user, userOn] },
 ]
 export default function BottomNav({ active }: { active: NavKey }) {
