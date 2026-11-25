@@ -19,6 +19,7 @@ export interface AiOptions {
   onlyTonight: boolean
   skipInjured: boolean
   keepExisting: boolean
+  maxCap?: number
   variation?: number
 }
 
@@ -159,34 +160,45 @@ export function generateAiLineup(
   // Fill C first (scarcest), then F1, F2, G1, G2
   const fillOrder = SLOTS.filter((s) => !picksBySlot[s.key])
   const variation = options.variation || 0
+  let spent = Object.values(picksBySlot).reduce((sum, item) => sum + (Number(item?.player?.salary) || 0), 0)
+  const MIN_RESERVE = 2_000_000
 
   for (let idx = 0; idx < fillOrder.length; idx++) {
     const s = fillOrder[idx]
+    const slotsLeftAfter = fillOrder.length - idx - 1
+    const maxForSlot = options.maxCap ? Math.max(0, options.maxCap - spent - slotsLeftAfter * MIN_RESERVE) : Infinity
 
-    const pickFrom = (restrictTonight: boolean, restrictInjury: boolean) => {
+    const pickFrom = (restrictTonight: boolean, restrictInjury: boolean, restrictCap: boolean) => {
       return allPlayers
         .filter((p) => {
           if (!p?.id || taken.has(p.id)) return false
           if (!fits(p.position, s.base)) return false
           if (restrictInjury && p.injury_status) return false
           if (restrictTonight && tonightTeamIds.size > 0 && !tonightTeamIds.has(p.team?.id)) return false
+          if (restrictCap && (Number(p.salary) || 0) > maxForSlot) return false
           return true
         })
         .map((p) => ({ p, score: scorePlayer(p, s.base, options.strategy) }))
         .sort((a, b) => b.score - a.score)
     }
 
-    let candidates = pickFrom(options.onlyTonight, options.skipInjured)
+    let candidates = pickFrom(options.onlyTonight, options.skipInjured, Boolean(options.maxCap))
     if (!candidates.length && options.skipInjured) {
-      candidates = pickFrom(options.onlyTonight, false)
+      candidates = pickFrom(options.onlyTonight, false, Boolean(options.maxCap))
     }
     if (!candidates.length && options.onlyTonight) {
       usedFallbackPool = true
-      candidates = pickFrom(false, options.skipInjured)
+      candidates = pickFrom(false, options.skipInjured, Boolean(options.maxCap))
+    }
+    if (!candidates.length && options.maxCap) {
+      // If cap is too tight, pick the lowest-salary eligible player
+      candidates = pickFrom(false, options.skipInjured, false).sort(
+        (a, b) => (Number(a.p.salary) || 0) - (Number(b.p.salary) || 0),
+      )
     }
     if (!candidates.length) {
       usedFallbackPool = true
-      candidates = pickFrom(false, false)
+      candidates = pickFrom(false, false, false)
     }
 
     if (!candidates.length) continue
@@ -197,7 +209,6 @@ export function generateAiLineup(
       const pickIdx = Math.floor(Math.random() * pool.length)
       chosen = pool[pickIdx].p
     } else if (variation > 0 && candidates.length > 1) {
-      // On "Regenerate", rotate/sample within the top-4 candidates for variety
       const topK = candidates.slice(0, Math.min(4, candidates.length))
       const offset = (variation + idx) % topK.length
       chosen = topK[offset].p
@@ -206,6 +217,7 @@ export function generateAiLineup(
     }
 
     taken.add(chosen.id)
+    spent += Number(chosen.salary) || 0
     picksBySlot[s.key] = {
       slot: s.key,
       base: s.base,

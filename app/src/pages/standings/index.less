@@ -1,13 +1,30 @@
 @import '../../theme.less';
-.bar2 { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 8px; }
-.grp { margin: 0 8px 10px; }
-.grp-t { display: block; font-size: 13px; font-weight: 700; color: #fff; padding: 6px 4px; border-left: 3px solid @orange; padding-left: 8px; margin-bottom: 6px; }
-.note { font-size: 10px; padding: 6px 4px; }
-.chips { white-space: nowrap; padding: 0 8px 8px; width: 100%; }
-.chip { display: inline-block; padding: 5px 12px; margin-right: 6px; border-radius: 14px; font-size: 12px; color: @dim; border: 1px solid @card-border; background: @card; }
-.chip.on { color: @dark; background: @blue; border-color: @blue; font-weight: 600; }
-.blockp { margin: 0 8px; padding: 6px 8px; }
-.blockp-h { display: flex; justify-content: space-between; padding: 4px 2px 6px; border-bottom: 1px solid @line; }
 .small { font-size: 11px; }
-.more { text-align: center; color: @dim; font-size: 12px; padding: 8px 0 4px; }
+.grp { margin: 0 10px 12px; }
+.grp-t { display: block; font-size: 13px; font-weight: 700; color: #fff; padding: 6px 4px 6px 8px; border-left: 3px solid @orange; margin-bottom: 6px; }
+.note { font-size: 10px; padding: 6px 4px; }
+.chips { white-space: nowrap; padding: 2px 12px 8px; box-sizing: border-box; width: 100%; }
+.chip { display: inline-flex; align-items: center; padding: 5px 12px; margin-right: 6px; border-radius: 14px; font-size: 12px; color: @dim; border: 1px solid @card-border; background: @card; }
+.chip.on { color: @dark; background: @blue; border-color: @blue; font-weight: 700; }
+
+/* Level 1: Sleek Neon-Underline Tab Header */
+.lg-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px 0; border-bottom: 1px solid @line; background: rgba(13,18,29,.65); }
+.lg-tabs { display: flex; align-items: center; gap: 22px; }
+.lg-tab { position: relative; padding: 10px 2px 12px; }
+.lg-tab-t { font-size: 16px; font-weight: 600; color: @dim; }
+.lg-tab.on .lg-tab-t { color: #fff; font-weight: 800; }
+.lg-tab-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 3px; background: linear-gradient(90deg, @blue, #38BDF8); box-shadow: 0 0 10px rgba(110,226,245,.75); }
+.lg-season { padding: 3px 9px; border-radius: 10px; background: rgba(29,39,61,.7); border: 1px solid @card-border; font-size: 10px; color: @dim; font-weight: 600; }
+
+/* Level 2: Unified Glassmorphic Sub-Filter Track */
+.lg-subwrap { padding: 10px 12px 6px; }
+.lg-subtrack { display: flex; align-items: center; background: rgba(13,18,29,.85); border: 1px solid rgba(110,226,245,.18); border-radius: 12px; padding: 3px; gap: 4px; }
+.lg-subpill { flex: 1; text-align: center; padding: 7px 4px; border-radius: 9px; font-size: 12px; font-weight: 600; color: @dim; transition: all .2s ease; }
+.lg-subpill.on { background: linear-gradient(90deg, @blue, #38BDF8); color: @dark; font-weight: 800; box-shadow: 0 2px 10px rgba(110,226,245,.35); }
+
+.team-context { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 8px; }
+.teams-link { padding: 3px 10px; border-radius: 12px; background: rgba(110,226,245,.1); border: 1px solid rgba(110,226,245,.25); color: @blue; font-size: 11px; font-weight: 600; }
+
 @import '../leaders/index.less';
+.league-players { padding-bottom: 0; }
+.league-players .lead-body { height: calc(100vh - 46px - 96px - 44px); }
