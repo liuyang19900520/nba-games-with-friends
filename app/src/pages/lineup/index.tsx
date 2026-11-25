@@ -13,13 +13,9 @@ import { teamName, logoOf, headshotOf } from '../../lib/teams'
 import { fullName, tableName } from '../../lib/names'
 import { Loader, Img } from '../../components/ui'
 import BottomNav from '../../components/BottomNav'
+import { SLOTS, Slot, STRATEGIES, AiStrategy, AiResult, generateAiLineup } from '../../lib/aiLineup'
 import './index.less'
 
-type Slot = 'C' | 'F1' | 'F2' | 'G1' | 'G2'
-const SLOTS: { key: Slot; base: 'C' | 'F' | 'G'; cls: string }[] = [
-  { key: 'C', base: 'C', cls: 's-c' }, { key: 'F1', base: 'F', cls: 's-f1' }, { key: 'F2', base: 'F', cls: 's-f2' },
-  { key: 'G1', base: 'G', cls: 's-g1' }, { key: 'G2', base: 'G', cls: 's-g2' },
-]
 const KEY = 'lineup:v2'
 const TODAY = process.env.TARO_APP_DEFAULT_DATE || etToday()
 const zh = () => getLang() === 'zh'
@@ -32,6 +28,7 @@ export default function Lineup() {
   const [slots, setSlots] = useState<Saved['slots']>(() => { try { return (Taro.getStorageSync(KEY) || {}).slots || {} } catch (e) { return {} } })
   useEffect(() => { Taro.setStorageSync(KEY, { date: TODAY, slots }) }, [slots])
   const [open, setOpen] = useState<Slot | null>(null)
+  const [aiOpen, setAiOpen] = useState(false)
   const games = useFetch(() => api.gamesRange(TODAY, addDays(TODAY, 13)), [])
   // "tonight" = first ET game day >= today with games not yet started
   const pre = (games.data?.games || []).filter((g: any) => (g.state || g.status) === 'pre' || g.status === 'scheduled')
@@ -64,6 +61,7 @@ export default function Lineup() {
       <View className='lu-bar'>
         <Text className='dim small'>{zh() ? '总薪资（仅展示）' : 'Total salary (info only)'}: {total ? money(total) : '—'}</Text>
         <View className='row' style={{ gap: '8px' }}>
+          <View className='btn sm ai-btn' onClick={() => setAiOpen(true)}>✨ {zh() ? 'AI 选阵' : 'AI Pick'}</View>
           <View className='btn sm' onClick={share}>{zh() ? '分享' : 'Share'}</View>
           <View className='btn sm ghost' onClick={() => setSlots({})}>{zh() ? '清空' : 'Clear'}</View>
         </View>
@@ -92,6 +90,14 @@ export default function Lineup() {
       {open && <Picker slot={open} base={SLOTS.find((s) => s.key === open)!.base} slots={slots} tonight={tonight}
         onClose={() => setOpen(null)} onPick={(p) => { setSlots((s) => ({ ...s, [open]: slim(p) })); setOpen(null) }}
         onRemove={() => { setSlots((s) => { const n = { ...s }; delete n[open]; return n }); setOpen(null) }} />}
+      {aiOpen && <AiSheet slots={slots} tonight={tonight} onClose={() => setAiOpen(false)}
+        onApply={(next) => {
+          const mapped: Saved['slots'] = {}
+          next.forEach((item) => { mapped[item.slot] = slim(item.player) })
+          setSlots(mapped)
+          setAiOpen(false)
+          Taro.showToast({ title: zh() ? '已应用 AI 推荐阵容' : 'AI lineup applied', icon: 'none' })
+        }} />}
       <BottomNav active='lineup' />
     </View>
   )
@@ -163,3 +169,123 @@ function Picker({ slot, base, slots, tonight, onClose, onPick, onRemove }: { slo
     </View>
   )
 }
+
+function AiSheet({ slots, tonight, onClose, onApply }: { slots: Saved['slots']; tonight: any[]; onClose: () => void; onApply: (picks: AiResult['picks']) => void }) {
+  const q = useFetch(() => api.allPlayers(), [])
+  const [strategy, setStrategy] = useState<AiStrategy>('balanced')
+  const [onlyTonight, setOnlyTonight] = useState(tonight.length > 0)
+  const [skipInjured, setSkipInjured] = useState(true)
+  const [keepExisting, setKeepExisting] = useState(false)
+  const [variation, setVariation] = useState(0)
+  const [thinking, setThinking] = useState(false)
+  const [result, setResult] = useState<AiResult | null>(null)
+  const existingCount = Object.values(slots).filter(Boolean).length
+
+  useEffect(() => {
+    const players = q.data?.players
+    if (!players || !players.length) return
+    setThinking(true)
+    const timer = setTimeout(() => {
+      const res = generateAiLineup(players, tonight, slots, { strategy, onlyTonight, skipInjured, keepExisting, variation })
+      setResult(res)
+      setThinking(false)
+    }, 320)
+    return () => clearTimeout(timer)
+  }, [q.data, strategy, onlyTonight, skipInjured, keepExisting, variation])
+
+  const activeStrategy = STRATEGIES.find((s) => s.key === strategy)!
+
+  return (
+    <View className='sheet-mask' onClick={onClose}>
+      <View className='sheet ai-sheet' onClick={(e) => e.stopPropagation()}>
+        <View className='sheet-h'>
+          <View className='row' style={{ gap: '6px' }}>
+            <Text className='bold ai-title'>✨ {zh() ? 'AI 智能选阵' : 'AI Lineup Assistant'}</Text>
+          </View>
+          <Text className='dim' onClick={onClose}>✕</Text>
+        </View>
+
+        <ScrollView scrollX className='fchips'>
+          {STRATEGIES.map((s) => (
+            <View key={s.key} className={'chip' + (strategy === s.key ? ' on' : '')} onClick={() => { setStrategy(s.key); setVariation(0) }}>
+              {zh() ? s.zh : s.en}
+            </View>
+          ))}
+        </ScrollView>
+
+        <Text className='dim small ai-desc'>{zh() ? activeStrategy.descZh : activeStrategy.descEn}</Text>
+
+        <View className='ai-opts'>
+          {tonight.length > 0 && (
+            <View className={'chip sm' + (onlyTonight ? ' on' : '')} onClick={() => setOnlyTonight(!onlyTonight)}>
+              {onlyTonight ? '✓ ' : ''}{zh() ? '仅今晚比赛' : 'Tonight only'}
+            </View>
+          )}
+          <View className={'chip sm' + (skipInjured ? ' on' : '')} onClick={() => setSkipInjured(!skipInjured)}>
+            {skipInjured ? '✓ ' : ''}{zh() ? '避开伤病' : 'Skip injured'}
+          </View>
+          {existingCount > 0 && (
+            <View className={'chip sm' + (keepExisting ? ' on' : '')} onClick={() => setKeepExisting(!keepExisting)}>
+              {keepExisting ? '✓ ' : ''}{zh() ? `保留已选(${existingCount})` : `Keep picked (${existingCount})`}
+            </View>
+          )}
+        </View>
+
+        <ScrollView scrollY className='sheet-list'>
+          <Loader loading={(q.loading && !q.data) || thinking} error={q.error} onRetry={q.reload} empty={!q.loading && !thinking && (!result || !result.picks.length)}>
+            {result && (
+              <View>
+                <View className='ai-sum card'>
+                  <View className='ai-sum-row'>
+                    <Text className='small dim'>{zh() ? '推荐阵容场均合计' : 'Combined averages'}</Text>
+                    <Text className='small dim'>{result.summary.salary ? money(result.summary.salary) : ''}</Text>
+                  </View>
+                  <View className='ai-sum-vals'>
+                    <Text className='blue bold'>{stat('pts', result.summary.pts)} {zh() ? '分' : 'PTS'}</Text>
+                    <Text className='dim'>·</Text>
+                    <Text className='bold'>{stat('reb', result.summary.reb)} {zh() ? '板' : 'REB'}</Text>
+                    <Text className='dim'>·</Text>
+                    <Text className='bold'>{stat('ast', result.summary.ast)} {zh() ? '助' : 'AST'}</Text>
+                  </View>
+                  {result.usedFallbackPool && (
+                    <Text className='orange small ai-warn'>
+                      {zh() ? '今晚比赛球队不足以填满全部位置，已自动从联盟活跃球员中补齐。' : 'Not enough tonight-game players for all slots; filled from active pool.'}
+                    </Text>
+                  )}
+                </View>
+
+                {result.picks.map((item) => (
+                  <View key={item.slot} className='ai-pick card'>
+                    <View className={'ai-badge' + (item.isExisting ? ' kept' : '')}>{item.base}</View>
+                    <View className='pk-img'>
+                      <Img src={headshotOf(item.player)} size={44} />
+                      <Image className='pk-logo' src={logoOf(item.player.team)} />
+                    </View>
+                    <View className='flex1'>
+                      <View className='row' style={{ gap: '6px' }}>
+                        <Text className='pc-n'>{fullName(item.player)}</Text>
+                        <Text className='dim small'>{teamName(item.player.team)}</Text>
+                      </View>
+                      <Text className='ai-reason'>{item.reason}</Text>
+                      <Stats p={item.player} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </Loader>
+        </ScrollView>
+
+        <View className='ai-foot'>
+          <View className='btn ghost ai-foot-btn' onClick={() => setVariation((v) => v + 1)}>
+            🔄 {zh() ? '换一批' : 'Regenerate'}
+          </View>
+          <View className='btn ai-foot-btn ai-apply' onClick={() => result && result.picks.length && onApply(result.picks)}>
+            ✓ {zh() ? '应用到球场' : 'Apply Lineup'}
+          </View>
+        </View>
+      </View>
+    </View>
+  )
+}
+
