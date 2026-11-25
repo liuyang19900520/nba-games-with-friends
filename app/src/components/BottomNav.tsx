@@ -1,6 +1,4 @@
-// Bottom navigation = v1 (legacy-v1 apps/web/src/components/layout/BottomNav.tsx): same 5 items, order, icons
-// (lucide Home/Trophy/Users/User + center basketball), labels, colors, raised gradient center button when active.
-// Rendered by each top-level page (not the native tabBar) so weapp and H5 look identical. Mapping: docs/ui-navigation.md
+// Shared bottom navigation for WeChat and H5. Mapping: docs/ui-navigation.md
 import { View, Image, Text } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import home from '../assets/nav/home.png'; import homeOn from '../assets/nav/home-on.png'
@@ -15,7 +13,7 @@ const ITEMS: { key: NavKey; label: string; url: string; icon: [string, string]; 
   { key: 'home', label: 'Home', url: '/pages/index/index', icon: [home, homeOn] },
   { key: 'leagues', label: 'Leagues', url: '/pages/standings/index', icon: [trophy, trophyOn] },
   { key: 'lineup', label: 'Lineup', url: '/pages/lineup/index', icon: [ball, ballOn], center: true },
-  { key: 'matchups', label: 'Matchups', url: '/pages/leaders/index', icon: [users, usersOn] },
+  { key: 'matchups', label: 'Matchups', url: '/pages/matchups/index', icon: [users, usersOn] },
   { key: 'profile', label: 'Profile', url: '/pages/more/index', icon: [user, userOn] },
 ]
 export default function BottomNav({ active }: { active: NavKey }) {

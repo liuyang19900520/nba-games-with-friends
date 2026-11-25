@@ -1,6 +1,7 @@
 import { View, Text } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
 import { useEffect, useState } from 'react'
+import { useDidShow } from '@tarojs/taro'
 import { api } from '../../lib/api'
 import { t, getLang, useLang } from '../../lib/i18n'
 import { useFetch, go } from '../../lib/hooks'
@@ -8,6 +9,8 @@ import { teamName, teamColor, logoOf, headshotOf } from '../../lib/teams'
 import { money, num, stat } from '../../lib/fmt'
 import { autoCols, label } from '../../lib/stats'
 import { fullName } from '../../lib/names'
+import { calcFantasyScore } from '../../lib/fantasy'
+import { readFantasyRules } from '../../lib/fantasyStorage'
 import { Loader, Img, Tabs, Table, KV, Section, Seg } from '../../components/ui'
 import './index.less'
 
@@ -39,6 +42,8 @@ export default function Player() {
   const lang = useLang()
   const [tab, setTab] = useState('stats')
   const [stype, setStype] = useState('2')
+  const [fantasyRules, setFantasyRules] = useState(readFantasyRules)
+  useDidShow(() => setFantasyRules(readFantasyRules()))
   const base = useFetch(() => api.player(id), [id])
   const cur = base.data?.season
   const q = useFetch(() => (stype === String(base.data?.season_type ?? 2) || !cur ? Promise.resolve(base.data) : api.player(id, cur, +stype)), [id, stype, cur])
@@ -47,7 +52,7 @@ export default function Player() {
   const p = d.player
   useEffect(() => { if (p) Taro.setNavigationBarTitle({ title: (lang === 'zh' && p.name_zh) || p.name }) }, [p, lang])
   const color = teamColor(p?.team)
-  const games: any[] = (glog.data?.game_log || glog.data?.games || d.game_log || []).map((g: any) => ({ ...g, ha: g.home_away === 'home' ? (lang === 'zh' ? '主' : 'H') : (lang === 'zh' ? '客' : 'A') }))
+  const games: any[] = (glog.data?.game_log || glog.data?.games || d.game_log || []).map((g: any) => ({ ...g, fantasy: g.dnp || g.minutes === 'DNP' ? undefined : calcFantasyScore(g, fantasyRules).score, ha: g.home_away === 'home' ? (lang === 'zh' ? '主' : 'H') : (lang === 'zh' ? '客' : 'A') }))
   const seasons: any[] = d.seasons || []
   const inj = p?.injury
   return (
@@ -96,7 +101,7 @@ export default function Player() {
           <View className='pad'>
             <Loader loading={glog.loading} empty={!games.length}>
               <Table rows={games} firstWidth={96} firstHead={t('games')} onRow={(g) => go(`/pages/game/index?id=${g.game_id}`)}
-                cols={['ha', 'result', 'score', ...autoCols(games, ['starter', 'min', 'pts', 'reb', 'oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf', 'fgm', 'fga', 'fg3m', 'fg3a', 'ftm', 'fta', 'plus_minus'])]}
+                cols={Array.from(new Set(['ha', 'result', 'score', 'fantasy', ...autoCols(games, ['starter', 'min', 'pts', 'reb', 'oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf', 'fgm', 'fga', 'fg3m', 'fg3a', 'ftm', 'fta', 'plus_minus'])]))}
                 first={(g) => <Text className='small'>{String(g.date || '').slice(5)} {g.home_away === 'home' ? 'vs' : '@'} {teamName(g.opponent) || g.opp}</Text>} />
             </Loader>
           </View>
